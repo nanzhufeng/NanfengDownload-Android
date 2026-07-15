@@ -6,7 +6,7 @@
 
 **Architecture:** 在现有桌面项目下新增独立 `android/` 工程，使用 Kotlin/Compose 承载诊断界面，Chaquopy 仅承载 `yt-dlp` 解析，Kotlin 原生网络层负责下载，Media3 Transformer 负责 MP4 合并。所有验证结果通过结构化 `ProbeResult` 返回；任一核心链路失败即停止，不提前开发完整首页、历史和设置页。
 
-**Tech Stack:** Android Gradle Plugin 8.5.2、Gradle 8.7、Kotlin 2.0.20、compileSdk/targetSdk 35、minSdk 24、Jetpack Compose、Chaquopy 17.0.0、Python 3.13、yt-dlp 2026.06.09、Media3 1.10.1、JUnit 4、AndroidX Test。
+**Tech Stack:** Android Gradle Plugin 8.5.2、Gradle 8.7、Kotlin 2.0.20、compileSdk/targetSdk 35、minSdk 24、Jetpack Compose、Chaquopy 17.0.0、Python 3.13、yt-dlp 2026.06.09、Media3 1.8.1、JUnit 4、AndroidX Test。
 
 ## Global Constraints
 
@@ -17,6 +17,7 @@
 - 不保存账号密码，不绕过会员、付费、DRM 或私密内容限制。
 - 不使用 Playwright，不复制 Windows 路径和浏览器启动逻辑。
 - MP4 合并优先使用 Media3；本阶段不安装 NDK、不打包 FFmpeg。
+- Media3 固定为 `1.8.1`：`1.10.1` 的 AAR 要求 compileSdk 36，与本阶段 Android 35 基线冲突；待核心链路通过后再评估升级。
 - 模拟器验证只能证明构建和基本链路；Find N5 真机验证是通过关卡的必要条件。
 - 下载结果必须存在、非空、包含可识别媒体容器，并可由系统播放器打开。
 - 每个任务完成后单独提交 Git；不得把 `build/`、APK 临时产物、Cookie 或测试下载文件提交。
@@ -184,8 +185,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("androidx.media3:media3-common:1.10.1")
-    implementation("androidx.media3:media3-transformer:1.10.1")
+    implementation("androidx.media3:media3-common:1.8.1")
+    implementation("androidx.media3:media3-transformer:1.8.1")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

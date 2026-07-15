@@ -17,6 +17,15 @@ dist_new/
 .superpowers/
 .worktrees/
 
+# Android local build state and packaged artifacts
+android/.gradle/
+android/local.properties
+android/**/build/
+android/captures/
+android/.idea/
+*.apk
+*.aab
+
 # Logs and temporary download files
 *.log
 startup-log.txt
