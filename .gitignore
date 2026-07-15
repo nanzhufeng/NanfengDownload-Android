@@ -1,0 +1,37 @@
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Build and packaged deliverables
+build/
+dist/
+dist_new/
+*.egg-info/
+
+# Local design sessions and generated previews
+.superpowers/
+
+# Logs and temporary download files
+*.log
+startup-log.txt
+*.tmp
+*.part
+*.ytdl
+
+# Login sessions and sensitive cookies
+cookies*.txt
+managed-cookies*.txt
+auth-data/
+browser-profile/
+
+# IDE and operating-system metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
