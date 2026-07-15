@@ -56,7 +56,7 @@ Android 版包含三个一级界面：
 - YouTube：通过 Chaquopy 嵌入受控 Python 运行时，复用 `yt-dlp` 的纯业务能力。
 - 抖音：优先移植现有 HTTP/JSON 解析规则；登录态和必要的页面捕获由 Android WebView 承担。
 - 下载传输：Kotlin 原生网络层负责可取消下载、断点续传和进度。
-- 音视频处理：打包 ARM64 可用的 FFmpeg 运行能力，但必须先验证许可证、体积和真机兼容性。
+- 音视频处理：MP4 音视频合并优先使用 Android 官方 Media3 Transformer；仅当 MP3 或复杂图文合成无法覆盖时，再单独验证 ARM64 FFmpeg 兜底方案。
 
 桌面版现有 Python 代码是规则依据，不直接整文件复制。需要保留的核心规则包括：
 
@@ -72,12 +72,12 @@ Android 版包含三个一级界面：
 
 1. OPPO Find N5 的 ARM64 环境可以启动嵌入式 Python。
 2. 当前 `yt-dlp` 可以解析并下载一个公开 YouTube 单视频。
-3. Android 端 FFmpeg 可以合并音视频并产出可播放 MP4。
+3. Android Media3 Transformer 可以合并独立音视频并产出可播放 MP4。
 4. 抖音公开单视频可以读取元数据并下载。
 5. 抖音应用内 WebView 登录状态重启后仍可恢复。
 6. 文件能通过 MediaStore 写入默认公共目录。
 
-若 YouTube 嵌入式运行时或 FFmpeg 任一项失败，停止扩展功能，不用大量 UI 掩盖底层不可用。届时只在以下两条备选中重新选择：
+若 YouTube 嵌入式运行时或 Media3 合并任一项失败，停止扩展功能，不用大量 UI 掩盖底层不可用。届时只在以下两条备选中重新选择：
 
 - Android 客户端连接 Windows 桌面伴侣服务。
 - Android 客户端连接受控的私有下载服务。
@@ -351,7 +351,7 @@ Movies/南烛枫视频下载器/平台/博主名/
 
 - Chaquopy 打包当前 `yt-dlp` 后在 OPPO Find N5 的实际兼容性和性能。
 - YouTube 当前解析所需脚本运行时在 Android 中的兼容性。
-- FFmpeg ARM64 包的许可证、体积、16 KB page size 和真机执行方式。
+- Media3 在 Find N5 上合并 YouTube 独立音视频流的兼容性；MP3 和复杂图文作品若需要 FFmpeg，则另行验证其许可证、体积、16 KB page size 和真机执行方式。
 - 抖音页面变化后，WebView 捕获和作者列表分页的稳定性。
 - OPPO 系统后台限制是否需要用户允许自启动或关闭电池优化。
 
@@ -364,5 +364,6 @@ Movies/南烛枫视频下载器/平台/博主名/
 - Android 折叠设备支持：https://developer.android.com/develop/adaptive-apps/guides/foldables/make-your-app-fold-aware
 - Android 长任务 Worker：https://developer.android.com/develop/background-work/background-tasks/persistent/how-to/long-running
 - Android 共享媒体存储：https://developer.android.com/training/data-storage/shared/media
+- Android Media3 Transformer：https://developer.android.com/media/media3/transformer
 - Chaquopy Android 文档：https://chaquo.com/chaquopy/doc/current/android.html
 - yt-dlp Android 安装说明：https://github.com/yt-dlp/yt-dlp/wiki/Installation
