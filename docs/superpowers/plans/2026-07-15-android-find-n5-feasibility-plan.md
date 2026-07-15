@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 项目目录固定为 `D:\CodexProjects\江湖工具箱\CleanVideoDownloader`，Android 工程固定放在 `android/`。
+- 主仓库目录为 `D:\CodexProjects\江湖工具箱\CleanVideoDownloader`，Android 工程固定放在 `android/`；Windows 下的 Android 编译和测试必须从纯英文 Git worktree 执行，当前路径为 `D:\CodexProjects\CleanVideoDownloader-AndroidProbe`。
 - 包名固定为 `com.nanzhufeng.videodownloader`，应用显示名固定为 `南烛枫视频下载器`。
 - 本阶段只验证公开单视频，不实现作者/频道批量读取、历史页、设置页和最终视觉稿。
 - 单视频链接不得扩展为整个作者或频道。
@@ -506,7 +506,7 @@ class PythonRuntimeInstrumentedTest {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.PythonRuntimeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.PythonRuntimeInstrumentedTest"
 ```
 
 Expected: FAIL，提示 `YoutubeProbe` 未定义。
@@ -644,7 +644,7 @@ class YoutubeProbe {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.PythonRuntimeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.PythonRuntimeInstrumentedTest"
 ```
 
 Expected: PASS，日志无 `ModuleNotFoundError` 或 ABI 加载错误。
@@ -845,7 +845,7 @@ class Media3MuxProbeInstrumentedTest {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.Media3MuxProbeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.Media3MuxProbeInstrumentedTest"
 ```
 
 Expected: FAIL，`Media3MuxProbe` 未定义。
@@ -923,7 +923,7 @@ object Media3MuxProbe {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.Media3MuxProbeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.Media3MuxProbeInstrumentedTest"
 ```
 
 Expected: PASS。
@@ -991,7 +991,7 @@ class MediaStoreProbeInstrumentedTest {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.MediaStoreProbeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.MediaStoreProbeInstrumentedTest"
 ```
 
 Expected: FAIL，`MediaStoreProbe` 未定义。
@@ -1047,7 +1047,7 @@ object MediaStoreProbe {
 Run:
 
 ```powershell
-.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.MediaStoreProbeInstrumentedTest
+.\android\gradlew.bat -p .\android :app:connectedDebugAndroidTest "-Pandroid.testInstrumentationRunnerArguments.class=com.nanzhufeng.videodownloader.probe.MediaStoreProbeInstrumentedTest"
 ```
 
 Expected: PASS；模拟器文件管理器可看到 `Movies/南烛枫视频下载器/Probe/storage-probe.mp4`。
