@@ -26,6 +26,7 @@ sealed interface DiscoveryResult {
         val owner: CreatorIdentity,
         val items: List<DiscoveredMedia>,
         val hasMore: Boolean,
+        val nextPage: Int?,
     ) : DiscoveryResult
 
     data class Failure(val message: String) : DiscoveryResult

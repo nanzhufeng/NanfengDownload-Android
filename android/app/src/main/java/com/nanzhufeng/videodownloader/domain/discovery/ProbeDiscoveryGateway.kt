@@ -1,0 +1,31 @@
+package com.nanzhufeng.videodownloader.domain.discovery
+
+import com.nanzhufeng.videodownloader.probe.ClassifiedSource
+import com.nanzhufeng.videodownloader.probe.CreatorCatalog
+import com.nanzhufeng.videodownloader.probe.ResolvedSource
+import com.nanzhufeng.videodownloader.probe.UrlClassifier
+import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
+import com.nanzhufeng.videodownloader.probe.YtDlpProbe
+
+interface ProbeDiscoveryGateway {
+    fun classify(input: String): ClassifiedSource
+
+    fun resolve(url: String): ResolvedSource
+
+    fun extractSingle(url: String): YtDlpMediaInfo
+
+    fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog
+}
+
+class ChaquopyProbeDiscoveryGateway(
+    private val probe: YtDlpProbe = YtDlpProbe(),
+) : ProbeDiscoveryGateway {
+    override fun classify(input: String): ClassifiedSource = UrlClassifier.extractAndClassify(input)
+
+    override fun resolve(url: String): ResolvedSource = probe.resolveSource(url)
+
+    override fun extractSingle(url: String): YtDlpMediaInfo = probe.extractSingle(url)
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        probe.extractCreator(url, start, pageSize)
+}
