@@ -8,6 +8,15 @@
 
 **Tech Stack:** Kotlin 2.0、Jetpack Compose、Chaquopy Python 3.13、yt-dlp 2026.6.9、Kotlin Coroutines、Media3 1.8.1、JUnit 4、Python unittest、Android MediaStore。
 
+## Implementation Result
+
+- 已完成 TikTok 单视频、作者主页和短链接分类。
+- 已完成平台中性单视频解析、作者隔离、作品去重、每批 50 条分页和“加载更多”。
+- 已修复 TikTok 媒体直链缺少 yt-dlp 会话 Cookie 导致的 HTTP 403。
+- Find N5 已真实通过公开单视频解析、下载、媒体校验和 MediaStore 写入测试。
+- Find N5 已真实通过两批 5 条作者目录合并与作者隔离；连续目录请求存在明显限流，50 条真机规模仍列为待验证风险。
+- 详细证据见 `docs/verification/android-find-n5-feasibility-result.md`。
+
 ## Global Constraints
 
 - 工作目录固定为 `D:\CodexProjects\CleanVideoDownloader-AndroidProbe`，分支固定为 `feature/android-find-n5-probe`。
