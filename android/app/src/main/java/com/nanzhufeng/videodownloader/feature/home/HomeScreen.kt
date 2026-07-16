@@ -21,6 +21,7 @@ fun HomeScreen(
     onPauseActive: () -> Unit = {},
     onStopActive: (String) -> Unit = {},
     networkAvailable: Boolean = false,
+    defaultResolution: ResolutionPreset = ResolutionPreset.UP_TO_720P,
     expanded: Boolean = false,
 ) {
     if (expanded) {
@@ -40,6 +41,7 @@ fun HomeScreen(
             onPauseActive = onPauseActive,
             onStopActive = onStopActive,
             networkAvailable = networkAvailable,
+            defaultResolution = defaultResolution,
         )
     } else {
         CompactHome(

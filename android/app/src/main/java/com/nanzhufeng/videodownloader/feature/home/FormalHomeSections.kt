@@ -95,7 +95,7 @@ internal fun CompactHome(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { HomeHeader(networkAvailable) }
+        item { HomeHeader(networkAvailable, Modifier.testTag("home-compact-run-status")) }
         item {
             if (active != null) {
                 ActiveDownloadCard(active, onPauseActive, onStopActive)
@@ -154,27 +154,50 @@ internal fun ExpandedHome(
     onPauseActive: () -> Unit,
     onStopActive: (String) -> Unit,
     networkAvailable: Boolean,
+    defaultResolution: ResolutionPreset,
 ) {
     val active = queue.firstOrNull { it.task.status == DownloadTaskStatus.DOWNLOADING }
 
     Row(
-        modifier = Modifier.fillMaxSize().padding(20.dp).testTag("formal-expanded-workbench"),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp).testTag("formal-expanded-workbench"),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(1.45f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HomeHeader(networkAvailable)
+            QueuePanel(
+                queue = queue,
+                onSelectionChanged = onSelectionChanged,
+                onBulkSelectionChanged = onBulkSelectionChanged,
+                onResolutionChanged = onResolutionChanged,
+                onStartDownloads = onStartDownloads,
+                expandedLayout = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .testTag("home-main-queue-workspace"),
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(0.82f)
                 .fillMaxHeight()
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Box(modifier = Modifier.testTag("home-side-add-task")) {
+                ReadEntryCard(input, onInputChange, onSmartRead, isReading, notice)
+            }
+            QualityAndProgressCard(defaultResolution, queue)
             if (active != null) {
                 ActiveDownloadCard(active, onPauseActive, onStopActive)
             } else {
-                EmptyActiveCard()
+                EmptyActiveCard(compact = true)
             }
-            TotalProgressCard(queue)
-            ReadEntryCard(input, onInputChange, onSmartRead, isReading, notice)
             if (canLoadMore) {
                 OutlinedButton(
                     onClick = onLoadMore,
@@ -183,21 +206,12 @@ internal fun ExpandedHome(
                 ) { Text("加载更多作品") }
             }
         }
-        QueuePanel(
-            queue = queue,
-            onSelectionChanged = onSelectionChanged,
-            onBulkSelectionChanged = onBulkSelectionChanged,
-            onResolutionChanged = onResolutionChanged,
-            onStartDownloads = onStartDownloads,
-            expandedLayout = true,
-            modifier = Modifier.weight(1.12f).fillMaxHeight().testTag("formal-expanded-queue"),
-        )
     }
 }
 
 @Composable
-private fun HomeHeader(networkAvailable: Boolean) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+private fun HomeHeader(networkAvailable: Boolean, modifier: Modifier = Modifier) {
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Image(
             painter = painterResource(R.drawable.nanzhufeng_app_icon),
             contentDescription = "南烛枫视频下载器",
@@ -496,6 +510,40 @@ private fun TotalProgressCard(queue: List<QueuedDownload>) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun QualityAndProgressCard(
+    defaultResolution: ResolutionPreset,
+    queue: List<QueuedDownload>,
+) {
+    val activeCount = queue.count { it.task.status == DownloadTaskStatus.DOWNLOADING }
+    val waitingCount = queue.count {
+        it.task.status in setOf(
+            DownloadTaskStatus.WAITING,
+            DownloadTaskStatus.PARSING,
+            DownloadTaskStatus.VALIDATING,
+        )
+    }
+    WorkbenchCard(
+        modifier = Modifier.testTag("home-side-quality-progress"),
+        tone = AppCardTone.PURPLE,
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("默认质量", fontWeight = FontWeight.Bold)
+            Text(
+                resolutionLabel(defaultResolution),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+            )
+            HorizontalDivider()
+            Text("任务进度", fontWeight = FontWeight.Bold)
+            Text(
+                if (queue.isEmpty()) "暂无待处理任务" else "${activeCount} 个下载中 · ${waitingCount} 个待处理",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

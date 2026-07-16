@@ -309,6 +309,7 @@ private fun AppNavHost(
                 onPauseActive = onPauseDownloads,
                 onStopActive = onStopDownload,
                 networkAvailable = networkAvailable,
+                defaultResolution = settings.defaultResolution,
                 expanded = expanded,
             )
         }

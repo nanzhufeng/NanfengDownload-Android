@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 
 class NanzhufengAppInstrumentedTest {
     @get:Rule
@@ -70,7 +72,7 @@ class NanzhufengAppInstrumentedTest {
     }
 
     @Test
-    fun expandedHomeUsesFormalTwoPaneWorkbench() {
+    fun expandedHomeUsesQueueWorkspaceAndCompactTaskSidebar() {
         composeRule.setContent {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
@@ -80,8 +82,18 @@ class NanzhufengAppInstrumentedTest {
             )
         }
 
-        composeRule.onNodeWithTag("formal-expanded-workbench").assertIsDisplayed()
-        composeRule.onNodeWithTag("formal-expanded-queue").assertIsDisplayed()
+        val queueWorkspace = composeRule.onNodeWithTag("home-main-queue-workspace")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        val taskSidebar = composeRule.onNodeWithTag("home-side-add-task")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        composeRule.onNodeWithTag("home-side-quality-progress").assertIsDisplayed()
+
+        assertTrue(
+            "The main queue workspace must remain left of the compact task sidebar",
+            queueWorkspace.right <= taskSidebar.left,
+        )
     }
 
     @Test
@@ -126,6 +138,26 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithText("当前没有下载任务").assertIsDisplayed()
         composeRule.onNodeWithTag("formal-queue-tabs").assertIsDisplayed()
         composeRule.onNodeWithTag("formal-read-entry").assertIsDisplayed()
+    }
+
+    @Test
+    fun compactHomeKeepsRunStatusAndQueueAheadOfReadEntry() {
+        composeRule.setContent { app(expanded = false) }
+
+        val runStatus = composeRule.onNodeWithTag("home-compact-run-status")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        val queue = composeRule.onNodeWithTag("formal-queue-tabs")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        val readEntry = composeRule.onNodeWithTag("formal-read-entry")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+
+        assertTrue(
+            "The outer-screen queue must stay ahead of the add-task action",
+            runStatus.bottom <= queue.top && queue.bottom <= readEntry.top,
+        )
     }
 
     @Composable
