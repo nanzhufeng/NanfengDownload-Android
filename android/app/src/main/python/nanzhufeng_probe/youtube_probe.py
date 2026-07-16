@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 import yt_dlp
 from yt_dlp import YoutubeDL
@@ -152,7 +153,62 @@ def _normalized_handle(value):
     return str(value or "").strip().lstrip("@").lower()
 
 
-def _creator_result(info, expected_handle):
+def _expected_creator_hint(url):
+    parsed = urlsplit(str(url or ""))
+    query = parse_qs(parsed.query)
+    playlist_id = (query.get("list") or [""])[0]
+    if playlist_id:
+        return _normalized_handle(playlist_id)
+
+    parts = [part for part in parsed.path.split("/") if part]
+    for marker in ("channel", "user", "c"):
+        if marker in parts:
+            index = parts.index(marker)
+            if index + 1 < len(parts):
+                return _normalized_handle(parts[index + 1])
+    for part in parts:
+        if part.startswith("@"):
+            return _normalized_handle(part)
+    return ""
+
+
+def _normalize_collection_url(url):
+    parsed = urlsplit(str(url or "").strip())
+    host = parsed.netloc.lower().split(":", 1)[0]
+    if host not in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
+        return urlunsplit(parsed)
+    if (parse_qs(parsed.query).get("list") or [""])[0]:
+        return urlunsplit(parsed)
+
+    parts = [part for part in parsed.path.split("/") if part]
+    is_channel = bool(parts) and (
+        parts[0].startswith("@") or parts[0] in {"channel", "c", "user"}
+    )
+    if is_channel and parts[-1] not in {"videos", "shorts", "streams"}:
+        normalized_path = parsed.path.rstrip("/") + "/videos"
+        return urlunsplit(parsed._replace(path=normalized_path))
+    return urlunsplit(parsed)
+
+
+def _is_youtube_collection(info):
+    extractor = str(info.get("extractor_key") or info.get("extractor") or "").lower()
+    source_url = str(
+        info.get("webpage_url")
+        or info.get("original_url")
+        or info.get("_collection_url")
+        or ""
+    ).lower()
+    return "youtube" in extractor or "youtu.be" in source_url or "youtube.com" in source_url
+
+
+def _entry_webpage_url(info, item, video_id):
+    item_url = str(item.get("webpage_url") or item.get("url") or "").strip()
+    if _is_youtube_collection(info) and not re.match(r"^https?://", item_url):
+        return f"https://www.youtube.com/watch?v={video_id}"
+    return item_url
+
+
+def _creator_result(info, expected_handle, strict_owner=True):
     expected_handle = _normalized_handle(expected_handle)
     root_creator = str(
         info.get("channel")
@@ -183,21 +239,22 @@ def _creator_result(info, expected_handle):
         item_handle = _normalized_handle(item.get("uploader"))
         item_uploader_id = _normalized_handle(item.get("uploader_id"))
         item_channel_id = _normalized_handle(item.get("channel_id"))
-        item_url = str(item.get("webpage_url") or item.get("url") or "")
-        if root_channel_id and item_channel_id and item_channel_id != root_channel_id:
-            foreign_count += 1
-            continue
-        if root_uploader_id and item_uploader_id and item_uploader_id != root_uploader_id:
-            foreign_count += 1
-            continue
+        item_url = _entry_webpage_url(info, item, video_id)
+        if strict_owner:
+            if root_channel_id and item_channel_id and item_channel_id != root_channel_id:
+                foreign_count += 1
+                continue
+            if root_uploader_id and item_uploader_id and item_uploader_id != root_uploader_id:
+                foreign_count += 1
+                continue
 
-        channel_matches = root_channel_id and item_channel_id == root_channel_id
-        uploader_id_matches = root_uploader_id and item_uploader_id == root_uploader_id
-        handle_matches = expected_handle and item_handle == expected_handle
-        url_matches = expected_path and expected_path in item_url.lower()
-        if not (channel_matches or uploader_id_matches or handle_matches or url_matches):
-            foreign_count += 1
-            continue
+            channel_matches = root_channel_id and item_channel_id == root_channel_id
+            uploader_id_matches = root_uploader_id and item_uploader_id == root_uploader_id
+            handle_matches = expected_handle and item_handle == expected_handle
+            url_matches = expected_path and expected_path in item_url.lower()
+            if not (channel_matches or uploader_id_matches or handle_matches or url_matches):
+                foreign_count += 1
+                continue
 
         seen.add(video_id)
         entries.append(
@@ -207,7 +264,7 @@ def _creator_result(info, expected_handle):
                 "creator": str(
                     item.get("uploader") or item.get("channel") or root_creator
                 ),
-                "creator_id": item_channel_id or root_id,
+                "creator_id": root_id if not strict_owner else item_channel_id or root_id,
                 "webpage_url": item_url,
                 "upload_date": str(item.get("upload_date") or ""),
                 "thumbnail": str(item.get("thumbnail") or ""),
@@ -223,23 +280,29 @@ def _creator_result(info, expected_handle):
     }
 
 
-def _creator_page_result(info, expected_handle, start, page_size):
+def _creator_page_result(info, expected_handle, start, page_size, strict_owner=True):
     raw_entries = list(info.get("entries") or [])
     page_info = dict(info)
     page_info["entries"] = raw_entries[:page_size]
-    result = _creator_result(page_info, expected_handle)
+    result = _creator_result(page_info, expected_handle, strict_owner=strict_owner)
     result["has_more"] = len(raw_entries) > page_size
     result["next_start"] = start + page_size if result["has_more"] else 0
     return result
 
 
 def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
-    match = re.search(r"/@([^/?#]+)", url)
-    if not match:
-        raise ValueError("TikTok 作者主页缺少 @作者 标识")
     if start < 1 or page_size < 1:
-        raise ValueError("TikTok 作者作品分页参数无效")
-    expected_handle = match.group(1)
+        raise ValueError("作品列表分页参数无效")
+    normalized_url = _normalize_collection_url(url)
+    expected_handle = _expected_creator_hint(normalized_url)
+    parsed = urlsplit(normalized_url)
+    is_youtube_playlist = (
+        "youtube" in parsed.netloc.lower()
+        and bool((parse_qs(parsed.query).get("list") or [""])[0])
+    )
+    strict_owner = not is_youtube_playlist
+    if strict_owner and not expected_handle:
+        raise ValueError("作者或频道链接缺少可验证的身份标识")
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -252,11 +315,19 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
         "retries": 1,
     }
     with YoutubeDL(options) as ydl:
-        info = ydl.extract_info(url, download=False)
+        info = ydl.extract_info(normalized_url, download=False)
     if start == 1 and not info.get("entries"):
-        raise ValueError("TikTok 作者主页没有返回公开作品")
+        raise ValueError("作者、频道或播放列表没有返回可读取作品")
+    info = dict(info)
+    info["_collection_url"] = normalized_url
     return json.dumps(
-        _creator_page_result(info, expected_handle, start, page_size),
+        _creator_page_result(
+            info,
+            expected_handle,
+            start,
+            page_size,
+            strict_owner=strict_owner,
+        ),
         ensure_ascii=False,
     )
 

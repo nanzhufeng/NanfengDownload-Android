@@ -123,6 +123,27 @@ class CreatorResultTest(unittest.TestCase):
         self.assertEqual(["one", "two"], [entry["id"] for entry in result["entries"]])
         self.assertEqual({"pl123"}, {entry["creator_id"] for entry in result["entries"]})
 
+    def test_youtube_flat_entry_id_becomes_downloadable_watch_url(self):
+        info = {
+            "id": "UCtarget",
+            "channel_id": "UCtarget",
+            "webpage_url": "https://www.youtube.com/@target/videos",
+            "entries": [
+                {
+                    "id": "abc123",
+                    "channel_id": "UCtarget",
+                    "url": "abc123",
+                },
+            ],
+        }
+
+        result = _creator_result(info, "UCtarget")
+
+        self.assertEqual(
+            "https://www.youtube.com/watch?v=abc123",
+            result["entries"][0]["webpage_url"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
