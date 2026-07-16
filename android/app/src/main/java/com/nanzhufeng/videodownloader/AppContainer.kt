@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader
 import android.content.Context
 import androidx.room.Room
 import com.nanzhufeng.videodownloader.data.database.NanzhufengDatabase
+import com.nanzhufeng.videodownloader.data.database.NanzhufengMigrations
 import com.nanzhufeng.videodownloader.data.network.NetworkStatusMonitor
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.repository.RoomDownloadRepository
@@ -36,7 +37,8 @@ class AppContainer private constructor(
                 applicationContext,
                 NanzhufengDatabase::class.java,
                 "nanzhufeng-video-downloader.db",
-            ).build()
+            ).addMigrations(NanzhufengMigrations.MIGRATION_1_2)
+                .build()
             val downloads = RoomDownloadRepository(database)
             val taskRunner = DownloadTaskRunner(
                 repository = downloads,

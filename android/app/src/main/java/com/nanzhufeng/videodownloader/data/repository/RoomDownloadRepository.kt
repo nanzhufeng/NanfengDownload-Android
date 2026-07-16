@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.data.repository
 
 import androidx.room.withTransaction
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
@@ -135,6 +136,29 @@ class RoomDownloadRepository(
         }
     }
 
+    override suspend fun transitionWithProblem(
+        taskId: String,
+        to: DownloadTaskStatus,
+        failureType: DownloadFailureType,
+        errorSummary: String,
+    ) {
+        database.withTransaction {
+            val task = requireNotNull(taskDao.getById(taskId)) { "找不到下载任务：$taskId" }
+            val from = DownloadTaskStatus.valueOf(task.status)
+            TaskTransitionPolicy.requireTransition(from, to)
+            check(
+                taskDao.updateStatusWithProblem(
+                    taskId = taskId,
+                    status = to.name,
+                    failureType = failureType.name,
+                    errorSummary = errorSummary,
+                    retryIncrement = if (to == DownloadTaskStatus.WAITING_NETWORK) 1 else 0,
+                    updatedAt = clock(),
+                ) == 1,
+            ) { "更新下载任务失败：$taskId" }
+        }
+    }
+
     override suspend fun archiveTerminal(history: DownloadHistory) {
         require(history.finalStatus.isTerminal) { "只有终态任务可以归档" }
         historyDao.upsert(history.toEntity())
@@ -182,7 +206,7 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         speedBytesPerSecond = task.speedBytesPerSecond,
         remainingSeconds = task.remainingSeconds,
         status = DownloadTaskStatus.valueOf(task.status),
-        failureType = task.failureType,
+        failureType = task.failureType?.let(DownloadFailureType::valueOf),
         errorSummary = task.errorSummary,
         retryCount = task.retryCount,
         updatedAt = task.updatedAt,
@@ -214,6 +238,8 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     fileSize = fileSize,
     fileExists = fileExists,
     completedAt = completedAt,
+    failureType = failureType?.name,
+    errorSummary = errorSummary,
 )
 
 private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
@@ -229,4 +255,6 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     fileSize = fileSize,
     fileExists = fileExists,
     completedAt = completedAt,
+    failureType = failureType?.let(DownloadFailureType::valueOf),
+    errorSummary = errorSummary,
 )

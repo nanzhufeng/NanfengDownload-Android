@@ -92,11 +92,34 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
-        SET status = :status, updatedAt = :updatedAt
+        SET status = :status,
+            failureType = NULL,
+            errorSummary = NULL,
+            updatedAt = :updatedAt
         WHERE taskId = :taskId
         """,
     )
     suspend fun updateStatus(taskId: String, status: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = :status,
+            failureType = :failureType,
+            errorSummary = :errorSummary,
+            retryCount = retryCount + :retryIncrement,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateStatusWithProblem(
+        taskId: String,
+        status: String,
+        failureType: String,
+        errorSummary: String,
+        retryIncrement: Int,
+        updatedAt: Long,
+    ): Int
 
     @Query(
         """

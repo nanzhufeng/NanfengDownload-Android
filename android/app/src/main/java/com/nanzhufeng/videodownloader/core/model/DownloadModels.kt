@@ -33,6 +33,14 @@ enum class DownloadTaskStatus {
     CANCELLED,
 }
 
+enum class DownloadFailureType {
+    NETWORK,
+    SOURCE,
+    TRANSFER,
+    OUTPUT,
+    UNKNOWN,
+}
+
 val DownloadTaskStatus.isTerminal: Boolean
     get() = this in setOf(
         DownloadTaskStatus.COMPLETED,
@@ -66,7 +74,7 @@ data class DownloadTask(
     val speedBytesPerSecond: Long,
     val remainingSeconds: Long?,
     val status: DownloadTaskStatus,
-    val failureType: String?,
+    val failureType: DownloadFailureType?,
     val errorSummary: String?,
     val retryCount: Int,
     val updatedAt: Long,
@@ -90,4 +98,6 @@ data class DownloadHistory(
     val fileSize: Long,
     val fileExists: Boolean,
     val completedAt: Long,
+    val failureType: DownloadFailureType? = null,
+    val errorSummary: String? = null,
 )

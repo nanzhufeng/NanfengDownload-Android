@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.domain.download
 
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
@@ -10,6 +11,7 @@ import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import java.io.File
+import java.net.UnknownHostException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -51,6 +53,46 @@ class DownloadTaskRunnerTest {
                 RuntimeException("ERROR: HTTP Error 403: Forbidden"),
             ),
         )
+    }
+
+    @Test
+    fun nonNetworkFailurePersistsProblemOnTaskAndHistory() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = ThrowingResolver(IllegalStateException("没有可下载视频流")),
+            transfer = FailingTransfer(),
+            outputStore = EmptyOutputStore(),
+            clock = { 200L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Failed, result)
+        assertEquals(DownloadTaskStatus.FAILED, repository.current.task.status)
+        assertEquals(DownloadFailureType.SOURCE, repository.current.task.failureType)
+        assertEquals("没有可下载视频流", repository.current.task.errorSummary)
+        assertEquals(DownloadFailureType.SOURCE, repository.archived.single().failureType)
+        assertEquals("没有可下载视频流", repository.archived.single().errorSummary)
+    }
+
+    @Test
+    fun networkFailureKeepsProblemAndWaitsForRetryWithoutArchiving() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = ThrowingResolver(UnknownHostException("网络不可用")),
+            transfer = FailingTransfer(),
+            outputStore = EmptyOutputStore(),
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.WaitingForNetwork, result)
+        assertEquals(DownloadTaskStatus.WAITING_NETWORK, repository.current.task.status)
+        assertEquals(DownloadFailureType.NETWORK, repository.current.task.failureType)
+        assertEquals("网络不可用", repository.current.task.errorSummary)
+        assertTrue(repository.archived.isEmpty())
     }
 
     private fun queued() = QueuedDownload(
@@ -111,6 +153,21 @@ private class RunnerRepository(initial: QueuedDownload) : DownloadRepository {
         current = current.copy(task = current.task.copy(status = to))
     }
 
+    override suspend fun transitionWithProblem(
+        taskId: String,
+        to: DownloadTaskStatus,
+        failureType: DownloadFailureType,
+        errorSummary: String,
+    ) {
+        current = current.copy(
+            task = current.task.copy(
+                status = to,
+                failureType = failureType,
+                errorSummary = errorSummary,
+            ),
+        )
+    }
+
     override suspend fun archiveTerminal(history: DownloadHistory) {
         archived += history
     }
@@ -131,6 +188,12 @@ private class RecordingResolver : TaskMediaResolver {
     }
 }
 
+private class ThrowingResolver(private val error: Throwable) : TaskMediaResolver {
+    override suspend fun resolve(media: MediaItem, resolution: ResolutionPreset): ResolvedMedia {
+        throw error
+    }
+}
+
 private class FailingTransfer : MediaTransfer {
     override suspend fun download(
         task: QueuedDownload,
@@ -146,6 +209,21 @@ private class ExistingOutputStore : DownloadOutputStore {
     ): StoredMedia = StoredMedia("content://media/existing", 128_000L)
 
     override suspend fun uriExists(uri: String): Boolean = true
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+    ): StoredMedia = error("不应写入")
+}
+
+private class EmptyOutputStore : DownloadOutputStore {
+    override suspend fun findExisting(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+    ): StoredMedia? = null
+
+    override suspend fun uriExists(uri: String): Boolean = false
 
     override suspend fun publish(
         media: MediaItem,

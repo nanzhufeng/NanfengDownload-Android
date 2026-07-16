@@ -87,4 +87,6 @@ data class DownloadHistoryEntity(
     val fileSize: Long,
     val fileExists: Boolean,
     val completedAt: Long,
+    val failureType: String? = null,
+    val errorSummary: String? = null,
 )

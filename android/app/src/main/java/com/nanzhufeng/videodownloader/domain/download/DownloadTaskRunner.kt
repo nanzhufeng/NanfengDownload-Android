@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.domain.download
 
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
@@ -122,16 +123,35 @@ class DownloadTaskRunner(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            val terminal = if (NetworkErrorClassifier.isRetryable(error)) {
+            val retryable = NetworkErrorClassifier.isRetryable(error)
+            val terminal = if (retryable) {
                 DownloadTaskStatus.WAITING_NETWORK
             } else {
                 DownloadTaskStatus.FAILED
             }
+            val failureType = if (retryable) {
+                DownloadFailureType.NETWORK
+            } else {
+                status.toFailureType()
+            }
+            val errorSummary = error.toErrorSummary()
             if (status != terminal) {
-                repository.transition(queued.task.taskId, terminal)
+                repository.transitionWithProblem(
+                    taskId = queued.task.taskId,
+                    to = terminal,
+                    failureType = failureType,
+                    errorSummary = errorSummary,
+                )
             }
             if (terminal == DownloadTaskStatus.FAILED) {
-                repository.archiveTerminal(queued.toHistory(terminal, null))
+                repository.archiveTerminal(
+                    queued.toHistory(
+                        finalStatus = terminal,
+                        stored = null,
+                        failureType = failureType,
+                        errorSummary = errorSummary,
+                    ),
+                )
             }
             return if (terminal == DownloadTaskStatus.WAITING_NETWORK) {
                 TaskRunResult.WaitingForNetwork
@@ -144,6 +164,8 @@ class DownloadTaskRunner(
     private fun QueuedDownload.toHistory(
         finalStatus: DownloadTaskStatus,
         stored: StoredMedia?,
+        failureType: DownloadFailureType? = null,
+        errorSummary: String? = null,
     ) = DownloadHistory(
         taskId = task.taskId,
         platform = media.platform,
@@ -157,7 +179,27 @@ class DownloadTaskRunner(
         fileSize = stored?.fileSize ?: 0L,
         fileExists = stored != null,
         completedAt = clock(),
+        failureType = failureType,
+        errorSummary = errorSummary,
     )
+
+    private fun DownloadTaskStatus.toFailureType(): DownloadFailureType = when (this) {
+        DownloadTaskStatus.PARSING -> DownloadFailureType.SOURCE
+        DownloadTaskStatus.DOWNLOADING -> DownloadFailureType.TRANSFER
+        DownloadTaskStatus.VALIDATING -> DownloadFailureType.OUTPUT
+        else -> DownloadFailureType.UNKNOWN
+    }
+
+    private fun Throwable.toErrorSummary(): String = generateSequence(this) { it.cause }
+        .mapNotNull { it.message?.trim()?.takeIf(String::isNotEmpty) }
+        .firstOrNull()
+        ?.replace(Regex("\\s+"), " ")
+        ?.take(MAX_ERROR_SUMMARY_LENGTH)
+        ?: "下载任务失败，未返回具体原因"
+
+    private companion object {
+        const val MAX_ERROR_SUMMARY_LENGTH = 400
+    }
 }
 
 object NetworkErrorClassifier {

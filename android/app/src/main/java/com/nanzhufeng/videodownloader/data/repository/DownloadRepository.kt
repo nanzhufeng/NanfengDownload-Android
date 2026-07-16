@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.data.repository
 
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
@@ -44,6 +45,15 @@ interface DownloadRepository {
     )
 
     suspend fun transition(taskId: String, to: DownloadTaskStatus)
+
+    suspend fun transitionWithProblem(
+        taskId: String,
+        to: DownloadTaskStatus,
+        failureType: DownloadFailureType,
+        errorSummary: String,
+    ) {
+        transition(taskId, to)
+    }
 
     suspend fun archiveTerminal(history: DownloadHistory)
 
