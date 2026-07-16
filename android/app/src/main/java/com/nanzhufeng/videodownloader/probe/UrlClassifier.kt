@@ -6,7 +6,7 @@ object UrlClassifier {
     fun extractAndClassify(text: String): ClassifiedSource {
         val raw = urlRegex.find(text)?.value
             ?.trimEnd('。', '，', ',', '.', ')', '）', ']', '】')
-            ?: throw IllegalArgumentException("没有找到抖音或 YouTube 链接")
+            ?: throw IllegalArgumentException("没有找到抖音、YouTube 或 TikTok 链接")
         val lower = raw.lowercase()
 
         return when {
@@ -28,7 +28,16 @@ object UrlClassifier {
             "v.douyin.com/" in lower ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, raw)
 
-            else -> throw IllegalArgumentException("只支持抖音和 YouTube 链接")
+            "tiktok.com/@" in lower && "/video/" in lower ->
+                ClassifiedSource(Platform.TIKTOK, SourceKind.SINGLE_VIDEO, raw)
+
+            Regex("https?://(?:www\\.)?tiktok\\.com/@[^/?#]+/?(?:[?#].*)?$").matches(lower) ->
+                ClassifiedSource(Platform.TIKTOK, SourceKind.CHANNEL_OR_PLAYLIST, raw)
+
+            "vm.tiktok.com/" in lower || "vt.tiktok.com/" in lower ->
+                ClassifiedSource(Platform.TIKTOK, SourceKind.UNKNOWN_TIKTOK_SHARE, raw)
+
+            else -> throw IllegalArgumentException("只支持抖音、YouTube 和 TikTok 链接")
         }
     }
 }

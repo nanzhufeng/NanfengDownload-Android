@@ -3,12 +3,14 @@ package com.nanzhufeng.videodownloader.probe
 enum class Platform {
     YOUTUBE,
     DOUYIN,
+    TIKTOK,
 }
 
 enum class SourceKind {
     SINGLE_VIDEO,
     CHANNEL_OR_PLAYLIST,
     UNKNOWN_DOUYIN_SHARE,
+    UNKNOWN_TIKTOK_SHARE,
 }
 
 data class ClassifiedSource(

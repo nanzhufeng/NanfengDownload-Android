@@ -34,6 +34,32 @@ class UrlClassifierTest {
     }
 
     @Test
+    fun tiktokVideoIsSingleVideo() {
+        val source = UrlClassifier.extractAndClassify(
+            "https://www.tiktok.com/@creator/video/7512345678901234567",
+        )
+
+        assertEquals(Platform.TIKTOK, source.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, source.kind)
+    }
+
+    @Test
+    fun tiktokCreatorIsCatalog() {
+        val source = UrlClassifier.extractAndClassify("https://www.tiktok.com/@creator")
+
+        assertEquals(Platform.TIKTOK, source.platform)
+        assertEquals(SourceKind.CHANNEL_OR_PLAYLIST, source.kind)
+    }
+
+    @Test
+    fun tiktokShortLinkDefersNetworkClassification() {
+        val source = UrlClassifier.extractAndClassify("https://vt.tiktok.com/ZSMock123/")
+
+        assertEquals(Platform.TIKTOK, source.platform)
+        assertEquals(SourceKind.UNKNOWN_TIKTOK_SHARE, source.kind)
+    }
+
+    @Test
     fun missingUrlFails() {
         assertThrows(IllegalArgumentException::class.java) {
             UrlClassifier.extractAndClassify("只有普通文字")
