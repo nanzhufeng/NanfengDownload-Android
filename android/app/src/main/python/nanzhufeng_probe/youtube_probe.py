@@ -14,6 +14,17 @@ def runtime_info() -> str:
     )
 
 
+def _with_session_access(options, cookie_header="", cookie_file=""):
+    scoped = dict(options)
+    if cookie_header:
+        headers = dict(scoped.get("http_headers") or {})
+        headers["Cookie"] = cookie_header
+        scoped["http_headers"] = headers
+    if cookie_file:
+        scoped["cookiefile"] = cookie_file
+    return scoped
+
+
 def _best(items, predicate, score):
     candidates = [item for item in items if predicate(item)]
     return max(candidates, key=score) if candidates else None
@@ -134,7 +145,7 @@ def _source_result(info):
     }
 
 
-def resolve_source(url: str) -> str:
+def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> str:
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -144,6 +155,7 @@ def resolve_source(url: str) -> str:
         "socket_timeout": 20,
         "retries": 1,
     }
+    options = _with_session_access(options, cookie_header, cookie_file)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
     return json.dumps(_source_result(info), ensure_ascii=False)
@@ -315,7 +327,13 @@ def _creator_page_result(
     return result
 
 
-def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
+def extract_creator(
+    url: str,
+    start: int = 1,
+    page_size: int = 50,
+    cookie_header: str = "",
+    cookie_file: str = "",
+) -> str:
     if start < 1 or page_size < 1:
         raise ValueError("作品列表分页参数无效")
     normalized_url = _normalize_collection_url(url)
@@ -340,6 +358,7 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
         "socket_timeout": 20,
         "retries": 1,
     }
+    options = _with_session_access(options, cookie_header, cookie_file)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(normalized_url, download=False)
     if start == 1 and not info.get("entries"):
@@ -359,7 +378,12 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
     )
 
 
-def extract_single(url: str, resolution: str = "UP_TO_720P") -> str:
+def extract_single(
+    url: str,
+    resolution: str = "UP_TO_720P",
+    cookie_header: str = "",
+    cookie_file: str = "",
+) -> str:
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -368,16 +392,21 @@ def extract_single(url: str, resolution: str = "UP_TO_720P") -> str:
         "socket_timeout": 20,
         "retries": 1,
     }
+    options = _with_session_access(options, cookie_header, cookie_file)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
         chosen_video, _ = _select_streams(info.get("formats") or [], resolution)
-        cookie_header = (
+        extracted_cookie_header = (
             ydl.cookiejar.get_cookie_header(chosen_video["url"])
             if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
             else ""
         )
 
     return json.dumps(
-        _media_result(info, cookie_header=cookie_header, resolution=resolution),
+        _media_result(
+            info,
+            cookie_header=extracted_cookie_header or cookie_header,
+            resolution=resolution,
+        ),
         ensure_ascii=False,
     )

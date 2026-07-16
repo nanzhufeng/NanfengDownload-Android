@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.probe
 
 import com.chaquo.python.Python
+import com.nanzhufeng.videodownloader.domain.session.SessionAccess
 import org.json.JSONObject
 
 data class RuntimeInfo(
@@ -80,8 +81,15 @@ class YtDlpProbe {
         )
     }
 
-    fun resolveSource(url: String): ResolvedSource {
-        val json = JSONObject(module.callAttr("resolve_source", url).toString())
+    fun resolveSource(url: String, access: SessionAccess = SessionAccess()): ResolvedSource {
+        val json = JSONObject(
+            module.callAttr(
+                "resolve_source",
+                url,
+                access.cookieHeader,
+                access.cookieFilePath.orEmpty(),
+            ).toString(),
+        )
         val kind = when (json.getString("kind")) {
             "single" -> SourceKind.SINGLE_VIDEO
             "creator" -> SourceKind.CHANNEL_OR_PLAYLIST
@@ -97,8 +105,17 @@ class YtDlpProbe {
         url: String,
         resolution: com.nanzhufeng.videodownloader.core.model.ResolutionPreset =
             com.nanzhufeng.videodownloader.core.model.ResolutionPreset.UP_TO_720P,
+        access: SessionAccess = SessionAccess(),
     ): YtDlpMediaInfo {
-        val json = JSONObject(module.callAttr("extract_single", url, resolution.name).toString())
+        val json = JSONObject(
+            module.callAttr(
+                "extract_single",
+                url,
+                resolution.name,
+                access.cookieHeader,
+                access.cookieFilePath.orEmpty(),
+            ).toString(),
+        )
         val headersJson = json.getJSONObject("headers")
         val headers = headersJson.keys().asSequence().associateWith(headersJson::getString)
         return YtDlpMediaInfo(
@@ -118,9 +135,21 @@ class YtDlpProbe {
         )
     }
 
-    fun extractCreator(url: String, start: Int = 1, pageSize: Int = 50): CreatorCatalog {
+    fun extractCreator(
+        url: String,
+        start: Int = 1,
+        pageSize: Int = 50,
+        access: SessionAccess = SessionAccess(),
+    ): CreatorCatalog {
         val json = JSONObject(
-            module.callAttr("extract_creator", url, start, pageSize).toString(),
+            module.callAttr(
+                "extract_creator",
+                url,
+                start,
+                pageSize,
+                access.cookieHeader,
+                access.cookieFilePath.orEmpty(),
+            ).toString(),
         )
         val items = json.getJSONArray("entries")
         val entries = buildList {

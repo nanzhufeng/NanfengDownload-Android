@@ -101,8 +101,31 @@ class RoomDownloadRepository(
 
     override suspend fun resumePausedTasks(): Int = taskDao.resumePausedTasks(clock())
 
-    override suspend fun cancelTask(taskId: String): Boolean =
-        taskDao.cancelTask(taskId, clock()) == 1
+    override suspend fun cancelTask(taskId: String): Boolean = database.withTransaction {
+        val queued = taskDao.getWithMediaById(taskId)?.toDomain() ?: return@withTransaction false
+        if (taskDao.cancelTask(taskId, clock()) != 1) return@withTransaction false
+        historyDao.upsert(
+            queued.toHistory(
+                finalStatus = DownloadTaskStatus.CANCELLED,
+                completedAt = clock(),
+            ).toEntity(),
+        )
+        true
+    }
+
+    override suspend fun retryHistory(taskId: String): Boolean = database.withTransaction {
+        val history = historyDao.getById(taskId) ?: return@withTransaction false
+        val finalStatus = DownloadTaskStatus.valueOf(history.finalStatus)
+        if (finalStatus !in setOf(DownloadTaskStatus.FAILED, DownloadTaskStatus.CANCELLED)) {
+            return@withTransaction false
+        }
+        if (taskDao.resetTerminalForRetry(taskId, clock()) != 1) return@withTransaction false
+        historyDao.deleteById(taskId)
+        true
+    }
+
+    override suspend fun deleteHistoryRecord(taskId: String): Boolean =
+        historyDao.deleteById(taskId) == 1
 
     override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverInterruptedTasks(clock())
 
@@ -240,6 +263,24 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     completedAt = completedAt,
     failureType = failureType?.name,
     errorSummary = errorSummary,
+)
+
+private fun QueuedDownload.toHistory(
+    finalStatus: DownloadTaskStatus,
+    completedAt: Long,
+) = DownloadHistory(
+    taskId = task.taskId,
+    platform = media.platform,
+    contentId = media.contentId,
+    originalUrl = media.originalUrl,
+    title = media.title,
+    creator = media.creator,
+    resolution = task.resolution,
+    finalStatus = finalStatus,
+    outputUri = null,
+    fileSize = 0L,
+    fileExists = false,
+    completedAt = completedAt,
 )
 
 private fun DownloadHistoryEntity.toDomain() = DownloadHistory(

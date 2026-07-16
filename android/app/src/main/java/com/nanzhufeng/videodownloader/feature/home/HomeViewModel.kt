@@ -44,6 +44,13 @@ class HomeViewModel(
         mutableUiState.update { it.copy(input = value, notice = "") }
     }
 
+    fun restoreInputDraft(value: String) {
+        if (value.isBlank()) return
+        mutableUiState.update { state ->
+            if (state.input.isBlank()) state.copy(input = value) else state
+        }
+    }
+
     suspend fun smartRead() {
         val input = uiState.value.input.trim()
         if (input.isBlank()) {

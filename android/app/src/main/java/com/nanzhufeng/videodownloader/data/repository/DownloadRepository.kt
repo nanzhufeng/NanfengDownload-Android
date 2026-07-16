@@ -34,6 +34,10 @@ interface DownloadRepository {
 
     suspend fun cancelTask(taskId: String): Boolean = false
 
+    suspend fun retryHistory(taskId: String): Boolean = false
+
+    suspend fun deleteHistoryRecord(taskId: String): Boolean = false
+
     suspend fun recoverInterruptedTasks(): Int = 0
 
     suspend fun updateTransfer(

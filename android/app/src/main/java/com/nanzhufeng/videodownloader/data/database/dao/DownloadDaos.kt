@@ -38,6 +38,10 @@ interface DownloadTaskDao {
     suspend fun getById(taskId: String): DownloadTaskEntity?
 
     @Transaction
+    @Query("SELECT * FROM download_tasks WHERE taskId = :taskId")
+    suspend fun getWithMediaById(taskId: String): DownloadTaskWithMedia?
+
+    @Transaction
     @Query(
         """
         SELECT * FROM download_tasks
@@ -172,6 +176,25 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET selected = 1,
+            downloadedBytes = 0,
+            totalBytes = 0,
+            speedBytesPerSecond = 0,
+            remainingSeconds = NULL,
+            status = 'WAITING',
+            failureType = NULL,
+            errorSummary = NULL,
+            retryCount = retryCount + 1,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+          AND status IN ('FAILED', 'CANCELLED')
+        """,
+    )
+    suspend fun resetTerminalForRetry(taskId: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = 'WAITING', updatedAt = :updatedAt
         WHERE status IN ('PARSING', 'DOWNLOADING', 'VALIDATING')
         """,
@@ -186,6 +209,12 @@ interface DownloadHistoryDao {
 
     @Query("SELECT * FROM download_history ORDER BY completedAt DESC")
     fun observeAll(): Flow<List<DownloadHistoryEntity>>
+
+    @Query("SELECT * FROM download_history WHERE taskId = :taskId")
+    suspend fun getById(taskId: String): DownloadHistoryEntity?
+
+    @Query("DELETE FROM download_history WHERE taskId = :taskId")
+    suspend fun deleteById(taskId: String): Int
 
     @Query(
         """

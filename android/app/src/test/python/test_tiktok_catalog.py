@@ -3,12 +3,23 @@ import unittest
 from nanzhufeng_probe.youtube_probe import (
     _creator_page_result,
     _creator_result,
+    _with_session_access,
     _expected_creator_hint,
     _normalize_collection_url,
 )
 
 
 class CreatorResultTest(unittest.TestCase):
+    def test_session_access_is_scoped_to_current_extraction(self):
+        options = _with_session_access(
+            {"quiet": True},
+            cookie_header="sessionid=abc",
+            cookie_file="/private/youtube-cookies.txt",
+        )
+
+        self.assertEqual("sessionid=abc", options["http_headers"]["Cookie"])
+        self.assertEqual("/private/youtube-cookies.txt", options["cookiefile"])
+
     def test_deduplicates_and_rejects_foreign_creator(self):
         info = {
             "uploader": "target",

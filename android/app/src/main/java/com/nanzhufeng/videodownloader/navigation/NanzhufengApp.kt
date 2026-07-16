@@ -27,6 +27,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -46,6 +47,11 @@ import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import com.nanzhufeng.videodownloader.domain.download.DownloadEngine
 import com.nanzhufeng.videodownloader.domain.download.NoOpDownloadEngine
+import com.nanzhufeng.videodownloader.domain.session.NoOpSessionProvider
+import com.nanzhufeng.videodownloader.domain.session.SessionProvider
+import com.nanzhufeng.videodownloader.domain.session.SessionSite
+import com.nanzhufeng.videodownloader.domain.session.SiteSessionState
+import android.widget.Toast
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -62,6 +68,7 @@ fun NanzhufengApp(
         discovery = container.discovery,
         downloadEngine = container.downloadEngine,
         networkAvailable = container.networkAvailable,
+        sessions = container.sessions,
         incomingSharedText = incomingSharedText,
     )
 }
@@ -75,6 +82,7 @@ fun NanzhufengApp(
     networkAvailable: Flow<Boolean> = flowOf(true),
     incomingSharedText: Flow<String> = emptyFlow(),
     expandedOverride: Boolean? = null,
+    sessions: SessionProvider = NoOpSessionProvider,
 ) {
     NanzhufengTheme {
         val queue by downloads.activeTasks.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -82,7 +90,9 @@ fun NanzhufengApp(
         val appSettings by settings.settings.collectAsStateWithLifecycle(
             initialValue = com.nanzhufeng.videodownloader.data.settings.AppSettings(),
         )
+        val sessionStates by sessions.states.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+        val context = LocalContext.current
         val homeViewModel: HomeViewModel = viewModel(
             factory = HomeViewModel.factory(downloads, settings, discovery),
         )
@@ -91,7 +101,14 @@ fun NanzhufengApp(
         val navController = rememberNavController()
 
         LaunchedEffect(incomingSharedText) {
-            incomingSharedText.collect(homeViewModel::onInputChanged)
+            incomingSharedText.collect { value ->
+                homeViewModel.onInputChanged(value)
+                settings.saveInputDraft(value)
+            }
+        }
+
+        LaunchedEffect(appSettings.inputDraft) {
+            homeViewModel.restoreInputDraft(appSettings.inputDraft)
         }
 
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -111,7 +128,10 @@ fun NanzhufengApp(
                         isReading = homeState.isReading,
                         notice = homeState.notice,
                         canLoadMore = homeState.canLoadMore,
-                        onInputChange = homeViewModel::onInputChanged,
+                        onInputChange = { value ->
+                            homeViewModel.onInputChanged(value)
+                            scope.launch { settings.saveInputDraft(value) }
+                        },
                         onSmartRead = {
                             scope.launch { homeViewModel.smartRead() }
                         },
@@ -128,9 +148,38 @@ fun NanzhufengApp(
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
+                        sessionStates = sessionStates,
+                        onAutoResumeChanged = { value ->
+                            scope.launch { settings.setAutoResumeNetwork(value) }
+                        },
+                        onOpenLogin = sessions::openLogin,
+                        onImportYoutubeCookies = { sourceUri ->
+                            scope.launch {
+                                sessions.importYoutubeCookies(sourceUri)
+                                    .onSuccess {
+                                        Toast.makeText(context, "YouTube 登录信息已保存", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .onFailure { error ->
+                                        Toast.makeText(
+                                            context,
+                                            error.message ?: "无法导入 cookies.txt",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                            }
+                        },
+                        onClearSession = sessions::clear,
                         onStartDownloads = { scope.launch { downloadEngine.start() } },
                         onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
                         onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
+                        onRetryHistory = { taskId ->
+                            scope.launch {
+                                if (downloads.retryHistory(taskId)) downloadEngine.start()
+                            }
+                        },
+                        onDeleteHistory = { taskId ->
+                            scope.launch { downloads.deleteHistoryRecord(taskId) }
+                        },
                         expanded = true,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.weight(1f),
@@ -153,7 +202,10 @@ fun NanzhufengApp(
                         isReading = homeState.isReading,
                         notice = homeState.notice,
                         canLoadMore = homeState.canLoadMore,
-                        onInputChange = homeViewModel::onInputChanged,
+                        onInputChange = { value ->
+                            homeViewModel.onInputChanged(value)
+                            scope.launch { settings.saveInputDraft(value) }
+                        },
                         onSmartRead = {
                             scope.launch { homeViewModel.smartRead() }
                         },
@@ -170,9 +222,38 @@ fun NanzhufengApp(
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
+                        sessionStates = sessionStates,
+                        onAutoResumeChanged = { value ->
+                            scope.launch { settings.setAutoResumeNetwork(value) }
+                        },
+                        onOpenLogin = sessions::openLogin,
+                        onImportYoutubeCookies = { sourceUri ->
+                            scope.launch {
+                                sessions.importYoutubeCookies(sourceUri)
+                                    .onSuccess {
+                                        Toast.makeText(context, "YouTube 登录信息已保存", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .onFailure { error ->
+                                        Toast.makeText(
+                                            context,
+                                            error.message ?: "无法导入 cookies.txt",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                            }
+                        },
+                        onClearSession = sessions::clear,
                         onStartDownloads = { scope.launch { downloadEngine.start() } },
                         onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
                         onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
+                        onRetryHistory = { taskId ->
+                            scope.launch {
+                                if (downloads.retryHistory(taskId)) downloadEngine.start()
+                            }
+                        },
+                        onDeleteHistory = { taskId ->
+                            scope.launch { downloads.deleteHistoryRecord(taskId) }
+                        },
                         expanded = false,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.padding(padding),
@@ -200,9 +281,16 @@ private fun AppNavHost(
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
     onItemResolutionChanged: (String, com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
     onResolutionSelected: (com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
+    sessionStates: List<SiteSessionState>,
+    onAutoResumeChanged: (Boolean) -> Unit,
+    onOpenLogin: (SessionSite) -> Unit,
+    onImportYoutubeCookies: (String) -> Unit,
+    onClearSession: (SessionSite) -> Unit,
     onStartDownloads: () -> Unit,
     onPauseDownloads: () -> Unit,
     onStopDownload: (String) -> Unit,
+    onRetryHistory: (String) -> Unit,
+    onDeleteHistory: (String) -> Unit,
     expanded: Boolean,
     networkAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -233,10 +321,22 @@ private fun AppNavHost(
             )
         }
         composable(AppDestination.HISTORY.route) {
-            HistoryScreen(history)
+            HistoryScreen(
+                history = history,
+                onRetry = onRetryHistory,
+                onDeleteRecord = onDeleteHistory,
+            )
         }
         composable(AppDestination.SETTINGS.route) {
-            SettingsScreen(settings, onResolutionSelected)
+            SettingsScreen(
+                settings = settings,
+                sessions = sessionStates,
+                onResolutionSelected = onResolutionSelected,
+                onAutoResumeChanged = onAutoResumeChanged,
+                onOpenLogin = onOpenLogin,
+                onImportYoutubeCookies = onImportYoutubeCookies,
+                onClearSession = onClearSession,
+            )
         }
     }
 }

@@ -28,6 +28,11 @@ class MainActivity : ComponentActivity() {
         acceptSharedText(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        (application as NanzhufengApplication).container.sessions.refresh()
+    }
+
     private fun acceptSharedText(intent: Intent?) {
         if (intent?.action != Intent.ACTION_SEND || intent.type != "text/plain") return
         val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim().orEmpty()

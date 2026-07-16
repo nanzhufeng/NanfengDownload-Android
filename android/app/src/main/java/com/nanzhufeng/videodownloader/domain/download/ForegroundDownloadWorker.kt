@@ -17,6 +17,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nanzhufeng.videodownloader.NanzhufengApplication
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 class ForegroundDownloadWorker(
     appContext: Context,
@@ -34,7 +35,13 @@ class ForegroundDownloadWorker(
                 TaskRunResult.Failed,
                 -> Unit
 
-                TaskRunResult.WaitingForNetwork -> return Result.retry()
+                TaskRunResult.WaitingForNetwork -> {
+                    return if (container.settings.settings.first().autoResumeNetwork) {
+                        Result.retry()
+                    } else {
+                        Result.success()
+                    }
+                }
                 TaskRunResult.Idle -> {
                     showCompletionNotification()
                     return Result.success()

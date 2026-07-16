@@ -19,6 +19,8 @@ import com.nanzhufeng.videodownloader.domain.download.DownloadTaskRunner
 import com.nanzhufeng.videodownloader.domain.download.MediaStoreOutputStore
 import com.nanzhufeng.videodownloader.domain.download.WorkManagerDownloadScheduler
 import com.nanzhufeng.videodownloader.domain.download.YtDlpTaskMediaResolver
+import com.nanzhufeng.videodownloader.domain.session.SessionProvider
+import com.nanzhufeng.videodownloader.domain.session.WebViewSessionProvider
 import kotlinx.coroutines.flow.Flow
 
 class AppContainer private constructor(
@@ -29,6 +31,7 @@ class AppContainer private constructor(
     val taskRunner: DownloadTaskRunner,
     val downloadEngine: DownloadEngine,
     val networkAvailable: Flow<Boolean>,
+    val sessions: SessionProvider,
 ) {
     companion object {
         fun create(context: Context): AppContainer {
@@ -40,9 +43,10 @@ class AppContainer private constructor(
             ).addMigrations(NanzhufengMigrations.MIGRATION_1_2)
                 .build()
             val downloads = RoomDownloadRepository(database)
+            val sessions = WebViewSessionProvider(applicationContext)
             val taskRunner = DownloadTaskRunner(
                 repository = downloads,
-                resolver = YtDlpTaskMediaResolver(),
+                resolver = YtDlpTaskMediaResolver(sessions = sessions),
                 transfer = DirectMediaTransfer(applicationContext),
                 outputStore = MediaStoreOutputStore(applicationContext),
             )
@@ -50,13 +54,16 @@ class AppContainer private constructor(
                 database = database,
                 downloads = downloads,
                 settings = PreferencesSettingsRepository(applicationContext),
-                discovery = PlatformSourceDiscoveryEngine(ChaquopyProbeDiscoveryGateway()),
+                discovery = PlatformSourceDiscoveryEngine(
+                    ChaquopyProbeDiscoveryGateway(sessions = sessions),
+                ),
                 taskRunner = taskRunner,
                 downloadEngine = DefaultDownloadEngine(
                     repository = downloads,
                     scheduler = WorkManagerDownloadScheduler(applicationContext),
                 ),
                 networkAvailable = NetworkStatusMonitor(applicationContext).available,
+                sessions = sessions,
             )
         }
     }

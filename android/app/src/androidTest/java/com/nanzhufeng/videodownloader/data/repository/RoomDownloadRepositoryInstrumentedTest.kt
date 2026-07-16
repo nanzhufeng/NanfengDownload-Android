@@ -15,6 +15,8 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
@@ -93,6 +95,54 @@ class RoomDownloadRepositoryInstrumentedTest {
         repository.archiveTerminal(history())
 
         assertEquals("content-1", repository.history.first().single().contentId)
+    }
+
+    @Test
+    fun cancelTaskArchivesCancelledResult() = runBlocking {
+        repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P)
+
+        assertTrue(repository.cancelTask("task-1"))
+
+        val archived = repository.history.first().single()
+        assertEquals(DownloadTaskStatus.CANCELLED, archived.finalStatus)
+        assertEquals("content-1", archived.contentId)
+        assertFalse(archived.fileExists)
+    }
+
+    @Test
+    fun retryHistoryRequeuesFailedTaskAndRemovesStaleTerminalRecord() = runBlocking {
+        repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P)
+        repository.transition("task-1", DownloadTaskStatus.PARSING)
+        repository.transition("task-1", DownloadTaskStatus.FAILED)
+        repository.archiveTerminal(
+            history().copy(
+                finalStatus = DownloadTaskStatus.FAILED,
+                outputUri = null,
+                fileSize = 0L,
+                fileExists = false,
+            ),
+        )
+
+        assertTrue(repository.retryHistory("task-1"))
+
+        val queued = repository.activeTasks.first().single()
+        assertEquals(DownloadTaskStatus.WAITING, queued.task.status)
+        assertTrue(queued.task.selected)
+        assertEquals(0L, queued.task.downloadedBytes)
+        assertEquals(0L, queued.task.totalBytes)
+        assertNull(queued.task.failureType)
+        assertNull(queued.task.errorSummary)
+        assertTrue(repository.history.first().isEmpty())
+    }
+
+    @Test
+    fun completedHistoryCannotBeRetriedButCanBeDeleted() = runBlocking {
+        repository.archiveTerminal(history())
+
+        assertFalse(repository.retryHistory("task-1"))
+        assertTrue(repository.deleteHistoryRecord("task-1"))
+
+        assertTrue(repository.history.first().isEmpty())
     }
 
     private fun media() = MediaItem(

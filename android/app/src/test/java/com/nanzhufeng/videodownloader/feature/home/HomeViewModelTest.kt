@@ -69,6 +69,19 @@ class HomeViewModelTest {
         assertTrue(viewModel.uiState.value.notice.contains("读取超时"))
         assertTrue(!viewModel.uiState.value.isReading)
     }
+
+    @Test
+    fun restoredDraftFillsEmptyInputButNeverOverwritesIncomingShare() {
+        val viewModel = HomeViewModel(RecordingDownloads(), FakeSettings(), FakeDiscovery())
+
+        viewModel.restoreInputDraft("https://example.com/saved")
+        assertEquals("https://example.com/saved", viewModel.uiState.value.input)
+
+        viewModel.onInputChanged("https://youtu.be/shared")
+        viewModel.restoreInputDraft("https://example.com/older")
+
+        assertEquals("https://youtu.be/shared", viewModel.uiState.value.input)
+    }
 }
 
 private class FakeDiscovery : SourceDiscoveryEngine {
