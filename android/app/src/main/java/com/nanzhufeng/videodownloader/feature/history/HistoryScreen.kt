@@ -5,6 +5,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,6 +19,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -27,7 +32,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.ui.AppCardTone
+import com.nanzhufeng.videodownloader.core.ui.SelectedFilterChip
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -68,56 +73,56 @@ fun HistoryScreen(
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
     val filtered = filterCompletedHistory(history, query, platform, period)
 
-    androidx.compose.foundation.lazy.LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag("history-screen"),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            Text("下载历史", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text(
-                "已完成的下载会按时间排列，便于查找与管理。",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        item {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                label = { Text("搜索标题、博主或原链接") },
-            )
-        }
-        item {
-            HistoryFilters(
-                platform = platform,
-                period = period,
-                onPlatformChange = { platform = it },
-                onPeriodChange = { period = it },
-            )
-        }
-        if (filtered.isEmpty()) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(if (history.isEmpty()) "还没有下载历史" else "没有匹配结果", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (history.isEmpty()) "完成或结束的任务会自动归档到这里。" else "请调整关键词或筛选条件。",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag("history-screen")) {
+        val expanded = maxWidth >= 600.dp
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(if (expanded) 2 else 1),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(if (expanded) "history-expanded-timeline" else "history-compact-timeline"),
+            contentPadding = PaddingValues(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("历史", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "已完成记录",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-        } else {
-            items(filtered.size, key = { filtered[it].taskId }) { index ->
-                HistoryItem(
-                    item = filtered[index],
-                    onDelete = { pendingDeleteId = filtered[index].taskId },
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                    label = { Text("搜索标题、博主或原链接") },
                 )
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                HistoryFilters(
+                    platform = platform,
+                    period = period,
+                    onPlatformChange = { platform = it },
+                    onPeriodChange = { period = it },
+                )
+            }
+            if (filtered.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    CompactEmptyHistory(history = history)
+                }
+            } else {
+                items(filtered, key = DownloadHistory::taskId) { item ->
+                    HistoryItem(
+                        item = item,
+                        onDelete = { pendingDeleteId = item.taskId },
+                    )
+                }
             }
         }
     }
@@ -141,6 +146,20 @@ fun HistoryScreen(
 }
 
 @Composable
+private fun CompactEmptyHistory(history: List<DownloadHistory>) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(if (history.isEmpty()) "还没有下载历史" else "没有匹配结果", fontWeight = FontWeight.SemiBold)
+            Text(
+                if (history.isEmpty()) "已完成的下载会归档到这里。" else "请调整关键词或筛选条件。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun HistoryFilters(
     platform: DownloadPlatform?,
@@ -156,12 +175,12 @@ private fun HistoryFilters(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FilterChip(selected = platform == null, onClick = { onPlatformChange(null) }, label = { Text("全部平台") })
+            SelectedFilterChip(label = "全部平台", selected = platform == null, onClick = { onPlatformChange(null) })
             DownloadPlatform.entries.forEach { value ->
-                FilterChip(
+                SelectedFilterChip(
+                    label = value.label(),
                     selected = platform == value,
                     onClick = { onPlatformChange(value) },
-                    label = { Text(value.label()) },
                 )
             }
         }
@@ -170,10 +189,10 @@ private fun HistoryFilters(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             HistoryPeriod.entries.forEach { value ->
-                FilterChip(
+                SelectedFilterChip(
+                    label = value.label,
                     selected = period == value,
                     onClick = { onPeriodChange(value) },
-                    label = { Text(value.label) },
                 )
             }
         }
@@ -195,7 +214,7 @@ private fun HistoryItem(
             .testTag("history-card-${item.taskId}"),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.width(76.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Column(modifier = Modifier.width(58.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(formatHistoryDate(item.completedAt), fontWeight = FontWeight.SemiBold)
                 Text(
                     formatHistoryClock(item.completedAt),
@@ -205,12 +224,12 @@ private fun HistoryItem(
             }
             Box(
                 modifier = Modifier
-                    .width(10.dp)
-                    .height(66.dp)
-                    .background(Color(0xFF159447), RoundedCornerShape(5.dp)),
+                    .width(6.dp)
+                    .height(58.dp)
+                    .background(Color(0xFF159447), RoundedCornerShape(3.dp)),
             )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Text(
                         item.title,
@@ -277,9 +296,14 @@ private fun HistoryItem(
                         }
                     }
                 }
-                Text(item.platform.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "${item.creator}  ·  ${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
+                    item.platform.label(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    "${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
