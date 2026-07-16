@@ -1,0 +1,4 @@
+<resources>
+    <!-- Keep the launcher mask transparent: the artwork itself supplies the icon surface. -->
+    <color name="nanzhufeng_launcher_icon_transparent">#00000000</color>
+</resources>

@@ -10,8 +10,8 @@
     <application
         android:name=".NanzhufengApplication"
         android:allowBackup="false"
-        android:icon="@drawable/nanzhufeng_app_icon"
-        android:roundIcon="@drawable/nanzhufeng_app_icon"
+        android:icon="@mipmap/nanzhufeng_app_icon"
+        android:roundIcon="@mipmap/nanzhufeng_app_icon"
         android:label="@string/app_name"
         android:theme="@style/Theme.NanzhufengVideoDownloader"
         android:usesCleartextTraffic="false">
