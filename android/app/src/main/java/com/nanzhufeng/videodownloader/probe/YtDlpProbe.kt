@@ -93,8 +93,12 @@ class YtDlpProbe {
         )
     }
 
-    fun extractSingle(url: String): YtDlpMediaInfo {
-        val json = JSONObject(module.callAttr("extract_single", url).toString())
+    fun extractSingle(
+        url: String,
+        resolution: com.nanzhufeng.videodownloader.core.model.ResolutionPreset =
+            com.nanzhufeng.videodownloader.core.model.ResolutionPreset.UP_TO_720P,
+    ): YtDlpMediaInfo {
+        val json = JSONObject(module.callAttr("extract_single", url, resolution.name).toString())
         val headersJson = json.getJSONObject("headers")
         val headers = headersJson.keys().asSequence().associateWith(headersJson::getString)
         return YtDlpMediaInfo(

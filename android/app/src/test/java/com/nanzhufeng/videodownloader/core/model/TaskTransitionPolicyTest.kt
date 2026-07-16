@@ -38,6 +38,54 @@ class TaskTransitionPolicyTest {
     }
 
     @Test
+    fun parsingCanWaitForNetworkAndNetworkRecoveryCanParseAgain() {
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.PARSING,
+                DownloadTaskStatus.WAITING_NETWORK,
+            ),
+        )
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.WAITING_NETWORK,
+                DownloadTaskStatus.PARSING,
+            ),
+        )
+    }
+
+    @Test
+    fun pausedTaskCanReturnToWaitingWithoutPretendingItIsDownloading() {
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.PAUSED,
+                DownloadTaskStatus.WAITING,
+            ),
+        )
+    }
+
+    @Test
+    fun queuedAndParsingTasksCanBePausedByPauseAll() {
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.WAITING,
+                DownloadTaskStatus.PAUSED,
+            ),
+        )
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.PARSING,
+                DownloadTaskStatus.PAUSED,
+            ),
+        )
+        assertTrue(
+            TaskTransitionPolicy.canTransition(
+                DownloadTaskStatus.WAITING_NETWORK,
+                DownloadTaskStatus.PAUSED,
+            ),
+        )
+    }
+
+    @Test
     fun terminalStateCannotRestartDirectly() {
         assertFalse(
             TaskTransitionPolicy.canTransition(

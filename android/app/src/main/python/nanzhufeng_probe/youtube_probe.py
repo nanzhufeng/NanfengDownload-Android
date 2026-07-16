@@ -44,14 +44,26 @@ def _short_edge(item):
     return min(dimensions) if dimensions else 0
 
 
-def _select_streams(formats):
+def _select_streams(formats, resolution="UP_TO_720P"):
+    audio = _select_audio(formats)
+    if resolution == "AUDIO_MP3":
+        return audio, None
+
+    max_short_edge = {
+        "UP_TO_720P": 720,
+        "UP_TO_1080P": 1080,
+        "BEST": float("inf"),
+    }.get(resolution)
+    if max_short_edge is None:
+        raise ValueError(f"不支持的分辨率：{resolution}")
+
     progressive = _best(
         formats,
         lambda item: item.get("url")
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") not in {None, "none"}
-        and _short_edge(item) <= 720,
+        and _short_edge(item) <= max_short_edge,
         lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
     video = _best(
@@ -60,10 +72,9 @@ def _select_streams(formats):
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") in {None, "none"}
-        and _short_edge(item) <= 720,
+        and _short_edge(item) <= max_short_edge,
         lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
-    audio = _select_audio(formats)
     progressive_edge = _short_edge(progressive or {})
     if video and audio and _short_edge(video) > progressive_edge:
         return video, audio
@@ -83,11 +94,11 @@ def _platform_name(info):
     return extractor or "unknown"
 
 
-def _media_result(info, cookie_header=""):
+def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
     if info.get("_type") in {"playlist", "multi_video"} or info.get("entries"):
         raise ValueError("单视频探测返回了列表，已中止")
 
-    chosen_video, audio = _select_streams(info.get("formats") or [])
+    chosen_video, audio = _select_streams(info.get("formats") or [], resolution)
     if not chosen_video:
         raise ValueError("没有找到可下载且具备音频的 MP4 视频流")
 
@@ -250,7 +261,7 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
     )
 
 
-def extract_single(url: str) -> str:
+def extract_single(url: str, resolution: str = "UP_TO_720P") -> str:
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -261,7 +272,7 @@ def extract_single(url: str) -> str:
     }
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
-        chosen_video, _ = _select_streams(info.get("formats") or [])
+        chosen_video, _ = _select_streams(info.get("formats") or [], resolution)
         cookie_header = (
             ydl.cookiejar.get_cookie_header(chosen_video["url"])
             if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
@@ -269,6 +280,6 @@ def extract_single(url: str) -> str:
         )
 
     return json.dumps(
-        _media_result(info, cookie_header=cookie_header),
+        _media_result(info, cookie_header=cookie_header, resolution=resolution),
         ensure_ascii=False,
     )

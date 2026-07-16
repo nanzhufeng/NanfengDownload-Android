@@ -1,0 +1,155 @@
+package com.nanzhufeng.videodownloader.domain.download
+
+import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
+import com.nanzhufeng.videodownloader.core.model.DownloadTask
+import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
+import com.nanzhufeng.videodownloader.core.model.MediaItem
+import com.nanzhufeng.videodownloader.core.model.QueuedDownload
+import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
+import java.io.File
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DownloadTaskRunnerTest {
+    @Test
+    fun verifiedExistingMediaIsSkippedBeforeResolvingNetworkSource() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val resolver = RecordingResolver()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = FailingTransfer(),
+            outputStore = ExistingOutputStore(),
+            clock = { 200L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Skipped, result)
+        assertEquals(0, resolver.calls)
+        assertEquals(DownloadTaskStatus.SKIPPED, repository.current.task.status)
+        assertEquals(DownloadTaskStatus.SKIPPED, repository.archived.single().finalStatus)
+    }
+
+    @Test
+    fun pythonNetworkErrorsAreRetryableButHttp403IsNot() {
+        assertTrue(
+            NetworkErrorClassifier.isRetryable(
+                RuntimeException("urllib.error.URLError: SSL connection closed"),
+            ),
+        )
+        assertFalse(
+            NetworkErrorClassifier.isRetryable(
+                RuntimeException("ERROR: HTTP Error 403: Forbidden"),
+            ),
+        )
+    }
+
+    private fun queued() = QueuedDownload(
+        task = DownloadTask(
+            taskId = "task-one",
+            mediaKey = "YOUTUBE:one",
+            selected = true,
+            sortOrder = 1,
+            resolution = ResolutionPreset.UP_TO_720P,
+            saveTreeUri = null,
+            downloadedBytes = 0,
+            totalBytes = 0,
+            speedBytesPerSecond = 0,
+            remainingSeconds = null,
+            status = DownloadTaskStatus.WAITING,
+            failureType = null,
+            errorSummary = null,
+            retryCount = 0,
+            updatedAt = 100,
+        ),
+        media = MediaItem(
+            mediaKey = "YOUTUBE:one",
+            platform = DownloadPlatform.YOUTUBE,
+            contentId = "one",
+            originalUrl = "https://youtu.be/one",
+            sourceKind = DownloadSourceKind.SINGLE_VIDEO,
+            title = "标题",
+            creator = "作者",
+            creatorId = "creator",
+            publishDate = "20260716",
+            thumbnailUrl = "",
+        ),
+    )
+}
+
+private class RunnerRepository(initial: QueuedDownload) : DownloadRepository {
+    var current = initial
+    val archived = mutableListOf<DownloadHistory>()
+    override val activeTasks: Flow<List<QueuedDownload>> = MutableStateFlow(listOf(initial))
+    override val history: Flow<List<DownloadHistory>> = MutableStateFlow(emptyList())
+
+    override suspend fun enqueue(items: List<MediaItem>, resolution: ResolutionPreset) = emptyList<String>()
+    override suspend fun setSelected(taskId: String, selected: Boolean) = Unit
+    override suspend fun bulkSelect(taskIds: List<String>, selected: Boolean) = Unit
+    override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) = Unit
+    override suspend fun nextSelectedWaiting(): QueuedDownload? =
+        current.takeIf { it.task.selected && it.task.status == DownloadTaskStatus.WAITING }
+
+    override suspend fun updateTransfer(
+        taskId: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSecond: Long,
+        remainingSeconds: Long?,
+    ) = Unit
+
+    override suspend fun transition(taskId: String, to: DownloadTaskStatus) {
+        current = current.copy(task = current.task.copy(status = to))
+    }
+
+    override suspend fun archiveTerminal(history: DownloadHistory) {
+        archived += history
+    }
+
+    override suspend fun findCompleted(
+        platform: DownloadPlatform,
+        contentId: String,
+        resolution: ResolutionPreset,
+    ): DownloadHistory? = null
+}
+
+private class RecordingResolver : TaskMediaResolver {
+    var calls = 0
+
+    override suspend fun resolve(media: MediaItem, resolution: ResolutionPreset): ResolvedMedia {
+        calls += 1
+        error("不应解析网络源")
+    }
+}
+
+private class FailingTransfer : MediaTransfer {
+    override suspend fun download(
+        task: QueuedDownload,
+        source: ResolvedMedia,
+        onProgress: suspend (Long, Long, Long, Long?) -> Unit,
+    ): PreparedMedia = error("不应下载")
+}
+
+private class ExistingOutputStore : DownloadOutputStore {
+    override suspend fun findExisting(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+    ): StoredMedia = StoredMedia("content://media/existing", 128_000L)
+
+    override suspend fun uriExists(uri: String): Boolean = true
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+    ): StoredMedia = error("不应写入")
+}

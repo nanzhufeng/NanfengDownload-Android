@@ -76,10 +76,52 @@ class RoomDownloadRepository(
         }
     }
 
+    override suspend fun bulkSelect(taskIds: List<String>, selected: Boolean) {
+        if (taskIds.isEmpty()) return
+        val updated = taskDao.updateSelections(taskIds.distinct(), selected, clock())
+        check(updated == taskIds.distinct().size) {
+            "批量更新下载选择状态失败"
+        }
+    }
+
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) {
         check(taskDao.updateResolution(taskId, resolution.name, clock()) == 1) {
             "找不到下载任务：$taskId"
         }
+    }
+
+    override suspend fun nextSelectedWaiting(): QueuedDownload? =
+        taskDao.nextSelectedWaiting()?.toDomain()
+
+    override suspend fun nextSelectedRunnable(): QueuedDownload? =
+        taskDao.nextSelectedRunnable()?.toDomain()
+
+    override suspend fun pauseRunnableTasks(): Int = taskDao.pauseRunnableTasks(clock())
+
+    override suspend fun resumePausedTasks(): Int = taskDao.resumePausedTasks(clock())
+
+    override suspend fun cancelTask(taskId: String): Boolean =
+        taskDao.cancelTask(taskId, clock()) == 1
+
+    override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverInterruptedTasks(clock())
+
+    override suspend fun updateTransfer(
+        taskId: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSecond: Long,
+        remainingSeconds: Long?,
+    ) {
+        check(
+            taskDao.updateTransfer(
+                taskId = taskId,
+                downloadedBytes = downloadedBytes.coerceAtLeast(0L),
+                totalBytes = totalBytes.coerceAtLeast(0L),
+                speedBytesPerSecond = speedBytesPerSecond.coerceAtLeast(0L),
+                remainingSeconds = remainingSeconds?.coerceAtLeast(0L),
+                updatedAt = clock(),
+            ) == 1,
+        ) { "找不到下载任务：$taskId" }
     }
 
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) {
@@ -97,6 +139,16 @@ class RoomDownloadRepository(
         require(history.finalStatus.isTerminal) { "只有终态任务可以归档" }
         historyDao.upsert(history.toEntity())
     }
+
+    override suspend fun findCompleted(
+        platform: DownloadPlatform,
+        contentId: String,
+        resolution: ResolutionPreset,
+    ): DownloadHistory? = historyDao.findCompleted(
+        platform = platform.name,
+        contentId = contentId,
+        resolution = resolution.name,
+    )?.toDomain()
 }
 
 private fun MediaItem.normalized(): MediaItem = copy(
@@ -127,6 +179,8 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         saveTreeUri = task.saveTreeUri,
         downloadedBytes = task.downloadedBytes,
         totalBytes = task.totalBytes,
+        speedBytesPerSecond = task.speedBytesPerSecond,
+        remainingSeconds = task.remainingSeconds,
         status = DownloadTaskStatus.valueOf(task.status),
         failureType = task.failureType,
         errorSummary = task.errorSummary,

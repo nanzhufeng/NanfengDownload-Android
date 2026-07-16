@@ -63,6 +63,8 @@ data class DownloadTask(
     val saveTreeUri: String?,
     val downloadedBytes: Long,
     val totalBytes: Long,
+    val speedBytesPerSecond: Long,
+    val remainingSeconds: Long?,
     val status: DownloadTaskStatus,
     val failureType: String?,
     val errorSummary: String?,

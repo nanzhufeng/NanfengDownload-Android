@@ -1,5 +1,6 @@
 package com.nanzhufeng.videodownloader.probe
 
+import java.io.ByteArrayInputStream
 import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -40,5 +41,28 @@ class MediaFileValidatorTest {
         } finally {
             file.delete()
         }
+    }
+
+    @Test
+    fun validatesMediaStoreStreamWithoutCopyingWholeFile() {
+        val payload = ByteArray(70 * 1024).also {
+            byteArrayOf(
+                0,
+                0,
+                0,
+                24,
+                'f'.code.toByte(),
+                't'.code.toByte(),
+                'y'.code.toByte(),
+                'p'.code.toByte(),
+            ).copyInto(it)
+        }
+
+        assertTrue(
+            MediaFileValidator.isLikelyMedia(
+                input = ByteArrayInputStream(payload),
+                length = payload.size.toLong(),
+            ),
+        )
     }
 }

@@ -15,6 +15,7 @@ import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -46,6 +47,27 @@ class HomeViewModelTest {
 
         assertEquals(listOf(listOf("first"), listOf("second")), downloads.enqueued.map { batch -> batch.map(MediaItem::contentId) })
         assertTrue(viewModel.uiState.value.notice.contains("已加载更多 1 个作品"))
+    }
+
+    @Test
+    fun smartRead_timeoutRestoresButtonAndShowsClearNotice() = runBlocking {
+        val viewModel = HomeViewModel(
+            downloads = RecordingDownloads(),
+            settings = FakeSettings(),
+            discovery = object : SourceDiscoveryEngine {
+                override suspend fun read(input: String, page: Int): DiscoveryResult {
+                    delay(1_000)
+                    error("不会执行到这里")
+                }
+            },
+            readTimeoutMillis = 20,
+        )
+
+        viewModel.onInputChanged("https://youtu.be/slow")
+        viewModel.smartRead()
+
+        assertTrue(viewModel.uiState.value.notice.contains("读取超时"))
+        assertTrue(!viewModel.uiState.value.isReading)
     }
 }
 
@@ -93,9 +115,23 @@ private class RecordingDownloads : DownloadRepository {
     }
 
     override suspend fun setSelected(taskId: String, selected: Boolean) = Unit
+    override suspend fun bulkSelect(taskIds: List<String>, selected: Boolean) = Unit
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) = Unit
+    override suspend fun nextSelectedWaiting(): QueuedDownload? = null
+    override suspend fun updateTransfer(
+        taskId: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSecond: Long,
+        remainingSeconds: Long?,
+    ) = Unit
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) = Unit
     override suspend fun archiveTerminal(history: DownloadHistory) = Unit
+    override suspend fun findCompleted(
+        platform: DownloadPlatform,
+        contentId: String,
+        resolution: ResolutionPreset,
+    ): DownloadHistory? = null
 }
 
 private class FakeSettings : SettingsRepository {

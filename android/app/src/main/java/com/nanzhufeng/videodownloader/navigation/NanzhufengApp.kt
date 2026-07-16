@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -42,16 +44,25 @@ import com.nanzhufeng.videodownloader.feature.home.HomeScreen
 import com.nanzhufeng.videodownloader.feature.home.HomeViewModel
 import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
+import com.nanzhufeng.videodownloader.domain.download.DownloadEngine
+import com.nanzhufeng.videodownloader.domain.download.NoOpDownloadEngine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 
 @Composable
 fun NanzhufengApp(
     container: AppContainer,
+    incomingSharedText: Flow<String> = emptyFlow(),
 ) {
     NanzhufengApp(
         downloads = container.downloads,
         settings = container.settings,
         discovery = container.discovery,
+        downloadEngine = container.downloadEngine,
+        networkAvailable = container.networkAvailable,
+        incomingSharedText = incomingSharedText,
     )
 }
 
@@ -60,6 +71,9 @@ fun NanzhufengApp(
     downloads: DownloadRepository,
     settings: SettingsRepository,
     discovery: SourceDiscoveryEngine,
+    downloadEngine: DownloadEngine = NoOpDownloadEngine,
+    networkAvailable: Flow<Boolean> = flowOf(true),
+    incomingSharedText: Flow<String> = emptyFlow(),
     expandedOverride: Boolean? = null,
 ) {
     NanzhufengTheme {
@@ -73,7 +87,12 @@ fun NanzhufengApp(
             factory = HomeViewModel.factory(downloads, settings, discovery),
         )
         val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
+        val isNetworkAvailable by networkAvailable.collectAsStateWithLifecycle(initialValue = false)
         val navController = rememberNavController()
+
+        LaunchedEffect(incomingSharedText) {
+            incomingSharedText.collect(homeViewModel::onInputChanged)
+        }
 
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val expanded = expandedOverride ?: (maxWidth >= 600.dp)
@@ -100,10 +119,20 @@ fun NanzhufengApp(
                         onSelectionChanged = { taskId, selected ->
                             scope.launch { downloads.setSelected(taskId, selected) }
                         },
+                        onBulkSelectionChanged = { taskIds, selected ->
+                            scope.launch { downloads.bulkSelect(taskIds, selected) }
+                        },
+                        onItemResolutionChanged = { taskId, resolution ->
+                            scope.launch { downloads.setResolution(taskId, resolution) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
+                        onStartDownloads = { scope.launch { downloadEngine.start() } },
+                        onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
+                        onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
                         expanded = true,
+                        networkAvailable = isNetworkAvailable,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -132,10 +161,20 @@ fun NanzhufengApp(
                         onSelectionChanged = { taskId, selected ->
                             scope.launch { downloads.setSelected(taskId, selected) }
                         },
+                        onBulkSelectionChanged = { taskIds, selected ->
+                            scope.launch { downloads.bulkSelect(taskIds, selected) }
+                        },
+                        onItemResolutionChanged = { taskId, resolution ->
+                            scope.launch { downloads.setResolution(taskId, resolution) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
+                        onStartDownloads = { scope.launch { downloadEngine.start() } },
+                        onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
+                        onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
                         expanded = false,
+                        networkAvailable = isNetworkAvailable,
                         modifier = Modifier.padding(padding),
                     )
                 }
@@ -158,8 +197,14 @@ private fun AppNavHost(
     onSmartRead: () -> Unit,
     onLoadMore: () -> Unit,
     onSelectionChanged: (String, Boolean) -> Unit,
+    onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
+    onItemResolutionChanged: (String, com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
     onResolutionSelected: (com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
+    onStartDownloads: () -> Unit,
+    onPauseDownloads: () -> Unit,
+    onStopDownload: (String) -> Unit,
     expanded: Boolean,
+    networkAvailable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -178,6 +223,12 @@ private fun AppNavHost(
                 canLoadMore = canLoadMore,
                 onLoadMore = onLoadMore,
                 onSelectionChanged = onSelectionChanged,
+                onBulkSelectionChanged = onBulkSelectionChanged,
+                onResolutionChanged = onItemResolutionChanged,
+                onStartDownloads = onStartDownloads,
+                onPauseActive = onPauseDownloads,
+                onStopActive = onStopDownload,
+                networkAvailable = networkAvailable,
                 expanded = expanded,
             )
         }
@@ -199,6 +250,11 @@ private fun PrimaryBottomNavigation(navController: NavHostController, currentRou
                 onClick = { navController.openPrimary(destination) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = Color(0xFFE2EEFF),
+                ),
                 modifier = Modifier.testTag(destination.testTag),
             )
         }
@@ -221,6 +277,11 @@ private fun PrimaryNavigationRail(navController: NavHostController, currentRoute
                 onClick = { navController.openPrimary(destination) },
                 icon = { Icon(destination.icon, contentDescription = null) },
                 label = { Text(destination.label) },
+                colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
+                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    indicatorColor = Color(0xFFE2EEFF),
+                ),
                 modifier = Modifier.testTag(destination.testTag),
             )
         }

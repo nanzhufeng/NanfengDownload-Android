@@ -4,11 +4,14 @@ object TaskTransitionPolicy {
     private val allowed = mapOf(
         DownloadTaskStatus.WAITING to setOf(
             DownloadTaskStatus.PARSING,
+            DownloadTaskStatus.PAUSED,
             DownloadTaskStatus.SKIPPED,
             DownloadTaskStatus.CANCELLED,
         ),
         DownloadTaskStatus.PARSING to setOf(
             DownloadTaskStatus.DOWNLOADING,
+            DownloadTaskStatus.PAUSED,
+            DownloadTaskStatus.WAITING_NETWORK,
             DownloadTaskStatus.FAILED,
             DownloadTaskStatus.SKIPPED,
             DownloadTaskStatus.CANCELLED,
@@ -21,11 +24,14 @@ object TaskTransitionPolicy {
             DownloadTaskStatus.CANCELLED,
         ),
         DownloadTaskStatus.PAUSED to setOf(
+            DownloadTaskStatus.WAITING,
             DownloadTaskStatus.DOWNLOADING,
             DownloadTaskStatus.CANCELLED,
         ),
         DownloadTaskStatus.WAITING_NETWORK to setOf(
+            DownloadTaskStatus.PARSING,
             DownloadTaskStatus.DOWNLOADING,
+            DownloadTaskStatus.PAUSED,
             DownloadTaskStatus.FAILED,
             DownloadTaskStatus.CANCELLED,
         ),

@@ -28,7 +28,7 @@ interface DownloadTaskDao {
     @Query(
         """
         SELECT * FROM download_tasks
-        WHERE status NOT IN ('COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED')
+        WHERE status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
         ORDER BY sortOrder
         """,
     )
@@ -36,6 +36,28 @@ interface DownloadTaskDao {
 
     @Query("SELECT * FROM download_tasks WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadTaskEntity?
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM download_tasks
+        WHERE selected = 1 AND status = 'WAITING'
+        ORDER BY sortOrder
+        LIMIT 1
+        """,
+    )
+    suspend fun nextSelectedWaiting(): DownloadTaskWithMedia?
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM download_tasks
+        WHERE selected = 1 AND status IN ('WAITING', 'WAITING_NETWORK')
+        ORDER BY sortOrder
+        LIMIT 1
+        """,
+    )
+    suspend fun nextSelectedRunnable(): DownloadTaskWithMedia?
 
     @Query("SELECT COALESCE(MAX(sortOrder), 0) + 1 FROM download_tasks")
     suspend fun nextSortOrder(): Long
@@ -48,6 +70,15 @@ interface DownloadTaskDao {
         """,
     )
     suspend fun updateSelection(taskId: String, selected: Boolean, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET selected = :selected, updatedAt = :updatedAt
+        WHERE taskId IN (:taskIds)
+        """,
+    )
+    suspend fun updateSelections(taskIds: List<String>, selected: Boolean, updatedAt: Long): Int
 
     @Query(
         """
@@ -66,6 +97,63 @@ interface DownloadTaskDao {
         """,
     )
     suspend fun updateStatus(taskId: String, status: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET downloadedBytes = :downloadedBytes,
+            totalBytes = :totalBytes,
+            speedBytesPerSecond = :speedBytesPerSecond,
+            remainingSeconds = :remainingSeconds,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateTransfer(
+        taskId: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSecond: Long,
+        remainingSeconds: Long?,
+        updatedAt: Long,
+    ): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'PAUSED', updatedAt = :updatedAt
+        WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'WAITING_NETWORK')
+        """,
+    )
+    suspend fun pauseRunnableTasks(updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'WAITING', updatedAt = :updatedAt
+        WHERE status = 'PAUSED'
+        """,
+    )
+    suspend fun resumePausedTasks(updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'CANCELLED', updatedAt = :updatedAt
+        WHERE taskId = :taskId
+          AND status NOT IN ('COMPLETED', 'FAILED', 'SKIPPED', 'CANCELLED')
+        """,
+    )
+    suspend fun cancelTask(taskId: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'WAITING', updatedAt = :updatedAt
+        WHERE status IN ('PARSING', 'DOWNLOADING', 'VALIDATING')
+        """,
+    )
+    suspend fun recoverInterruptedTasks(updatedAt: Long): Int
 }
 
 @Dao

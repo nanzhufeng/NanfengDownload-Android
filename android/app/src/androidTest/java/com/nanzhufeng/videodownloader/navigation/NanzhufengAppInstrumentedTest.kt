@@ -65,6 +65,21 @@ class NanzhufengAppInstrumentedTest {
     }
 
     @Test
+    fun expandedHomeUsesFormalTwoPaneWorkbench() {
+        composeRule.setContent {
+            NanzhufengApp(
+                downloads = FakeDownloadRepository(),
+                settings = FakeSettingsRepository(),
+                discovery = NeverReadDiscovery(),
+                expandedOverride = true,
+            )
+        }
+
+        composeRule.onNodeWithTag("formal-expanded-workbench").assertIsDisplayed()
+        composeRule.onNodeWithTag("formal-expanded-queue").assertIsDisplayed()
+    }
+
+    @Test
     fun smartReadStaysOnHomeAndNeverShowsProbeControls() {
         composeRule.setContent {
             NanzhufengApp(
@@ -81,6 +96,22 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithTag("home-screen").assertIsDisplayed()
         composeRule.onNodeWithTag("probe-screen").assertDoesNotExist()
         composeRule.onNodeWithText("检查 Python/yt-dlp").assertDoesNotExist()
+    }
+
+    @Test
+    fun compactHomeUsesFormalQueueProgressAndReadEntryOrder() {
+        composeRule.setContent {
+            NanzhufengApp(
+                downloads = FakeDownloadRepository(),
+                settings = FakeSettingsRepository(),
+                discovery = NeverReadDiscovery(),
+                expandedOverride = false,
+            )
+        }
+
+        composeRule.onNodeWithTag("formal-queue-tabs").assertIsDisplayed()
+        composeRule.onNodeWithTag("formal-total-progress").assertIsDisplayed()
+        composeRule.onNodeWithTag("formal-read-entry").assertIsDisplayed()
     }
 }
 
@@ -99,11 +130,25 @@ private class FakeDownloadRepository : DownloadRepository {
     ): List<String> = emptyList()
 
     override suspend fun setSelected(taskId: String, selected: Boolean) = Unit
+    override suspend fun bulkSelect(taskIds: List<String>, selected: Boolean) = Unit
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) = Unit
+    override suspend fun nextSelectedWaiting(): QueuedDownload? = null
+    override suspend fun updateTransfer(
+        taskId: String,
+        downloadedBytes: Long,
+        totalBytes: Long,
+        speedBytesPerSecond: Long,
+        remainingSeconds: Long?,
+    ) = Unit
 
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) = Unit
 
     override suspend fun archiveTerminal(history: DownloadHistory) = Unit
+    override suspend fun findCompleted(
+        platform: com.nanzhufeng.videodownloader.core.model.DownloadPlatform,
+        contentId: String,
+        resolution: ResolutionPreset,
+    ): DownloadHistory? = null
 }
 
 private class FakeSettingsRepository : SettingsRepository {

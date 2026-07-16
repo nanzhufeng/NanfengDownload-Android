@@ -1,6 +1,11 @@
 import unittest
 
-from nanzhufeng_probe.youtube_probe import _creator_page_result, _creator_result
+from nanzhufeng_probe.youtube_probe import (
+    _creator_page_result,
+    _creator_result,
+    _expected_creator_hint,
+    _normalize_collection_url,
+)
 
 
 class CreatorResultTest(unittest.TestCase):
@@ -82,6 +87,41 @@ class CreatorResultTest(unittest.TestCase):
         self.assertEqual(["1", "2"], [entry["id"] for entry in result["entries"]])
         self.assertTrue(result["has_more"])
         self.assertEqual(3, result["next_start"])
+
+    def test_youtube_channel_url_is_normalized_to_videos_tab(self):
+        self.assertEqual(
+            "https://www.youtube.com/@target/videos",
+            _normalize_collection_url("https://www.youtube.com/@target"),
+        )
+        self.assertEqual(
+            "uctarget",
+            _expected_creator_hint("https://www.youtube.com/channel/UCtarget"),
+        )
+
+    def test_playlist_keeps_mixed_creators_under_collection_identity(self):
+        info = {
+            "id": "PL123",
+            "title": "mixed playlist",
+            "entries": [
+                {
+                    "id": "one",
+                    "uploader": "creator-a",
+                    "channel_id": "UC-A",
+                    "url": "https://www.youtube.com/watch?v=one",
+                },
+                {
+                    "id": "two",
+                    "uploader": "creator-b",
+                    "channel_id": "UC-B",
+                    "url": "https://www.youtube.com/watch?v=two",
+                },
+            ],
+        }
+
+        result = _creator_result(info, "PL123", strict_owner=False)
+
+        self.assertEqual(["one", "two"], [entry["id"] for entry in result["entries"]])
+        self.assertEqual({"pl123"}, {entry["creator_id"] for entry in result["entries"]})
 
 
 if __name__ == "__main__":

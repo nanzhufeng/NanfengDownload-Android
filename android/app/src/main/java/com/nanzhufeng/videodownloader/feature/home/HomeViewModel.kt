@@ -16,13 +16,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 
 class HomeViewModel(
     private val downloads: DownloadRepository,
     private val settings: SettingsRepository,
     private val discovery: SourceDiscoveryEngine,
+    private val readTimeoutMillis: Long = DEFAULT_READ_TIMEOUT_MILLIS,
 ) : ViewModel() {
     companion object {
+        private const val DEFAULT_READ_TIMEOUT_MILLIS = 45_000L
+
         fun factory(
             downloads: DownloadRepository,
             settings: SettingsRepository,
@@ -56,7 +61,15 @@ class HomeViewModel(
 
     private suspend fun read(input: String, page: Int, append: Boolean) {
         mutableUiState.update { it.copy(isReading = true, notice = "正在读取作品…") }
-        when (val result = discovery.read(input, page)) {
+        val result = try {
+            withTimeout(readTimeoutMillis) { discovery.read(input, page) }
+        } catch (_: TimeoutCancellationException) {
+            mutableUiState.update {
+                it.copy(isReading = false, notice = "读取超时，请检查网络后重试。")
+            }
+            return
+        }
+        when (result) {
             is DiscoveryResult.Failure -> mutableUiState.update {
                 it.copy(isReading = false, notice = result.message)
             }
@@ -98,6 +111,7 @@ class HomeViewModel(
         val resolution = settings.settings.first().defaultResolution
         downloads.enqueue(items.map { it.toMediaItem(sourceKind) }, resolution)
     }
+
 }
 
 data class HomeUiState(

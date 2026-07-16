@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader.probe
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CancellationException
@@ -113,9 +114,16 @@ class HttpFileDownloader(
 
 object MediaFileValidator {
     fun isLikelyMedia(file: File): Boolean {
-        if (!file.isFile || file.length() < 64 * 1024) return false
+        if (!file.isFile) return false
+        return file.inputStream().use { input ->
+            isLikelyMedia(input, file.length())
+        }
+    }
+
+    fun isLikelyMedia(input: InputStream, length: Long): Boolean {
+        if (length < 64 * 1024) return false
         val header = ByteArray(64)
-        val count = file.inputStream().use { it.read(header) }
+        val count = input.read(header)
         if (count <= 0) return false
         val text = header.copyOf(count).toString(Charsets.ISO_8859_1)
         return "ftyp" in text || "webm" in text || text.startsWith("ID3")
