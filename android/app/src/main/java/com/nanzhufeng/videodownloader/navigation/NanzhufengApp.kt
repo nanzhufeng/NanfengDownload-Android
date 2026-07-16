@@ -2,6 +2,8 @@ package com.nanzhufeng.videodownloader.navigation
 
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,6 +33,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.nanzhufeng.videodownloader.AppContainer
+import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.ui.NanzhufengTheme
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
@@ -204,6 +208,13 @@ private fun PrimaryBottomNavigation(navController: NavHostController, currentRou
 @Composable
 private fun PrimaryNavigationRail(navController: NavHostController, currentRoute: String) {
     NavigationRail(modifier = Modifier.testTag("navigation-rail")) {
+        Image(
+            painter = painterResource(R.drawable.nanzhufeng_app_icon),
+            contentDescription = "南烛枫视频下载器",
+            modifier = Modifier
+                .padding(12.dp)
+                .size(48.dp),
+        )
         AppDestination.entries.forEach { destination ->
             NavigationRailItem(
                 selected = currentRoute == destination.route,

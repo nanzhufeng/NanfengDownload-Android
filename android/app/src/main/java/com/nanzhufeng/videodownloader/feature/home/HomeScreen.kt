@@ -22,12 +22,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.ui.FailureRed
@@ -60,6 +64,11 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
+            Image(
+                painter = painterResource(R.drawable.nanzhufeng_app_icon),
+                contentDescription = "南烛枫视频下载器",
+                modifier = Modifier.size(56.dp),
+            )
             Text("下载工作台", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(
                 "粘贴分享文本或链接，智能识别后进入读取与选择流程。",
@@ -144,6 +153,11 @@ private fun ExpandedHome(
             .testTag("home-screen"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        Image(
+            painter = painterResource(R.drawable.nanzhufeng_app_icon),
+            contentDescription = "南烛枫视频下载器",
+            modifier = Modifier.size(56.dp),
+        )
         Text("下载工作台", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
             "粘贴分享文本或链接，智能识别后进入读取与选择流程。",
