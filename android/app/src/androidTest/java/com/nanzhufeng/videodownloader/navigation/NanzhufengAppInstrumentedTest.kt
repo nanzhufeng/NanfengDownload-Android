@@ -1,9 +1,11 @@
 package com.nanzhufeng.videodownloader.navigation
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
@@ -58,6 +60,23 @@ class NanzhufengAppInstrumentedTest {
 
         composeRule.onNodeWithTag("navigation-rail").assertIsDisplayed()
         composeRule.onNodeWithTag("bottom-navigation").assertDoesNotExist()
+    }
+
+    @Test
+    fun smartReadCarriesCurrentInputIntoProbe() {
+        composeRule.setContent {
+            NanzhufengApp(
+                downloads = FakeDownloadRepository(),
+                settings = FakeSettingsRepository(),
+                expandedOverride = false,
+                onOpenDouyin = {},
+            )
+        }
+
+        val input = "https://www.tiktok.com/@creator/video/123456789"
+        composeRule.onNodeWithTag("home-input").performTextInput(input)
+        composeRule.onNodeWithTag("smart-read").performClick()
+        composeRule.onNodeWithTag("probe-input").assertTextContains(input)
     }
 }
 

@@ -73,7 +73,9 @@ fun HomeScreen(
                     OutlinedTextField(
                         value = input,
                         onValueChange = onInputChange,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("home-input"),
                         minLines = 3,
                         maxLines = 5,
                         label = { Text("抖音、YouTube 或 TikTok 分享文本") },
@@ -81,7 +83,9 @@ fun HomeScreen(
                     Button(
                         onClick = onSmartRead,
                         enabled = input.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("smart-read"),
                     ) {
                         androidx.compose.material3.Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
@@ -169,7 +173,9 @@ private fun InputCard(
             OutlinedTextField(
                 value = input,
                 onValueChange = onInputChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home-input"),
                 minLines = 3,
                 maxLines = 5,
                 label = { Text("抖音、YouTube 或 TikTok 分享文本") },
@@ -177,7 +183,9 @@ private fun InputCard(
             Button(
                 onClick = onSmartRead,
                 enabled = input.isNotBlank(),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("smart-read"),
             ) {
                 androidx.compose.material3.Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.padding(horizontal = 4.dp))

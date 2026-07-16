@@ -59,7 +59,9 @@ fun ProbeScreen(
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("probe-input"),
                 label = { Text("抖音、YouTube 或 TikTok 分享文本") },
                 minLines = 3,
                 maxLines = 6,
