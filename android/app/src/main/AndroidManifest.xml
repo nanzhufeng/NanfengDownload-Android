@@ -9,6 +9,9 @@
         android:theme="@style/Theme.NanzhufengVideoDownloader"
         android:usesCleartextTraffic="false">
         <activity
+            android:name=".probe.DouyinProbeActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
