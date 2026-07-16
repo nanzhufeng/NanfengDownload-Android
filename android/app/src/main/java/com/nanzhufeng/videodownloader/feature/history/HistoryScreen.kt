@@ -3,6 +3,8 @@ package com.nanzhufeng.videodownloader.feature.history
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -17,22 +19,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ContentCopy
-import androidx.compose.material.icons.outlined.DeleteOutline
-import androidx.compose.material.icons.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
-import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
+import com.nanzhufeng.videodownloader.core.ui.AppCardTone
+import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,15 +60,13 @@ import java.util.Locale
 @Composable
 fun HistoryScreen(
     history: List<DownloadHistory>,
-    onRetry: (String) -> Unit,
     onDeleteRecord: (String) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var status by rememberSaveable { mutableStateOf(HistoryStatusFilter.ALL) }
     var platform by rememberSaveable { mutableStateOf<DownloadPlatform?>(null) }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
-    val filtered = filterHistory(history, query, status, platform, period)
+    val filtered = filterCompletedHistory(history, query, platform, period)
 
     androidx.compose.foundation.lazy.LazyColumn(
         modifier = Modifier
@@ -81,7 +78,7 @@ fun HistoryScreen(
         item {
             Text("下载历史", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(
-                "保留完成、失败、跳过和取消结果，便于查找与继续处理。",
+                "已完成的下载会按时间排列，便于查找与管理。",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -97,10 +94,8 @@ fun HistoryScreen(
         }
         item {
             HistoryFilters(
-                status = status,
                 platform = platform,
                 period = period,
-                onStatusChange = { status = it },
                 onPlatformChange = { platform = it },
                 onPeriodChange = { period = it },
             )
@@ -121,7 +116,6 @@ fun HistoryScreen(
             items(filtered.size, key = { filtered[it].taskId }) { index ->
                 HistoryItem(
                     item = filtered[index],
-                    onRetry = onRetry,
                     onDelete = { pendingDeleteId = filtered[index].taskId },
                 )
             }
@@ -149,29 +143,15 @@ fun HistoryScreen(
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun HistoryFilters(
-    status: HistoryStatusFilter,
     platform: DownloadPlatform?,
     period: HistoryPeriod,
-    onStatusChange: (HistoryStatusFilter) -> Unit,
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
 ) {
     Column(
-        modifier = Modifier.testTag("history-filters"),
+        modifier = Modifier.testTag("history-platform-time-filters"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            HistoryStatusFilter.entries.forEach { filter ->
-                FilterChip(
-                    selected = status == filter,
-                    onClick = { onStatusChange(filter) },
-                    label = { Text(filter.label) },
-                )
-            }
-        }
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -203,100 +183,108 @@ private fun HistoryFilters(
 @Composable
 private fun HistoryItem(
     item: DownloadHistory,
-    onRetry: (String) -> Unit,
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(8.dp),
+    var menuExpanded by rememberSaveable { mutableStateOf(false) }
+    WorkbenchCard(
+        tone = AppCardTone.MINT,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("history-card-${item.taskId}"),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusChip(item.finalStatus)
-                Spacer(Modifier.width(8.dp))
-                Text(item.platform.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.weight(1f))
-                Text(formatHistoryTime(item.completedAt), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.width(76.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(formatHistoryDate(item.completedAt), fontWeight = FontWeight.SemiBold)
+                Text(
+                    formatHistoryClock(item.completedAt),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
-            Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold)
-            Text(
-                "${item.creator}  ·  ${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Box(
+                modifier = Modifier
+                    .width(10.dp)
+                    .height(66.dp)
+                    .background(Color(0xFF159447), RoundedCornerShape(5.dp)),
             )
-            item.errorSummary?.takeIf(String::isNotBlank)?.let { error ->
-                Text(error, color = MaterialTheme.colorScheme.error, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (item.finalStatus in setOf(DownloadTaskStatus.FAILED, DownloadTaskStatus.CANCELLED)) {
-                    OutlinedButton(onClick = { onRetry(item.taskId) }) {
-                        Icon(Icons.Outlined.Refresh, contentDescription = null)
-                        Spacer(Modifier.width(4.dp))
-                        Text("重试")
-                    }
-                }
-                if (item.fileExists && item.outputUri != null) {
-                    IconButton(onClick = {
-                        runCatching {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse(item.outputUri)).apply {
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        item.title,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Box {
+                        IconButton(
+                            onClick = { menuExpanded = true },
+                            modifier = Modifier.testTag("history-overflow-${item.taskId}"),
+                        ) {
+                            Icon(Icons.Outlined.MoreVert, contentDescription = "更多操作")
+                        }
+                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                            if (item.fileExists && item.outputUri != null) {
+                                DropdownMenuItem(
+                                    text = { Text("打开文件") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        runCatching {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse(item.outputUri)).apply {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                },
+                                            )
+                                        }.onFailure {
+                                            Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("复制原链接") },
+                                onClick = {
+                                    menuExpanded = false
+                                    clipboard.setText(AnnotatedString(item.originalUrl))
+                                    Toast.makeText(context, "已复制原链接", Toast.LENGTH_SHORT).show()
                                 },
                             )
-                        }.onFailure {
-                            Toast.makeText(context, "无法打开该文件", Toast.LENGTH_SHORT).show()
+                            DropdownMenuItem(
+                                text = { Text("分享原链接") },
+                                onClick = {
+                                    menuExpanded = false
+                                    context.startActivity(
+                                        Intent.createChooser(
+                                            Intent(Intent.ACTION_SEND).apply {
+                                                type = "text/plain"
+                                                putExtra(Intent.EXTRA_TEXT, item.originalUrl)
+                                            },
+                                            "分享原链接",
+                                        ),
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("删除历史记录") },
+                                onClick = {
+                                    menuExpanded = false
+                                    onDelete()
+                                },
+                            )
                         }
-                    }) {
-                        Icon(Icons.Outlined.OpenInNew, contentDescription = "打开文件")
                     }
                 }
-                IconButton(onClick = {
-                    clipboard.setText(AnnotatedString(item.originalUrl))
-                    Toast.makeText(context, "已复制原链接", Toast.LENGTH_SHORT).show()
-                }) {
-                    Icon(Icons.Outlined.ContentCopy, contentDescription = "复制原链接")
-                }
-                IconButton(onClick = {
-                    context.startActivity(
-                        Intent.createChooser(
-                            Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, item.originalUrl)
-                            },
-                            "分享原链接",
-                        ),
-                    )
-                }) {
-                    Icon(Icons.Outlined.Share, contentDescription = "分享原链接")
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Outlined.DeleteOutline, contentDescription = "删除历史记录")
-                }
+                Text(item.platform.label(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "${item.creator}  ·  ${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
-}
-
-@Composable
-private fun StatusChip(status: DownloadTaskStatus) {
-    val (label, color) = when (status) {
-        DownloadTaskStatus.COMPLETED -> "完成" to Color(0xFF159447)
-        DownloadTaskStatus.FAILED -> "失败" to Color(0xFFD92D20)
-        DownloadTaskStatus.SKIPPED -> "已跳过" to Color(0xFF7A5AF8)
-        DownloadTaskStatus.CANCELLED -> "已取消" to Color(0xFF667085)
-        else -> status.name to MaterialTheme.colorScheme.primary
-    }
-    AssistChip(onClick = {}, label = { Text(label, color = color, fontWeight = FontWeight.SemiBold) })
 }
 
 private fun DownloadPlatform.label(): String = when (this) {
@@ -312,8 +300,11 @@ private fun com.nanzhufeng.videodownloader.core.model.ResolutionPreset.label(): 
     com.nanzhufeng.videodownloader.core.model.ResolutionPreset.AUDIO_MP3 -> "仅音频 MP3"
 }
 
-private fun formatHistoryTime(value: Long): String =
-    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(value))
+private fun formatHistoryDate(value: Long): String =
+    SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(value))
+
+private fun formatHistoryClock(value: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(value))
 
 private fun formatBytes(value: Long): String = when {
     value <= 0L -> "--"

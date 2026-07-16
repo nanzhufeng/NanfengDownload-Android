@@ -4,14 +4,6 @@ import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 
-enum class HistoryStatusFilter(val label: String, val status: DownloadTaskStatus?) {
-    ALL("全部", null),
-    COMPLETED("完成", DownloadTaskStatus.COMPLETED),
-    FAILED("失败", DownloadTaskStatus.FAILED),
-    SKIPPED("已跳过", DownloadTaskStatus.SKIPPED),
-    CANCELLED("已取消", DownloadTaskStatus.CANCELLED),
-}
-
 enum class HistoryPeriod(val label: String, val days: Int?) {
     ALL("全部时间", null),
     LAST_7_DAYS("近 7 天", 7),
@@ -35,14 +27,5 @@ fun filterCompletedHistory(
         .sortedByDescending(DownloadHistory::completedAt)
         .toList()
 }
-
-fun filterHistory(
-    history: List<DownloadHistory>,
-    query: String,
-    status: HistoryStatusFilter,
-    platform: DownloadPlatform?,
-    period: HistoryPeriod,
-    now: Long = System.currentTimeMillis(),
-): List<DownloadHistory> = filterCompletedHistory(history, query, platform, period, now)
 
 private const val DAY_MILLIS = 86_400_000L

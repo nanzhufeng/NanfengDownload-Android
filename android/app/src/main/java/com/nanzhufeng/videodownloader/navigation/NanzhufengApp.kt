@@ -175,11 +175,6 @@ fun NanzhufengApp(
                         onStartDownloads = { scope.launch { downloadEngine.start() } },
                         onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
                         onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
-                        onRetryHistory = { taskId ->
-                            scope.launch {
-                                if (downloads.retryHistory(taskId)) downloadEngine.start()
-                            }
-                        },
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
                         },
@@ -249,11 +244,6 @@ fun NanzhufengApp(
                         onStartDownloads = { scope.launch { downloadEngine.start() } },
                         onPauseDownloads = { scope.launch { downloadEngine.pauseAll() } },
                         onStopDownload = { taskId -> scope.launch { downloadEngine.stop(taskId) } },
-                        onRetryHistory = { taskId ->
-                            scope.launch {
-                                if (downloads.retryHistory(taskId)) downloadEngine.start()
-                            }
-                        },
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
                         },
@@ -292,7 +282,6 @@ private fun AppNavHost(
     onStartDownloads: () -> Unit,
     onPauseDownloads: () -> Unit,
     onStopDownload: (String) -> Unit,
-    onRetryHistory: (String) -> Unit,
     onDeleteHistory: (String) -> Unit,
     expanded: Boolean,
     networkAvailable: Boolean,
@@ -326,7 +315,6 @@ private fun AppNavHost(
         composable(AppDestination.HISTORY.route) {
             HistoryScreen(
                 history = history,
-                onRetry = onRetryHistory,
                 onDeleteRecord = onDeleteHistory,
             )
         }
