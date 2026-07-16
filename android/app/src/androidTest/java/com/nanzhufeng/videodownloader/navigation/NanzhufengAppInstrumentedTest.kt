@@ -119,6 +119,15 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithTag("formal-read-entry").assertIsDisplayed()
     }
 
+    @Test
+    fun compactHome_showsHonestActiveEmptyStateAndReadEntry() {
+        composeRule.setContent { app(expanded = false) }
+
+        composeRule.onNodeWithText("当前没有下载任务").assertIsDisplayed()
+        composeRule.onNodeWithTag("formal-queue-tabs").assertIsDisplayed()
+        composeRule.onNodeWithTag("formal-read-entry").assertIsDisplayed()
+    }
+
     @Composable
     private fun app(expanded: Boolean) {
         NanzhufengApp(

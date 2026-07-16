@@ -2,6 +2,8 @@ package com.nanzhufeng.videodownloader.feature.home
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +29,6 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,11 +62,13 @@ import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.core.ui.AppCardTone
 import com.nanzhufeng.videodownloader.core.ui.FailureRed
 import com.nanzhufeng.videodownloader.core.ui.HermesOrange
-import com.nanzhufeng.videodownloader.core.ui.PrussianBlue
 import com.nanzhufeng.videodownloader.core.ui.SuccessGreen
 import com.nanzhufeng.videodownloader.core.ui.WaitingYellow
+import com.nanzhufeng.videodownloader.core.ui.WarmOrange
+import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 
 @Composable
 internal fun CompactHome(
@@ -94,8 +96,12 @@ internal fun CompactHome(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item { HomeHeader(networkAvailable) }
-        if (active != null) {
-            item { ActiveDownloadCard(active, onPauseActive, onStopActive) }
+        item {
+            if (active != null) {
+                ActiveDownloadCard(active, onPauseActive, onStopActive)
+            } else {
+                EmptyActiveCard(compact = true)
+            }
         }
         item {
             QueuePanel(
@@ -156,15 +162,17 @@ internal fun ExpandedHome(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Column(
-            modifier = Modifier.weight(0.92f).fillMaxHeight(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             if (active != null) {
                 ActiveDownloadCard(active, onPauseActive, onStopActive)
             } else {
                 EmptyActiveCard()
             }
-            Spacer(modifier = Modifier.weight(1f))
             TotalProgressCard(queue)
             ReadEntryCard(input, onInputChange, onSmartRead, isReading, notice)
             if (canLoadMore) {
@@ -182,7 +190,7 @@ internal fun ExpandedHome(
             onResolutionChanged = onResolutionChanged,
             onStartDownloads = onStartDownloads,
             expandedLayout = true,
-            modifier = Modifier.weight(1.18f).fillMaxHeight().testTag("formal-expanded-queue"),
+            modifier = Modifier.weight(1.12f).fillMaxHeight().testTag("formal-expanded-queue"),
         )
     }
 }
@@ -222,8 +230,8 @@ private fun ActiveDownloadCard(
     onStop: (String) -> Unit,
 ) {
     val progress = queued.progress()
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    WorkbenchCard(tone = AppCardTone.MINT) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("正在下载 1", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 TextButton(onClick = onPause) { Text("全部暂停") }
@@ -235,12 +243,16 @@ private fun ActiveDownloadCard(
                     Text(queued.media.creator, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(resolutionLabel(queued.task.resolution), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(formatSpeed(queued.task.speedBytesPerSecond), color = PrussianBlue, fontWeight = FontWeight.Bold)
+                        Text(
+                            formatSpeed(queued.task.speedBytesPerSecond),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
                     }
                     LinearProgressIndicator(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth().height(7.dp),
-                        color = Color(0xFF1565F9),
+                        color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
                         "${(progress * 100).toInt()}% · 剩余 ${formatDuration(queued.task.remainingSeconds)} · ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}",
@@ -251,7 +263,7 @@ private fun ActiveDownloadCard(
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     IconButton(onClick = onPause) {
-                        Icon(Icons.Outlined.Pause, contentDescription = "暂停下载", tint = Color(0xFF1565F9))
+                        Icon(Icons.Outlined.Pause, contentDescription = "暂停下载", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = { onStop(queued.task.taskId) }) {
                         Icon(Icons.Filled.Stop, contentDescription = "停止下载", tint = FailureRed)
@@ -263,11 +275,13 @@ private fun ActiveDownloadCard(
 }
 
 @Composable
-private fun EmptyActiveCard() {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(modifier = Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun EmptyActiveCard(compact: Boolean = false) {
+    WorkbenchCard(tone = AppCardTone.MINT) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("当前没有下载任务", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("智能读取并保留勾选后，任务会在这里显示实时进度。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!compact) {
+                Text("智能读取并保留勾选后，任务会在这里显示实时进度。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -288,9 +302,9 @@ private fun QueuePanel(
     val eligibleIds = filtered.filterNot { it.task.status == DownloadTaskStatus.DOWNLOADING }.map { it.task.taskId }
     val allSelected = eligibleIds.isNotEmpty() && filtered.filterNot { it.task.status == DownloadTaskStatus.DOWNLOADING }.all { it.task.selected }
 
-    Card(
+    WorkbenchCard(
         modifier = modifier.testTag("formal-queue-tabs"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        tone = AppCardTone.NEUTRAL,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
@@ -456,12 +470,12 @@ private fun TotalProgressCard(queue: List<QueuedDownload>) {
     val total = queue.sumOf { it.task.totalBytes.coerceAtLeast(0L) }
     val progress = if (total > 0L) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f
 
-    Card(
+    WorkbenchCard(
         modifier = Modifier.testTag("formal-total-progress"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        tone = AppCardTone.PURPLE,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -469,9 +483,18 @@ private fun TotalProgressCard(queue: List<QueuedDownload>) {
                 Text("${downloading}个下载中 · ${waiting}个排队中", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(modifier = Modifier.width(138.dp), horizontalAlignment = Alignment.End) {
-                Text("${(progress * 100).toInt()}%", color = Color(0xFF1565F9), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    "${(progress * 100).toInt()}%",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Text("${formatBytes(downloaded)} / ${formatBytes(total)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(5.dp), color = Color(0xFF1565F9))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().height(5.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
         }
     }
@@ -485,11 +508,11 @@ private fun ReadEntryCard(
     isReading: Boolean,
     notice: String,
 ) {
-    Card(
+    WorkbenchCard(
         modifier = Modifier.testTag("formal-read-entry"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        tone = AppCardTone.ORANGE,
     ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(
                 value = input,
                 onValueChange = onInputChange,
@@ -520,8 +543,13 @@ private fun ReadEntryCard(
 @Composable
 private fun Thumbnail(queued: QueuedDownload, modifier: Modifier) {
     if (queued.media.thumbnailUrl.isBlank()) {
-        Box(modifier = modifier.clip(MaterialTheme.shapes.medium).background(Color(0xFFE9EFF7)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = PrussianBlue)
+        Box(
+            modifier = modifier
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Outlined.VideoLibrary, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         }
     } else {
         AsyncImage(
@@ -585,14 +613,15 @@ private fun statusLabel(status: DownloadTaskStatus): String = when (status) {
     DownloadTaskStatus.CANCELLED -> "已取消"
 }
 
+@Composable
 private fun statusColor(status: DownloadTaskStatus): Color = when (status) {
-    DownloadTaskStatus.WAITING -> Color(0xFFB58200)
-    DownloadTaskStatus.PARSING, DownloadTaskStatus.DOWNLOADING, DownloadTaskStatus.VALIDATING -> Color(0xFF1565F9)
-    DownloadTaskStatus.WAITING_NETWORK -> HermesOrange
-    DownloadTaskStatus.SKIPPED -> Color(0xFFD34947)
+    DownloadTaskStatus.WAITING -> WaitingYellow
+    DownloadTaskStatus.PARSING, DownloadTaskStatus.DOWNLOADING, DownloadTaskStatus.VALIDATING -> MaterialTheme.colorScheme.primary
+    DownloadTaskStatus.WAITING_NETWORK -> WarmOrange
+    DownloadTaskStatus.SKIPPED -> FailureRed
     DownloadTaskStatus.COMPLETED -> SuccessGreen
     DownloadTaskStatus.FAILED -> FailureRed
-    DownloadTaskStatus.PAUSED, DownloadTaskStatus.CANCELLED -> Color(0xFF667085)
+    DownloadTaskStatus.PAUSED, DownloadTaskStatus.CANCELLED -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 private fun resolutionLabel(value: ResolutionPreset): String = when (value) {
