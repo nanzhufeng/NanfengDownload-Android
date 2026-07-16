@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 
 import yt_dlp
@@ -121,6 +122,91 @@ def resolve_source(url: str) -> str:
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
     return json.dumps(_source_result(info), ensure_ascii=False)
+
+
+def _normalized_handle(value):
+    return str(value or "").strip().lstrip("@").lower()
+
+
+def _creator_result(info, expected_handle):
+    expected_handle = _normalized_handle(expected_handle)
+    root_creator = str(
+        info.get("uploader") or info.get("channel") or expected_handle or "未知作者"
+    )
+    root_id = _normalized_handle(
+        info.get("uploader_id") or info.get("channel_id") or expected_handle
+    )
+    accepted_identities = {value for value in {root_id, expected_handle} if value}
+    expected_path = f"/@{expected_handle}/" if expected_handle else ""
+    entries = []
+    seen = set()
+    duplicate_count = 0
+    foreign_count = 0
+
+    for item in info.get("entries") or []:
+        video_id = str(item.get("id") or "")
+        if not video_id:
+            continue
+        if video_id in seen:
+            duplicate_count += 1
+            continue
+
+        item_creator = _normalized_handle(
+            item.get("uploader_id") or item.get("channel_id")
+        )
+        item_url = str(item.get("webpage_url") or item.get("url") or "")
+        creator_matches = item_creator and item_creator in accepted_identities
+        url_matches = expected_path and expected_path in item_url.lower()
+        if item_creator and not creator_matches:
+            foreign_count += 1
+            continue
+        if not item_creator and not url_matches:
+            foreign_count += 1
+            continue
+
+        seen.add(video_id)
+        entries.append(
+            {
+                "id": video_id,
+                "title": str(item.get("title") or "未知标题"),
+                "creator": str(
+                    item.get("uploader") or item.get("channel") or root_creator
+                ),
+                "creator_id": item_creator or root_id or expected_handle,
+                "webpage_url": item_url,
+                "upload_date": str(item.get("upload_date") or ""),
+                "thumbnail": str(item.get("thumbnail") or ""),
+            }
+        )
+
+    return {
+        "creator": root_creator,
+        "creator_id": root_id or expected_handle,
+        "entries": entries,
+        "duplicate_count": duplicate_count,
+        "foreign_count": foreign_count,
+    }
+
+
+def extract_creator(url: str) -> str:
+    match = re.search(r"/@([^/?#]+)", url)
+    if not match:
+        raise ValueError("TikTok 作者主页缺少 @作者 标识")
+    expected_handle = match.group(1)
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": "in_playlist",
+        "lazy_playlist": False,
+        "socket_timeout": 20,
+        "retries": 1,
+    }
+    with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False)
+    if not info.get("entries"):
+        raise ValueError("TikTok 作者主页没有返回公开作品")
+    return json.dumps(_creator_result(info, expected_handle), ensure_ascii=False)
 
 
 def extract_single(url: str) -> str:

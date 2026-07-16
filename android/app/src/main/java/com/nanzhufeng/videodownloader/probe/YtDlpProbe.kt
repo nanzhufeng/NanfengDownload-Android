@@ -29,6 +29,27 @@ data class ResolvedSource(
     val url: String,
 )
 
+data class CreatorVideoEntry(
+    val id: String,
+    val title: String,
+    val creator: String,
+    val creatorId: String,
+    val webpageUrl: String,
+    val uploadDate: String,
+    val thumbnail: String,
+    val selected: Boolean = true,
+)
+
+data class CreatorCatalog(
+    val creator: String,
+    val creatorId: String,
+    val entries: List<CreatorVideoEntry>,
+    val duplicateCount: Int,
+    val foreignCount: Int,
+) {
+    fun selectedEntries(): List<CreatorVideoEntry> = entries.filter(CreatorVideoEntry::selected)
+}
+
 class YtDlpProbe {
     private val module by lazy {
         Python.getInstance().getModule("nanzhufeng_probe.youtube_probe")
@@ -73,6 +94,36 @@ class YtDlpProbe {
             videoExt = json.getString("video_ext"),
             audioExt = json.getString("audio_ext").ifBlank { null },
             headers = headers,
+        )
+    }
+
+    fun extractCreator(url: String): CreatorCatalog {
+        val json = JSONObject(module.callAttr("extract_creator", url).toString())
+        val items = json.getJSONArray("entries")
+        val entries = buildList {
+            for (index in 0 until items.length()) {
+                val item = items.getJSONObject(index)
+                val webpageUrl = item.getString("webpage_url")
+                if (webpageUrl.isBlank()) continue
+                add(
+                    CreatorVideoEntry(
+                        id = item.getString("id"),
+                        title = item.getString("title"),
+                        creator = item.getString("creator"),
+                        creatorId = item.getString("creator_id"),
+                        webpageUrl = webpageUrl,
+                        uploadDate = item.getString("upload_date"),
+                        thumbnail = item.getString("thumbnail"),
+                    ),
+                )
+            }
+        }
+        return CreatorCatalog(
+            creator = json.getString("creator"),
+            creatorId = json.getString("creator_id"),
+            entries = entries,
+            duplicateCount = json.getInt("duplicate_count"),
+            foreignCount = json.getInt("foreign_count"),
         )
     }
 }
