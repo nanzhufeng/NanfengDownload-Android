@@ -18,15 +18,14 @@ class LauncherIconResourceTest {
         )
         assertTrue("必须提供 Android 8+ 的自适应图标", adaptiveIcon.exists())
         assertTrue(
-            "自适应图标背景必须透明，不能使用白色底板",
-            adaptiveIcon.readText().contains("@color/nanzhufeng_launcher_icon_transparent"),
+            "原始图标必须作为完整背景层呈现，不能被前景安全区缩放或裁切",
+            adaptiveIcon.readText().contains("<background android:drawable=\"@drawable/nanzhufeng_app_icon\"") &&
+                adaptiveIcon.readText().contains("<foreground android:drawable=\"@drawable/nanzhufeng_launcher_foreground\""),
         )
         assertTrue("必须提供桌面图标前景资源", foreground.exists())
         assertTrue(
-            "不能给原图再套 inset 外层，否则 ColorOS 会把露出的适配图标底色显示成黑色外圈",
-            foreground.readText().contains("<bitmap") &&
-                foreground.readText().contains("@drawable/nanzhufeng_app_icon") &&
-                !foreground.readText().contains("<inset"),
+            "前景层必须完全透明，不能重新缩放或包装原始图标",
+            foreground.readText().contains("#00000000"),
         )
     }
 }
