@@ -10,7 +10,7 @@ import org.junit.runner.RunWith
 class PythonRuntimeInstrumentedTest {
     @Test
     fun embeddedPythonLoadsPinnedYtDlp() {
-        val info = YoutubeProbe().runtimeInfo()
+        val info = YtDlpProbe().runtimeInfo()
 
         assertTrue(info.python.startsWith("3.13"))
         assertEquals("2026.06.09", info.ytDlp)
