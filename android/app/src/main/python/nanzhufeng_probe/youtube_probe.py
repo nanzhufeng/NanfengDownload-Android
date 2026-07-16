@@ -208,7 +208,12 @@ def _entry_webpage_url(info, item, video_id):
     return item_url
 
 
-def _creator_result(info, expected_handle, strict_owner=True):
+def _creator_result(
+    info,
+    expected_handle,
+    strict_owner=True,
+    allow_inherited_owner=False,
+):
     expected_handle = _normalized_handle(expected_handle)
     root_creator = str(
         info.get("channel")
@@ -252,7 +257,15 @@ def _creator_result(info, expected_handle, strict_owner=True):
             uploader_id_matches = root_uploader_id and item_uploader_id == root_uploader_id
             handle_matches = expected_handle and item_handle == expected_handle
             url_matches = expected_path and expected_path in item_url.lower()
-            if not (channel_matches or uploader_id_matches or handle_matches or url_matches):
+            has_item_identity = bool(item_channel_id or item_uploader_id or item_handle)
+            inherited_owner = allow_inherited_owner and not has_item_identity and bool(root_id)
+            if not (
+                channel_matches
+                or uploader_id_matches
+                or handle_matches
+                or url_matches
+                or inherited_owner
+            ):
                 foreign_count += 1
                 continue
 
@@ -280,11 +293,23 @@ def _creator_result(info, expected_handle, strict_owner=True):
     }
 
 
-def _creator_page_result(info, expected_handle, start, page_size, strict_owner=True):
+def _creator_page_result(
+    info,
+    expected_handle,
+    start,
+    page_size,
+    strict_owner=True,
+    allow_inherited_owner=False,
+):
     raw_entries = list(info.get("entries") or [])
     page_info = dict(info)
     page_info["entries"] = raw_entries[:page_size]
-    result = _creator_result(page_info, expected_handle, strict_owner=strict_owner)
+    result = _creator_result(
+        page_info,
+        expected_handle,
+        strict_owner=strict_owner,
+        allow_inherited_owner=allow_inherited_owner,
+    )
     result["has_more"] = len(raw_entries) > page_size
     result["next_start"] = start + page_size if result["has_more"] else 0
     return result
@@ -296,11 +321,12 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
     normalized_url = _normalize_collection_url(url)
     expected_handle = _expected_creator_hint(normalized_url)
     parsed = urlsplit(normalized_url)
-    is_youtube_playlist = (
-        "youtube" in parsed.netloc.lower()
-        and bool((parse_qs(parsed.query).get("list") or [""])[0])
+    is_youtube = "youtube" in parsed.netloc.lower()
+    is_youtube_playlist = is_youtube and bool(
+        (parse_qs(parsed.query).get("list") or [""])[0]
     )
     strict_owner = not is_youtube_playlist
+    allow_inherited_owner = is_youtube and not is_youtube_playlist
     if strict_owner and not expected_handle:
         raise ValueError("作者或频道链接缺少可验证的身份标识")
     options = {
@@ -327,6 +353,7 @@ def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
             start,
             page_size,
             strict_owner=strict_owner,
+            allow_inherited_owner=allow_inherited_owner,
         ),
         ensure_ascii=False,
     )

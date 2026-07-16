@@ -144,6 +144,30 @@ class CreatorResultTest(unittest.TestCase):
             result["entries"][0]["webpage_url"],
         )
 
+    def test_youtube_channel_flat_entries_inherit_verified_root_owner(self):
+        info = {
+            "id": "UCtarget",
+            "channel_id": "UCtarget",
+            "uploader_id": "@target",
+            "webpage_url": "https://www.youtube.com/channel/UCtarget/videos",
+            "entries": [
+                {
+                    "id": "abc123",
+                    "url": "https://www.youtube.com/watch?v=abc123",
+                },
+            ],
+        }
+
+        result = _creator_result(
+            info,
+            "UCtarget",
+            allow_inherited_owner=True,
+        )
+
+        self.assertEqual(["abc123"], [entry["id"] for entry in result["entries"]])
+        self.assertEqual("uctarget", result["entries"][0]["creator_id"])
+        self.assertEqual(0, result["foreign_count"])
+
 
 if __name__ == "__main__":
     unittest.main()
