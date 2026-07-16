@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -44,10 +45,11 @@ fun HomeScreen(
     notice: String = "",
     canLoadMore: Boolean = false,
     onLoadMore: () -> Unit = {},
+    onSelectionChanged: (String, Boolean) -> Unit = { _, _ -> },
     expanded: Boolean = false,
 ) {
     if (expanded) {
-        ExpandedHome(queue, input, onInputChange, onSmartRead, isReading, notice, canLoadMore, onLoadMore)
+        ExpandedHome(queue, input, onInputChange, onSmartRead, isReading, notice, canLoadMore, onLoadMore, onSelectionChanged)
         return
     }
     LazyColumn(
@@ -110,7 +112,7 @@ fun HomeScreen(
             }
         } else {
             items(queue, key = { it.task.taskId }) { queued ->
-                QueueItem(queued)
+                QueueItem(queued, onSelectionChanged)
             }
         }
         if (canLoadMore) {
@@ -133,6 +135,7 @@ private fun ExpandedHome(
     notice: String,
     canLoadMore: Boolean,
     onLoadMore: () -> Unit,
+    onSelectionChanged: (String, Boolean) -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -171,7 +174,7 @@ private fun ExpandedHome(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        items(queue, key = { it.task.taskId }) { queued -> QueueItem(queued) }
+                        items(queue, key = { it.task.taskId }) { queued -> QueueItem(queued, onSelectionChanged) }
                     }
                 }
                 if (canLoadMore) {
@@ -271,7 +274,7 @@ private fun EmptyQueue() {
 }
 
 @Composable
-private fun QueueItem(queued: QueuedDownload) {
+private fun QueueItem(queued: QueuedDownload, onSelectionChanged: (String, Boolean) -> Unit) {
     val progress = if (queued.task.totalBytes > 0L) {
         queued.task.downloadedBytes.toFloat() / queued.task.totalBytes
     } else {
@@ -284,6 +287,10 @@ private fun QueueItem(queued: QueuedDownload) {
                 .padding(14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            Checkbox(
+                checked = queued.task.selected,
+                onCheckedChange = { selected -> onSelectionChanged(queued.task.taskId, selected) },
+            )
             Text(
                 statusLabel(queued.task.status),
                 modifier = Modifier

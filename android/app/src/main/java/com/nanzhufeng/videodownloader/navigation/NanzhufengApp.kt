@@ -93,6 +93,9 @@ fun NanzhufengApp(
                             scope.launch { homeViewModel.smartRead() }
                         },
                         onLoadMore = { scope.launch { homeViewModel.loadMore() } },
+                        onSelectionChanged = { taskId, selected ->
+                            scope.launch { downloads.setSelected(taskId, selected) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -122,6 +125,9 @@ fun NanzhufengApp(
                             scope.launch { homeViewModel.smartRead() }
                         },
                         onLoadMore = { scope.launch { homeViewModel.loadMore() } },
+                        onSelectionChanged = { taskId, selected ->
+                            scope.launch { downloads.setSelected(taskId, selected) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -147,6 +153,7 @@ private fun AppNavHost(
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
     onLoadMore: () -> Unit,
+    onSelectionChanged: (String, Boolean) -> Unit,
     onResolutionSelected: (com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
     expanded: Boolean,
     modifier: Modifier = Modifier,
@@ -166,6 +173,7 @@ private fun AppNavHost(
                 notice = notice,
                 canLoadMore = canLoadMore,
                 onLoadMore = onLoadMore,
+                onSelectionChanged = onSelectionChanged,
                 expanded = expanded,
             )
         }
