@@ -9,33 +9,32 @@ import org.junit.Test
 
 class HistoryFilterTest {
     @Test
-    fun queryMatchesTitleOrCreatorAndCombinesWithStatusAndPlatform() {
-        val result = filterHistory(
+    fun completedProjection_excludesEveryNonCompletedStatusBeforeQueryAndPlatformFilters() {
+        val result = filterCompletedHistory(
             history = listOf(
-                history("one", "AI 进展", "作者甲", DownloadPlatform.YOUTUBE, DownloadTaskStatus.COMPLETED),
-                history("two", "城市漫步", "作者甲", DownloadPlatform.DOUYIN, DownloadTaskStatus.FAILED),
-                history("three", "AI 观察", "作者乙", DownloadPlatform.YOUTUBE, DownloadTaskStatus.FAILED),
+                history("done", "AI 进展", "作者甲", DownloadPlatform.YOUTUBE, DownloadTaskStatus.COMPLETED),
+                history("failed", "AI 失败", "作者甲", DownloadPlatform.YOUTUBE, DownloadTaskStatus.FAILED),
+                history("skipped", "AI 跳过", "作者乙", DownloadPlatform.DOUYIN, DownloadTaskStatus.SKIPPED),
+                history("cancelled", "AI 取消", "作者乙", DownloadPlatform.TIKTOK, DownloadTaskStatus.CANCELLED),
             ),
             query = "AI",
-            status = HistoryStatusFilter.FAILED,
-            platform = DownloadPlatform.YOUTUBE,
+            platform = null,
             period = HistoryPeriod.ALL,
             now = 2_000_000L,
         )
 
-        assertEquals(listOf("three"), result.map(DownloadHistory::taskId))
+        assertEquals(listOf("done"), result.map(DownloadHistory::taskId))
     }
 
     @Test
     fun recentPeriodDropsOlderRecords() {
         val now = 40L * DAY_MILLIS
-        val result = filterHistory(
+        val result = filterCompletedHistory(
             history = listOf(
                 history("recent", "近期", "作者", completedAt = now - 2L * DAY_MILLIS),
                 history("old", "较早", "作者", completedAt = now - 10L * DAY_MILLIS),
             ),
             query = "",
-            status = HistoryStatusFilter.ALL,
             platform = null,
             period = HistoryPeriod.LAST_7_DAYS,
             now = now,

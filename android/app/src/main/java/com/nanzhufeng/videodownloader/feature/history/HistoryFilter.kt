@@ -18,6 +18,24 @@ enum class HistoryPeriod(val label: String, val days: Int?) {
     LAST_30_DAYS("近 30 天", 30),
 }
 
+fun filterCompletedHistory(
+    history: List<DownloadHistory>,
+    query: String,
+    platform: DownloadPlatform?,
+    period: HistoryPeriod,
+    now: Long = System.currentTimeMillis(),
+): List<DownloadHistory> {
+    val normalizedQuery = query.trim()
+    val cutoff = period.days?.let { now - it * DAY_MILLIS }
+    return history.asSequence()
+        .filter { it.finalStatus == DownloadTaskStatus.COMPLETED }
+        .filter { normalizedQuery.isBlank() || it.title.contains(normalizedQuery, true) || it.creator.contains(normalizedQuery, true) || it.originalUrl.contains(normalizedQuery, true) }
+        .filter { platform == null || it.platform == platform }
+        .filter { cutoff == null || it.completedAt >= cutoff }
+        .sortedByDescending(DownloadHistory::completedAt)
+        .toList()
+}
+
 fun filterHistory(
     history: List<DownloadHistory>,
     query: String,
@@ -25,21 +43,6 @@ fun filterHistory(
     platform: DownloadPlatform?,
     period: HistoryPeriod,
     now: Long = System.currentTimeMillis(),
-): List<DownloadHistory> {
-    val normalizedQuery = query.trim()
-    val cutoff = period.days?.let { days -> now - days * DAY_MILLIS }
-    return history.asSequence()
-        .filter { item ->
-            normalizedQuery.isBlank() ||
-                item.title.contains(normalizedQuery, ignoreCase = true) ||
-                item.creator.contains(normalizedQuery, ignoreCase = true) ||
-                item.originalUrl.contains(normalizedQuery, ignoreCase = true)
-        }
-        .filter { item -> status.status == null || item.finalStatus == status.status }
-        .filter { item -> platform == null || item.platform == platform }
-        .filter { item -> cutoff == null || item.completedAt >= cutoff }
-        .sortedByDescending(DownloadHistory::completedAt)
-        .toList()
-}
+): List<DownloadHistory> = filterCompletedHistory(history, query, platform, period, now)
 
 private const val DAY_MILLIS = 86_400_000L
