@@ -25,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +40,7 @@ import androidx.navigation.compose.rememberNavController
 import com.nanzhufeng.videodownloader.AppContainer
 import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.ui.NanzhufengTheme
+import com.nanzhufeng.videodownloader.core.ui.SelectedSage
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
 import com.nanzhufeng.videodownloader.feature.history.HistoryScreen
@@ -353,9 +356,13 @@ private fun PrimaryBottomNavigation(navController: NavHostController, currentRou
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = Color(0xFFE2EEFF),
+                    indicatorColor = SelectedSage,
                 ),
-                modifier = Modifier.testTag(destination.testTag),
+                modifier = Modifier
+                    .testTag(destination.testTag)
+                    .semantics {
+                        stateDescription = if (currentRoute == destination.route) "已选中" else "未选中"
+                    },
             )
         }
     }
@@ -380,9 +387,13 @@ private fun PrimaryNavigationRail(navController: NavHostController, currentRoute
                 colors = androidx.compose.material3.NavigationRailItemDefaults.colors(
                     selectedIconColor = MaterialTheme.colorScheme.primary,
                     selectedTextColor = MaterialTheme.colorScheme.primary,
-                    indicatorColor = Color(0xFFE2EEFF),
+                    indicatorColor = SelectedSage,
                 ),
-                modifier = Modifier.testTag(destination.testTag),
+                modifier = Modifier
+                    .testTag(destination.testTag)
+                    .semantics {
+                        stateDescription = if (currentRoute == destination.route) "已选中" else "未选中"
+                    },
             )
         }
     }

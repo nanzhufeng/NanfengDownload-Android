@@ -6,43 +6,91 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
-val PrussianBlue = Color(0xFF0D3A69)
-val HermesOrange = Color(0xFFEB5C20)
-val MarsGreen = Color(0xFF018B8D)
-val WorkspaceBackground = Color(0xFFF4F7FB)
-val WaitingYellow = Color(0xFFF9D46C)
+val MintWorkspace = Color(0xFFF1F8F4)
+val ForestGreen = Color(0xFF1E6A45)
+val SelectedSage = Color(0xFFDCEFE3)
+val WarmOrange = Color(0xFFE86E2F)
+val QualityPurple = Color(0xFF7250B5)
+val StorageOchre = Color(0xFFB36A16)
+
+val PrussianBlue = ForestGreen
+val HermesOrange = WarmOrange
+val MarsGreen = QualityPurple
+val WorkspaceBackground = MintWorkspace
+val WaitingYellow = StorageOchre
 val FailureRed = Color(0xFFC8161D)
-val SuccessGreen = Color(0xFF168447)
+val SuccessGreen = ForestGreen
 
 private val NanzhufengColors = lightColorScheme(
-    primary = PrussianBlue,
+    primary = ForestGreen,
     onPrimary = Color.White,
-    secondary = HermesOrange,
+    secondary = WarmOrange,
     onSecondary = Color.White,
-    tertiary = MarsGreen,
+    tertiary = QualityPurple,
     onTertiary = Color.White,
-    background = WorkspaceBackground,
+    background = MintWorkspace,
     onBackground = Color(0xFF101828),
     surface = Color.White,
     onSurface = Color(0xFF101828),
-    surfaceVariant = Color(0xFFEAF0F7),
-    onSurfaceVariant = Color(0xFF475467),
+    surfaceVariant = SelectedSage,
+    onSurfaceVariant = ForestGreen,
     error = FailureRed,
+)
+
+private val NanzhufengTypography = Typography(
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+    ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+    ),
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+    ),
 )
 
 @Composable
 fun NanzhufengTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = NanzhufengColors,
-        typography = Typography(),
+        typography = NanzhufengTypography,
         shapes = MaterialTheme.shapes.copy(
             extraSmall = RoundedCornerShape(4.dp),
             small = RoundedCornerShape(6.dp),
-            medium = RoundedCornerShape(8.dp),
-            large = RoundedCornerShape(8.dp),
-            extraLarge = RoundedCornerShape(8.dp),
+            medium = RoundedCornerShape(16.dp),
+            large = RoundedCornerShape(20.dp),
+            extraLarge = RoundedCornerShape(20.dp),
         ),
         content = content,
     )

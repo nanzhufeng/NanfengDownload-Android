@@ -1,6 +1,9 @@
 package com.nanzhufeng.videodownloader.navigation
 
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -27,14 +30,7 @@ class NanzhufengAppInstrumentedTest {
 
     @Test
     fun compactNavigationOpensOnlyHomeHistoryAndSettings() {
-        composeRule.setContent {
-            NanzhufengApp(
-                downloads = FakeDownloadRepository(),
-                settings = FakeSettingsRepository(),
-                discovery = NeverReadDiscovery(),
-                expandedOverride = false,
-            )
-        }
+        composeRule.setContent { app(expanded = false) }
 
         composeRule.onNodeWithTag("home-screen").assertIsDisplayed()
         composeRule.onNodeWithTag("bottom-navigation").assertIsDisplayed()
@@ -47,6 +43,15 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithTag("settings-screen").assertIsDisplayed()
         composeRule.onNodeWithTag("probe-entry").assertDoesNotExist()
         composeRule.onNodeWithTag("probe-screen").assertDoesNotExist()
+    }
+
+    @Test
+    fun compactNavigation_exposesSelectedDestinationState() {
+        composeRule.setContent { app(expanded = false) }
+
+        composeRule.onNodeWithTag("nav-home").assertIsDisplayed()
+        composeRule.onNodeWithTag("nav-history").performClick()
+        composeRule.onNodeWithTag("nav-history").assert(hasStateDescription("已选中"))
     }
 
     @Test
@@ -112,6 +117,16 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithTag("formal-queue-tabs").assertIsDisplayed()
         composeRule.onNodeWithTag("formal-total-progress").assertIsDisplayed()
         composeRule.onNodeWithTag("formal-read-entry").assertIsDisplayed()
+    }
+
+    @Composable
+    private fun app(expanded: Boolean) {
+        NanzhufengApp(
+            downloads = FakeDownloadRepository(),
+            settings = FakeSettingsRepository(),
+            discovery = NeverReadDiscovery(),
+            expandedOverride = expanded,
+        )
     }
 }
 
