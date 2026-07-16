@@ -35,22 +35,50 @@ class SettingsScreenInstrumentedTest {
     }
 
     @Test
-    fun expandedSettings_usesDedicatedTwoColumnGrid() {
+    fun expandedSettings_keepsAccountCardWithinOneGridColumn() {
         composeRule.setContent {
             SettingsScreen(settings(), sessions(), {}, {}, {}, {}, {}, expanded = true)
         }
 
         val accountCardContent = composeRule.onNodeWithTag("settings-youtube").assertIsDisplayed()
         val qualityCard = composeRule.onNodeWithTag("settings-quality-card").assertIsDisplayed()
+        val accountWidth = accountCardContent.getBoundsInRoot().run { right - left }
+        val qualityWidth = qualityCard.getBoundsInRoot().run { right - left }
 
         assertTrue(
-            "The account card must span both grid columns",
-            accountCardContent.getBoundsInRoot().run { right - left } >
-                qualityCard.getBoundsInRoot().run { right - left } * 1.5f,
+            "The account card must stay within one expanded-grid column",
+            accountWidth <= qualityWidth * 1.3f,
         )
 
         composeRule.onNodeWithTag("settings-expanded-grid").performScrollToNode(hasTestTag("settings-storage-card"))
         composeRule.onNodeWithTag("settings-storage-card").assertIsDisplayed()
+    }
+
+    @Test
+    fun outerSettings_keepsAccountAndQualityCardsCompactOnFirstScreen() {
+        composeRule.setContent {
+            SettingsScreen(settings(), sessions(), {}, {}, {}, {}, {}, expanded = false)
+        }
+
+        val screenBounds = composeRule.onNodeWithTag("settings-screen").getBoundsInRoot()
+        val accountCardBounds = composeRule.onNodeWithTag("settings-account-card")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        val qualityCardBounds = composeRule.onNodeWithTag("settings-quality-card")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+        assertTrue(
+            "The account card must not occupy more than 28% of the outer screen",
+            accountCardBounds.run { bottom - top } <= screenBounds.run { bottom - top } * 0.28f,
+        )
+        assertTrue(
+            "The compact quality card must begin in the first 45% of the outer screen",
+            qualityCardBounds.top <= (screenBounds.bottom - screenBounds.top) * 0.45f,
+        )
+        assertTrue(
+            "The quality card must not occupy more than 28% of the outer screen",
+            qualityCardBounds.run { bottom - top } <= screenBounds.run { bottom - top } * 0.28f,
+        )
     }
 
     private fun settings() = AppSettings()

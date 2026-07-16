@@ -89,7 +89,7 @@ fun PlatformIcon(
     Icon(
         imageVector = platform.icon(),
         contentDescription = contentDescription,
-        tint = MaterialTheme.colorScheme.primary,
+        tint = platform.brandColor(),
     )
 }
 
@@ -106,4 +106,10 @@ private fun DownloadPlatform.icon(): ImageVector = when (this) {
     DownloadPlatform.YOUTUBE -> Icons.Filled.PlayCircle
     DownloadPlatform.DOUYIN -> Icons.Filled.VideoLibrary
     DownloadPlatform.TIKTOK -> Icons.Filled.SmartDisplay
+}
+
+private fun DownloadPlatform.brandColor(): Color = when (this) {
+    DownloadPlatform.YOUTUBE -> Color(0xFFFF0000)
+    DownloadPlatform.DOUYIN -> Color(0xFF161823)
+    DownloadPlatform.TIKTOK -> Color(0xFF00B5C8)
 }

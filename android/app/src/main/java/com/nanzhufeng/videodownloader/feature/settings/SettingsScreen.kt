@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as lazyColumnItems
@@ -66,8 +67,11 @@ fun SettingsScreen(
     val douyin = stateFor(SessionSite.DOUYIN)
     val tiktok = stateFor(SessionSite.TIKTOK)
     val settingsContent = listOf(
-        SettingsContent(key = "account", spansFullWidth = true) {
-            SettingsCard(title = "账号与权限") {
+        SettingsContent(key = "account") {
+            SettingsCard(
+                title = "账号与权限",
+                modifier = Modifier.testTag("settings-account-card"),
+            ) {
                 SessionRow(
                     state = youtube,
                     modifier = Modifier.testTag("settings-youtube"),
@@ -77,9 +81,9 @@ fun SettingsScreen(
                 HorizontalDivider()
                 Column(
                     modifier = Modifier.testTag("settings-short-video-platforms"),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text("短视频平台", fontWeight = FontWeight.Medium)
+                    Text("短视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     SessionRow(
                         state = douyin,
                         modifier = Modifier.testTag("settings-douyin"),
@@ -113,6 +117,7 @@ fun SettingsScreen(
                         RadioButton(
                             selected = settings.defaultResolution == preset,
                             onClick = { onResolutionSelected(preset) },
+                            modifier = Modifier.size(32.dp),
                         )
                         Text(preset.label())
                     }
@@ -139,21 +144,18 @@ fun SettingsScreen(
         },
         SettingsContent(key = "storage") {
             SettingsCard(
-                title = "保存位置",
+                title = "文件存储",
                 tone = AppCardTone.OCHRE,
                 modifier = Modifier.testTag("settings-storage-card"),
             ) {
                 Text(
                     "视频：Movies/南烛枫视频下载器；MP3：Music/南烛枫视频下载器",
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                 )
-                Text("使用 Android 公共媒体目录，卸载应用后已下载文件仍会保留。", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        SettingsContent(key = "content") {
-            SettingsCard(title = "内容范围", tone = AppCardTone.ORANGE) {
                 Text(
-                    "支持公开内容和登录后当前账号有权限访问的内容。不绕过会员、付费、DRM 或私密限制。",
+                    "使用 Android 公共媒体目录，卸载应用后已下载文件仍会保留。\n仅支持当前账号有权限访问的公开内容，不绕过会员、付费、DRM 或私密限制。",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -226,7 +228,7 @@ private fun SettingsCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(title, fontWeight = FontWeight.SemiBold)
             content()
@@ -244,26 +246,37 @@ private fun SessionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PlatformIcon(platform = state.site.platform(), contentDescription = "${state.site.label} 图标")
         Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(state.site.label, fontWeight = FontWeight.Medium)
-            Text(state.summary, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(state.site.label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                state.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.width(8.dp))
         if (state.hasSavedSession) {
-            OutlinedButton(onClick = onClear) { Text("清除") }
+            OutlinedButton(
+                onClick = onClear,
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            ) { Text("清除", style = MaterialTheme.typography.labelMedium) }
             Spacer(Modifier.width(8.dp))
         }
-        Button(onClick = onOpen) {
+        Button(
+            onClick = onOpen,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+        ) {
             Text(
                 when (state.site) {
                     SessionSite.YOUTUBE -> if (state.hasSavedSession) "重新导入" else "导入 cookies.txt"
                     else -> if (state.hasSavedSession) "重新登录" else "登录"
                 },
+                style = MaterialTheme.typography.labelMedium,
             )
         }
     }
@@ -284,8 +297,8 @@ private fun SettingSwitchRow(
 ) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Medium)
-            Text(summary, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
@@ -294,8 +307,8 @@ private fun SettingSwitchRow(
 @Composable
 private fun ReadOnlySetting(title: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth()) {
-        Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
-        Text(value, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text(value, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
