@@ -17,8 +17,14 @@ class SplashThemeResourceTest {
             ),
         )
         assertTrue(
-            "启动图标必须直接使用图标本体",
-            themeFile.readText().contains("<item name=\"windowSplashScreenAnimatedIcon\">@drawable/nanzhufeng_app_icon</item>"),
+            "启动图标必须使用留足安全边距的图标本体",
+            themeFile.readText().contains("<item name=\"windowSplashScreenAnimatedIcon\">@drawable/nanzhufeng_splash_icon</item>"),
+        )
+        val splashIcon = File("src/main/res/drawable/nanzhufeng_splash_icon.xml")
+        assertTrue("启动图标需要单独的安全边距资源", splashIcon.exists())
+        assertTrue(
+            "启动图标安全边距必须继续直接引用原始图标，不得重新加白底",
+            splashIcon.readText().contains("android:drawable=\"@drawable/nanzhufeng_app_icon\""),
         )
         assertTrue(
             "入口 Activity 必须使用启动主题",
