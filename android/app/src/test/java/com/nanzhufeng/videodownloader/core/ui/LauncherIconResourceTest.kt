@@ -21,10 +21,12 @@ class LauncherIconResourceTest {
             "自适应图标背景必须透明，不能使用白色底板",
             adaptiveIcon.readText().contains("@color/nanzhufeng_launcher_icon_transparent"),
         )
-        assertTrue("图标前景必须保留安全边距", foreground.exists())
+        assertTrue("必须提供桌面图标前景资源", foreground.exists())
         assertTrue(
-            "图标前景必须直接引用真实图标本体",
-            foreground.readText().contains("@drawable/nanzhufeng_app_icon"),
+            "不能给原图再套 inset 外层，否则 ColorOS 会把露出的适配图标底色显示成黑色外圈",
+            foreground.readText().contains("<bitmap") &&
+                foreground.readText().contains("@drawable/nanzhufeng_app_icon") &&
+                !foreground.readText().contains("<inset"),
         )
     }
 }
