@@ -113,6 +113,9 @@ class HttpFileDownloader(
 }
 
 object MediaFileValidator {
+    private const val MIN_MP3_BYTES = 1024L
+    private const val MIN_CONTAINER_BYTES = 64L * 1024L
+
     fun isLikelyMedia(file: File): Boolean {
         if (!file.isFile) return false
         return file.inputStream().use { input ->
@@ -121,11 +124,41 @@ object MediaFileValidator {
     }
 
     fun isLikelyMedia(input: InputStream, length: Long): Boolean {
-        if (length < 64 * 1024) return false
         val header = ByteArray(64)
         val count = input.read(header)
         if (count <= 0) return false
-        val text = header.copyOf(count).toString(Charsets.ISO_8859_1)
-        return "ftyp" in text || "webm" in text || text.startsWith("ID3")
+        val bytes = header.copyOf(count)
+        val text = bytes.toString(Charsets.ISO_8859_1)
+        val trimmedText = text.trimStart('\u0000', ' ', '\t', '\r', '\n')
+        if (
+            trimmedText.startsWith("<", ignoreCase = true) ||
+            trimmedText.startsWith("{") ||
+            trimmedText.startsWith("[")
+        ) {
+            return false
+        }
+
+        val isMp3 = text.startsWith("ID3") || hasMpegAudioFrameSync(bytes)
+        if (isMp3) return length >= MIN_MP3_BYTES
+
+        val isIsoBmff = "ftyp" in text
+        val isWebM = bytes.startsWith(byteArrayOf(0x1a, 0x45, 0xdf.toByte(), 0xa3.toByte())) ||
+            "webm" in text.lowercase()
+        return (isIsoBmff || isWebM) && length >= MIN_CONTAINER_BYTES
     }
+
+    private fun hasMpegAudioFrameSync(header: ByteArray): Boolean {
+        if (header.size < 2) return false
+        val first = header[0].toInt() and 0xff
+        val second = header[1].toInt() and 0xff
+        val versionBits = (second ushr 3) and 0x03
+        val layerBits = (second ushr 1) and 0x03
+        return first == 0xff &&
+            second and 0xe0 == 0xe0 &&
+            versionBits != 0x01 &&
+            layerBits != 0x00
+    }
+
+    private fun ByteArray.startsWith(prefix: ByteArray): Boolean =
+        size >= prefix.size && prefix.indices.all { this[it] == prefix[it] }
 }
