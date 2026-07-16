@@ -260,7 +260,7 @@ git commit -m "fix(android): wrap history filters on outer screen"
 - Consumes: JVM 测试、仪器测试、Debug 构建的真实命令和结果。
 - Produces: 明确区分“已实现、自动测试、模拟器、真机、待验证风险”的动态交接。
 
-- [ ] **Step 1: 更新交接证据**
+- [x] **Step 1: 更新交接证据**
 
 记录以下固定字段：
 
@@ -275,7 +275,7 @@ git commit -m "fix(android): wrap history filters on outer screen"
 - 待验证风险：MP3 编码、三平台真实读取下载、断网恢复、通知、历史归档与 Find N5 内外屏切换。
 ```
 
-- [ ] **Step 2: 提交交接更新**
+- [x] **Step 2: 提交交接更新**
 
 ```bash
 git add PROJECT_HANDOFF.md docs/superpowers/plans/2026-07-16-mac-build-history-filter-continuation.md
