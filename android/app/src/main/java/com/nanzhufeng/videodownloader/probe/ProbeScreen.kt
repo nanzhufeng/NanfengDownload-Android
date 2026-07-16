@@ -22,21 +22,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun ProbeScreen(
     onOpenDouyin: (String) -> Unit,
+    initialInput: String = DEFAULT_YOUTUBE_PROBE_URL,
+    modifier: Modifier = Modifier,
     viewModel: ProbeViewModel = viewModel(),
 ) {
-    var input by rememberSaveable { mutableStateOf(DEFAULT_YOUTUBE_PROBE_URL) }
+    var input by rememberSaveable(initialInput) { mutableStateOf(initialInput.ifBlank { DEFAULT_YOUTUBE_PROBE_URL }) }
     val state by viewModel.uiState.collectAsState()
     val report by viewModel.report.collectAsState()
     val creatorCatalog by viewModel.creatorCatalog.collectAsState()
     val running = state is ProbeUiState.Running
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(
+        modifier = modifier
+            .fillMaxSize()
+            .testTag("probe-screen"),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -46,13 +53,15 @@ fun ProbeScreen(
         ) {
             Text("南烛枫 Android 可行性验证", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "验证公开单视频、TikTok 作者作品列表和抖音目标流。",
+                "验证公开视频、TikTok 作者作品列表和抖音目标流。",
                 style = MaterialTheme.typography.bodyMedium,
             )
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("probe-input"),
                 label = { Text("抖音、YouTube 或 TikTok 分享文本") },
                 minLines = 3,
                 maxLines = 6,
@@ -72,11 +81,7 @@ fun ProbeScreen(
                             onOpenDouyin = onOpenDouyin,
                             modifier = Modifier.weight(1f),
                         )
-                        ProbeResultCard(
-                            state = state,
-                            report = report,
-                            modifier = Modifier.weight(1f),
-                        )
+                        ProbeResultCard(state, report, Modifier.weight(1f))
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -87,7 +92,7 @@ fun ProbeScreen(
                             viewModel = viewModel,
                             onOpenDouyin = onOpenDouyin,
                         )
-                        ProbeResultCard(state = state, report = report)
+                        ProbeResultCard(state, report)
                     }
                 }
             }
@@ -109,44 +114,24 @@ private fun ProbeActions(
         ProbeButton("解析 YouTube / TikTok 单视频", running) { viewModel.parseSingle(input) }
         ProbeButton("下载 YouTube / TikTok 单视频", running) { viewModel.downloadSingle(input) }
         ProbeButton("读取 TikTok 作者作品", running) { viewModel.parseTiktokCreator(input) }
-        ProbeButton("加载更多 TikTok 作品", running, enabled = canLoadMore) {
-            viewModel.loadMoreTiktokCreator()
-        }
-        ProbeButton("打开抖音登录/探测页", running) {
-            onOpenDouyin(douyinUrlOrHome(input))
-        }
+        ProbeButton("加载更多 TikTok 作品", running, enabled = canLoadMore) { viewModel.loadMoreTiktokCreator() }
+        ProbeButton("打开抖音登录/探测页", running) { onOpenDouyin(douyinUrlOrHome(input)) }
         ProbeButton("下载捕获的抖音流", running) { viewModel.downloadCapturedDouyin() }
         ProbeButton("写入 Movies 公共目录", running) { viewModel.writeLatestToMovies() }
     }
 }
 
 @Composable
-private fun ProbeButton(
-    label: String,
-    running: Boolean,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        enabled = !running && enabled,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
+private fun ProbeButton(label: String, running: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    Button(onClick = onClick, enabled = !running && enabled, modifier = Modifier.fillMaxWidth()) {
         Text(label)
     }
 }
 
 @Composable
-private fun ProbeResultCard(
-    state: ProbeUiState,
-    report: ProbeReport,
-    modifier: Modifier = Modifier,
-) {
+private fun ProbeResultCard(state: ProbeUiState, report: ProbeReport, modifier: Modifier = Modifier) {
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stateText(state), style = MaterialTheme.typography.titleMedium)
             Text(report.title, style = MaterialTheme.typography.bodyLarge)
             Text(report.detail, style = MaterialTheme.typography.bodyMedium)
