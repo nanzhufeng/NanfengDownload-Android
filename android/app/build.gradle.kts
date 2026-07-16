@@ -6,6 +6,12 @@ plugins {
     id("com.chaquo.python")
 }
 
+val configuredBuildPython = providers.gradleProperty("nanzhufeng.buildPython")
+    .orElse(providers.environmentVariable("NANZHUFENG_BUILD_PYTHON"))
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+
 android {
     namespace = "com.nanzhufeng.videodownloader"
     compileSdk = 35
@@ -49,7 +55,7 @@ android {
 chaquopy {
     defaultConfig {
         version = "3.13"
-        buildPython("C:/Users/Administrator/AppData/Local/Programs/Python/Python313/python.exe")
+        configuredBuildPython?.let { buildPython(it) }
         pip {
             install("yt-dlp==2026.6.9")
         }
