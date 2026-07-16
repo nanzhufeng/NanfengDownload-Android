@@ -3,6 +3,8 @@ package com.nanzhufeng.videodownloader.domain.download
 import android.content.Context
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.domain.download.audio.AudioTranscoder
+import com.nanzhufeng.videodownloader.domain.download.audio.Mp3AudioTranscoder
 import com.nanzhufeng.videodownloader.probe.DirectDownloadRequest
 import com.nanzhufeng.videodownloader.probe.HttpFileDownloader
 import com.nanzhufeng.videodownloader.probe.Media3MuxProbe
@@ -18,9 +20,11 @@ import kotlinx.coroutines.withContext
 class DirectMediaTransfer(
     context: Context,
     private val downloader: HttpFileDownloader = HttpFileDownloader(),
+    audioTranscoder: AudioTranscoder = Mp3AudioTranscoder(),
 ) : MediaTransfer {
     private val applicationContext = context.applicationContext
     private val cacheRoot = File(applicationContext.cacheDir, "downloads")
+    private val audioSourcePreparer = AudioSourcePreparer(audioTranscoder)
 
     override suspend fun download(
         task: QueuedDownload,
@@ -32,28 +36,41 @@ class DirectMediaTransfer(
         val completionHandle = currentCoroutineContext()[Job]
             ?.invokeOnCompletion { cancelled.set(true) }
         try {
-            val video = downloadStream(
+            val isAudioOnly = task.task.resolution == ResolutionPreset.AUDIO_MP3
+            val primary = downloadStream(
                 url = source.videoUrl,
                 headers = source.headers,
-                target = File(directory, "video.${source.videoExtension.safeExtension("mp4")}"),
+                target = File(
+                    directory,
+                    if (isAudioOnly) {
+                        "audio-source.${source.videoExtension.safeExtension("m4a")}"
+                    } else {
+                        "video.${source.videoExtension.safeExtension("mp4")}"
+                    },
+                ),
                 cancelled = cancelled,
                 baseBytes = 0L,
                 onProgress = onProgress,
             )
-            if (task.task.resolution == ResolutionPreset.AUDIO_MP3) {
-                require(source.videoExtension.equals("mp3", ignoreCase = true)) {
-                    "当前来源没有提供可直接保存的 MP3 音频流"
+            if (isAudioOnly) {
+                val prepared = audioSourcePreparer.prepare(
+                    source = primary,
+                    destination = File(directory, "audio.mp3"),
+                    cancelled = cancelled,
+                )
+                if (prepared.file != primary) {
+                    primary.delete()
                 }
-                return@withContext PreparedMedia(video, "audio/mpeg")
+                return@withContext prepared
             }
 
             val audioUrl = source.audioUrl
             if (audioUrl.isNullOrBlank()) {
-                require(MediaFileValidator.isLikelyMedia(video)) { "下载结果不是有效媒体文件" }
-                return@withContext PreparedMedia(video, "video/mp4")
+                require(MediaFileValidator.isLikelyMedia(primary)) { "下载结果不是有效媒体文件" }
+                return@withContext PreparedMedia(primary, "video/mp4")
             }
 
-            val videoBytes = video.length()
+            val videoBytes = primary.length()
             val audio = downloadStream(
                 url = audioUrl,
                 headers = source.headers,
@@ -63,9 +80,9 @@ class DirectMediaTransfer(
                 onProgress = onProgress,
             )
             val merged = File(directory, "merged.mp4")
-            Media3MuxProbe.merge(applicationContext, video, audio, merged)
+            Media3MuxProbe.merge(applicationContext, primary, audio, merged)
             require(MediaFileValidator.isLikelyMedia(merged)) { "合并结果不是有效媒体文件" }
-            video.delete()
+            primary.delete()
             audio.delete()
             PreparedMedia(merged, "video/mp4")
         } finally {
