@@ -9,6 +9,8 @@ import com.nanzhufeng.videodownloader.probe.ResolvedSource
 import com.nanzhufeng.videodownloader.probe.SourceKind
 import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -44,6 +46,73 @@ class PlatformSourceDiscoveryEngineTest {
         assertTrue(result is DiscoveryResult.Single)
         assertFalse(result is DiscoveryResult.Collection)
     }
+
+    @Test
+    fun cancellationInterruptsBlockingGateway() = runBlocking {
+        val startedAt = System.nanoTime()
+
+        try {
+            withTimeout(50) {
+                PlatformSourceDiscoveryEngine(BlockingGateway()).read("https://youtu.be/slow")
+            }
+            throw AssertionError("阻塞读取必须被超时取消")
+        } catch (_: TimeoutCancellationException) {
+            val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue("取消耗时 ${elapsedMillis}ms", elapsedMillis < 250)
+        }
+    }
+
+    @Test
+    fun cancellationReturnsEvenWhenGatewayIgnoresThreadInterrupt() = runBlocking {
+        val startedAt = System.nanoTime()
+
+        try {
+            withTimeout(50) {
+                PlatformSourceDiscoveryEngine(UninterruptibleGateway()).read("https://youtu.be/slow")
+            }
+            throw AssertionError("不可中断读取也必须按时返回")
+        } catch (_: TimeoutCancellationException) {
+            val elapsedMillis = (System.nanoTime() - startedAt) / 1_000_000
+            assertTrue("取消耗时 ${elapsedMillis}ms", elapsedMillis < 250)
+        }
+    }
+}
+
+private class BlockingGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.YOUTUBE, SourceKind.SINGLE_VIDEO, input)
+
+    override fun resolve(url: String): ResolvedSource = error("不应解析短链接")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo {
+        Thread.sleep(1_000)
+        error("阻塞调用不应自然返回")
+    }
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
+}
+
+private class UninterruptibleGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.YOUTUBE, SourceKind.SINGLE_VIDEO, input)
+
+    override fun resolve(url: String): ResolvedSource = error("不应解析短链接")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo {
+        val end = System.nanoTime() + 1_000_000_000L
+        while (System.nanoTime() < end) {
+            try {
+                Thread.sleep(25)
+            } catch (_: InterruptedException) {
+                // 模拟 Chaquopy：底层 Python 调用不会因协程取消立即退出。
+            }
+        }
+        error("不可中断调用不应自然返回")
+    }
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
 }
 
 private class FakeGateway : ProbeDiscoveryGateway {

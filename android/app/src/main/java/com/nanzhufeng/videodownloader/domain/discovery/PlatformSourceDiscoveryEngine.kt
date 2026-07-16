@@ -7,15 +7,34 @@ import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
 import com.nanzhufeng.videodownloader.probe.Platform
 import com.nanzhufeng.videodownloader.probe.SourceKind
 import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 class PlatformSourceDiscoveryEngine(
     private val gateway: ProbeDiscoveryGateway,
     private val pageSize: Int = DEFAULT_PAGE_SIZE,
+    private val blockingExecutor: ExecutorService = createBlockingExecutor(),
 ) : SourceDiscoveryEngine {
-    override suspend fun read(input: String, page: Int): DiscoveryResult = withContext(Dispatchers.IO) {
-        try {
+    override suspend fun read(input: String, page: Int): DiscoveryResult =
+        suspendCancellableCoroutine { continuation ->
+            val future = try {
+                blockingExecutor.submit {
+                    val result = readBlocking(input, page)
+                    if (continuation.isActive) continuation.resume(result)
+                }
+            } catch (_: RejectedExecutionException) {
+                continuation.resume(DiscoveryResult.Failure("读取任务仍在清理，请稍后重试"))
+                return@suspendCancellableCoroutine
+            }
+            continuation.invokeOnCancellation { future.cancel(true) }
+        }
+
+    private fun readBlocking(input: String, page: Int): DiscoveryResult = try {
             require(page >= 1) { "页码必须从 1 开始" }
             val source = gateway.classify(input)
             val resolved = source.resolveIfNeeded()
@@ -29,9 +48,8 @@ class PlatformSourceDiscoveryEngine(
                 SourceKind.UNKNOWN_TIKTOK_SHARE,
                 -> error("链接未能解析为单视频或作品列表")
             }
-        } catch (error: Exception) {
-            DiscoveryResult.Failure(error.message ?: "读取作品失败")
-        }
+    } catch (error: Exception) {
+        DiscoveryResult.Failure(error.message ?: "读取作品失败")
     }
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {
@@ -98,5 +116,16 @@ class PlatformSourceDiscoveryEngine(
 
     private companion object {
         const val DEFAULT_PAGE_SIZE = 50
+        private const val MAX_BLOCKING_READS = 2
+        private val threadCounter = AtomicInteger()
+
+        fun createBlockingExecutor(): ExecutorService = Executors.newFixedThreadPool(
+            MAX_BLOCKING_READS,
+            ThreadFactory { task ->
+                Thread(task, "source-discovery-${threadCounter.incrementAndGet()}").apply {
+                    isDaemon = true
+                }
+            },
+        )
     }
 }
