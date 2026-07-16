@@ -101,6 +101,22 @@ class SelectAudioTest(unittest.TestCase):
         self.assertEqual("creator", result["kind"])
         self.assertEqual("https://www.tiktok.com/@creator", result["url"])
 
+    def test_vertical_tiktok_uses_short_edge_for_720p_limit(self):
+        vertical = {
+            "url": "https://example.com/vertical.mp4",
+            "ext": "mp4",
+            "vcodec": "h264",
+            "acodec": "aac",
+            "width": 576,
+            "height": 1024,
+            "tbr": 1376,
+        }
+
+        chosen_video, chosen_audio = _select_streams([vertical])
+
+        self.assertEqual(vertical, chosen_video)
+        self.assertIsNone(chosen_audio)
+
 
 if __name__ == "__main__":
     unittest.main()

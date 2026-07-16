@@ -35,6 +35,15 @@ def _select_audio(formats):
     return compatible or _best(formats, is_audio, score)
 
 
+def _short_edge(item):
+    dimensions = [
+        value
+        for value in (item.get("width"), item.get("height"))
+        if isinstance(value, (int, float)) and value > 0
+    ]
+    return min(dimensions) if dimensions else 0
+
+
 def _select_streams(formats):
     progressive = _best(
         formats,
@@ -42,8 +51,8 @@ def _select_streams(formats):
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") not in {None, "none"}
-        and (item.get("height") or 0) <= 720,
-        lambda item: ((item.get("height") or 0), (item.get("tbr") or 0)),
+        and _short_edge(item) <= 720,
+        lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
     video = _best(
         formats,
@@ -51,12 +60,12 @@ def _select_streams(formats):
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") in {None, "none"}
-        and (item.get("height") or 0) <= 720,
-        lambda item: ((item.get("height") or 0), (item.get("tbr") or 0)),
+        and _short_edge(item) <= 720,
+        lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
     audio = _select_audio(formats)
-    progressive_height = (progressive or {}).get("height") or 0
-    if video and audio and (video.get("height") or 0) > progressive_height:
+    progressive_edge = _short_edge(progressive or {})
+    if video and audio and _short_edge(video) > progressive_edge:
         return video, audio
     if progressive:
         return progressive, None
@@ -131,12 +140,17 @@ def _normalized_handle(value):
 def _creator_result(info, expected_handle):
     expected_handle = _normalized_handle(expected_handle)
     root_creator = str(
-        info.get("uploader") or info.get("channel") or expected_handle or "未知作者"
+        info.get("channel")
+        or info.get("uploader")
+        or info.get("title")
+        or expected_handle
+        or "未知作者"
     )
-    root_id = _normalized_handle(
-        info.get("uploader_id") or info.get("channel_id") or expected_handle
+    root_channel_id = _normalized_handle(info.get("channel_id") or info.get("id"))
+    root_uploader_id = _normalized_handle(info.get("uploader_id"))
+    root_id = (
+        root_channel_id or root_uploader_id or expected_handle
     )
-    accepted_identities = {value for value in {root_id, expected_handle} if value}
     expected_path = f"/@{expected_handle}/" if expected_handle else ""
     entries = []
     seen = set()
@@ -151,16 +165,22 @@ def _creator_result(info, expected_handle):
             duplicate_count += 1
             continue
 
-        item_creator = _normalized_handle(
-            item.get("uploader_id") or item.get("channel_id")
-        )
+        item_handle = _normalized_handle(item.get("uploader"))
+        item_uploader_id = _normalized_handle(item.get("uploader_id"))
+        item_channel_id = _normalized_handle(item.get("channel_id"))
         item_url = str(item.get("webpage_url") or item.get("url") or "")
-        creator_matches = item_creator and item_creator in accepted_identities
-        url_matches = expected_path and expected_path in item_url.lower()
-        if item_creator and not creator_matches:
+        if root_channel_id and item_channel_id and item_channel_id != root_channel_id:
             foreign_count += 1
             continue
-        if not item_creator and not url_matches:
+        if root_uploader_id and item_uploader_id and item_uploader_id != root_uploader_id:
+            foreign_count += 1
+            continue
+
+        channel_matches = root_channel_id and item_channel_id == root_channel_id
+        uploader_id_matches = root_uploader_id and item_uploader_id == root_uploader_id
+        handle_matches = expected_handle and item_handle == expected_handle
+        url_matches = expected_path and expected_path in item_url.lower()
+        if not (channel_matches or uploader_id_matches or handle_matches or url_matches):
             foreign_count += 1
             continue
 
@@ -172,7 +192,7 @@ def _creator_result(info, expected_handle):
                 "creator": str(
                     item.get("uploader") or item.get("channel") or root_creator
                 ),
-                "creator_id": item_creator or root_id or expected_handle,
+                "creator_id": item_channel_id or root_id,
                 "webpage_url": item_url,
                 "upload_date": str(item.get("upload_date") or ""),
                 "thumbnail": str(item.get("thumbnail") or ""),
@@ -188,10 +208,22 @@ def _creator_result(info, expected_handle):
     }
 
 
-def extract_creator(url: str) -> str:
+def _creator_page_result(info, expected_handle, start, page_size):
+    raw_entries = list(info.get("entries") or [])
+    page_info = dict(info)
+    page_info["entries"] = raw_entries[:page_size]
+    result = _creator_result(page_info, expected_handle)
+    result["has_more"] = len(raw_entries) > page_size
+    result["next_start"] = start + page_size if result["has_more"] else 0
+    return result
+
+
+def extract_creator(url: str, start: int = 1, page_size: int = 50) -> str:
     match = re.search(r"/@([^/?#]+)", url)
     if not match:
         raise ValueError("TikTok 作者主页缺少 @作者 标识")
+    if start < 1 or page_size < 1:
+        raise ValueError("TikTok 作者作品分页参数无效")
     expected_handle = match.group(1)
     options = {
         "quiet": True,
@@ -199,14 +231,19 @@ def extract_creator(url: str) -> str:
         "skip_download": True,
         "extract_flat": "in_playlist",
         "lazy_playlist": False,
+        "playliststart": start,
+        "playlistend": start + page_size,
         "socket_timeout": 20,
         "retries": 1,
     }
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
-    if not info.get("entries"):
+    if start == 1 and not info.get("entries"):
         raise ValueError("TikTok 作者主页没有返回公开作品")
-    return json.dumps(_creator_result(info, expected_handle), ensure_ascii=False)
+    return json.dumps(
+        _creator_page_result(info, expected_handle, start, page_size),
+        ensure_ascii=False,
+    )
 
 
 def extract_single(url: str) -> str:

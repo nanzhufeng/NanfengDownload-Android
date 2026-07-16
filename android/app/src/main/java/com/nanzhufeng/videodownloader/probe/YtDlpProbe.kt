@@ -46,8 +46,25 @@ data class CreatorCatalog(
     val entries: List<CreatorVideoEntry>,
     val duplicateCount: Int,
     val foreignCount: Int,
+    val hasMore: Boolean,
+    val nextStart: Int,
 ) {
     fun selectedEntries(): List<CreatorVideoEntry> = entries.filter(CreatorVideoEntry::selected)
+
+    fun append(page: CreatorCatalog): CreatorCatalog {
+        require(creatorId.isBlank() || page.creatorId.isBlank() || creatorId == page.creatorId) {
+            "TikTok 作者分页身份不一致"
+        }
+        val combined = entries + page.entries
+        val unique = combined.distinctBy(CreatorVideoEntry::id)
+        return copy(
+            entries = unique,
+            duplicateCount = duplicateCount + page.duplicateCount + (combined.size - unique.size),
+            foreignCount = foreignCount + page.foreignCount,
+            hasMore = page.hasMore,
+            nextStart = page.nextStart,
+        )
+    }
 }
 
 class YtDlpProbe {
@@ -97,8 +114,10 @@ class YtDlpProbe {
         )
     }
 
-    fun extractCreator(url: String): CreatorCatalog {
-        val json = JSONObject(module.callAttr("extract_creator", url).toString())
+    fun extractCreator(url: String, start: Int = 1, pageSize: Int = 50): CreatorCatalog {
+        val json = JSONObject(
+            module.callAttr("extract_creator", url, start, pageSize).toString(),
+        )
         val items = json.getJSONArray("entries")
         val entries = buildList {
             for (index in 0 until items.length()) {
@@ -124,6 +143,8 @@ class YtDlpProbe {
             entries = entries,
             duplicateCount = json.getInt("duplicate_count"),
             foreignCount = json.getInt("foreign_count"),
+            hasMore = json.getBoolean("has_more"),
+            nextStart = json.getInt("next_start"),
         )
     }
 }

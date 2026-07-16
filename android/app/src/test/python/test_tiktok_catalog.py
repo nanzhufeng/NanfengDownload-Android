@@ -1,6 +1,6 @@
 import unittest
 
-from nanzhufeng_probe.youtube_probe import _creator_result
+from nanzhufeng_probe.youtube_probe import _creator_page_result, _creator_result
 
 
 class CreatorResultTest(unittest.TestCase):
@@ -41,6 +41,47 @@ class CreatorResultTest(unittest.TestCase):
         self.assertEqual(["1", "3"], [entry["id"] for entry in result["entries"]])
         self.assertEqual(1, result["duplicate_count"])
         self.assertEqual(1, result["foreign_count"])
+
+    def test_accepts_tiktok_handle_and_channel_identity_shape(self):
+        info = {
+            "id": "encrypted-channel-id",
+            "title": "scout2015",
+            "webpage_url": "https://www.tiktok.com/@scout2015",
+            "entries": [
+                {
+                    "id": "7662829257558592799",
+                    "title": "sample",
+                    "uploader": "scout2015",
+                    "uploader_id": "53279706535428096",
+                    "channel": "Scout, Suki & Stella",
+                    "channel_id": "encrypted-channel-id",
+                    "url": "https://www.tiktok.com/@scout2015/video/7662829257558592799",
+                },
+            ],
+        }
+
+        result = _creator_result(info, "scout2015")
+
+        self.assertEqual(1, len(result["entries"]))
+        self.assertEqual("encrypted-channel-id", result["creator_id"])
+        self.assertEqual("encrypted-channel-id", result["entries"][0]["creator_id"])
+        self.assertEqual(0, result["foreign_count"])
+
+    def test_creator_page_keeps_page_size_and_exposes_next_start(self):
+        info = {
+            "title": "target",
+            "entries": [
+                {"id": "1", "uploader": "target", "url": "https://www.tiktok.com/@target/video/1"},
+                {"id": "2", "uploader": "target", "url": "https://www.tiktok.com/@target/video/2"},
+                {"id": "3", "uploader": "target", "url": "https://www.tiktok.com/@target/video/3"},
+            ],
+        }
+
+        result = _creator_page_result(info, "target", start=1, page_size=2)
+
+        self.assertEqual(["1", "2"], [entry["id"] for entry in result["entries"]])
+        self.assertTrue(result["has_more"])
+        self.assertEqual(3, result["next_start"])
 
 
 if __name__ == "__main__":

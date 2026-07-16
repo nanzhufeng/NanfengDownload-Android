@@ -38,10 +38,13 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
     private val _report = MutableStateFlow(ProbeReport())
     val report: StateFlow<ProbeReport> = _report.asStateFlow()
 
+    private val _creatorCatalog = MutableStateFlow<CreatorCatalog?>(null)
+    val creatorCatalog: StateFlow<CreatorCatalog?> = _creatorCatalog.asStateFlow()
+
     private var activeJob: Job? = null
     private var parsedSourceUrl: String? = null
     private var mediaInfo: YtDlpMediaInfo? = null
-    private var creatorCatalog: CreatorCatalog? = null
+    private var creatorSourceUrl: String? = null
     private var latestOutput: File? = null
 
     fun checkRuntime() = runStage("检查 Python/yt-dlp") {
@@ -92,16 +95,21 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
     fun parseTiktokCreator(input: String) = runStage("读取 TikTok 作者作品") {
         val source = requireTiktokCreator(input)
         val catalog = ytDlpProbe.extractCreator(source.url)
-        creatorCatalog = catalog
-        val preview = catalog.entries.take(8).joinToString("\n") {
-            "${it.id}  ${it.title}"
-        }
-        _report.value = ProbeReport(
-            title = "${catalog.creator}：${catalog.entries.size} 个公开作品",
-            detail = "去重 ${catalog.duplicateCount}，剔除其他作者 ${catalog.foreignCount}" +
-                if (preview.isBlank()) "" else "\n$preview",
-        )
+        creatorSourceUrl = source.url
+        _creatorCatalog.value = catalog
+        updateCreatorReport(catalog)
         "TikTok 作者作品读取完成"
+    }
+
+    fun loadMoreTiktokCreator() = runStage("加载更多 TikTok 作品") {
+        val current = requireNotNull(_creatorCatalog.value) { "尚未读取 TikTok 作者作品" }
+        require(current.hasMore) { "该作者的公开作品已经全部读取" }
+        val sourceUrl = requireNotNull(creatorSourceUrl) { "缺少 TikTok 作者主页地址" }
+        val nextPage = ytDlpProbe.extractCreator(sourceUrl, start = current.nextStart)
+        val merged = current.append(nextPage)
+        _creatorCatalog.value = merged
+        updateCreatorReport(merged)
+        "已读取 ${merged.entries.size} 个 TikTok 作品"
     }
 
     fun downloadCapturedDouyin() = runStage("下载捕获的抖音流") {
@@ -251,6 +259,18 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
         bytes >= 1024L * 1024L -> "%.2f MB".format(bytes / (1024.0 * 1024.0))
         bytes >= 1024L -> "%.1f KB".format(bytes / 1024.0)
         else -> "$bytes B"
+    }
+
+    private fun updateCreatorReport(catalog: CreatorCatalog) {
+        val preview = catalog.entries.takeLast(8).joinToString("\n") {
+            "${it.id}  ${it.title}"
+        }
+        val moreText = if (catalog.hasMore) "可继续加载" else "已读取全部公开作品"
+        _report.value = ProbeReport(
+            title = "${catalog.creator}：${catalog.entries.size} 个公开作品",
+            detail = "去重 ${catalog.duplicateCount}，剔除其他作者 ${catalog.foreignCount}，$moreText" +
+                if (preview.isBlank()) "" else "\n$preview",
+        )
     }
 
     private fun platformLabel(platform: String): String = when (platform.lowercase()) {

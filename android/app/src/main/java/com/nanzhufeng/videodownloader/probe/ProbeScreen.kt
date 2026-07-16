@@ -33,6 +33,7 @@ fun ProbeScreen(
     var input by rememberSaveable { mutableStateOf(DEFAULT_YOUTUBE_PROBE_URL) }
     val state by viewModel.uiState.collectAsState()
     val report by viewModel.report.collectAsState()
+    val creatorCatalog by viewModel.creatorCatalog.collectAsState()
     val running = state is ProbeUiState.Running
 
     Surface(modifier = Modifier.fillMaxSize()) {
@@ -66,6 +67,7 @@ fun ProbeScreen(
                         ProbeActions(
                             input = input,
                             running = running,
+                            canLoadMore = creatorCatalog?.hasMore == true,
                             viewModel = viewModel,
                             onOpenDouyin = onOpenDouyin,
                             modifier = Modifier.weight(1f),
@@ -81,6 +83,7 @@ fun ProbeScreen(
                         ProbeActions(
                             input = input,
                             running = running,
+                            canLoadMore = creatorCatalog?.hasMore == true,
                             viewModel = viewModel,
                             onOpenDouyin = onOpenDouyin,
                         )
@@ -96,6 +99,7 @@ fun ProbeScreen(
 private fun ProbeActions(
     input: String,
     running: Boolean,
+    canLoadMore: Boolean,
     viewModel: ProbeViewModel,
     onOpenDouyin: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -105,6 +109,9 @@ private fun ProbeActions(
         ProbeButton("解析 YouTube / TikTok 单视频", running) { viewModel.parseSingle(input) }
         ProbeButton("下载 YouTube / TikTok 单视频", running) { viewModel.downloadSingle(input) }
         ProbeButton("读取 TikTok 作者作品", running) { viewModel.parseTiktokCreator(input) }
+        ProbeButton("加载更多 TikTok 作品", running, enabled = canLoadMore) {
+            viewModel.loadMoreTiktokCreator()
+        }
         ProbeButton("打开抖音登录/探测页", running) {
             onOpenDouyin(douyinUrlOrHome(input))
         }
@@ -114,10 +121,15 @@ private fun ProbeActions(
 }
 
 @Composable
-private fun ProbeButton(label: String, running: Boolean, onClick: () -> Unit) {
+private fun ProbeButton(
+    label: String,
+    running: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     Button(
         onClick = onClick,
-        enabled = !running,
+        enabled = !running && enabled,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(label)
