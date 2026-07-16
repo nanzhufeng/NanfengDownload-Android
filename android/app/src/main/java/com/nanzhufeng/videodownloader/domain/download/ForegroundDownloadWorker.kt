@@ -17,52 +17,65 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nanzhufeng.videodownloader.NanzhufengApplication
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 class ForegroundDownloadWorker(
     appContext: Context,
     workerParameters: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParameters) {
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result = coroutineScope {
         val container = (applicationContext as NanzhufengApplication).container
         container.downloads.recoverInterruptedTasks()
-        setForeground(createForegroundInfo("正在准备下载"))
-
-        while (!isStopped) {
-            when (container.taskRunner.runNext()) {
-                TaskRunResult.Completed,
-                TaskRunResult.Skipped,
-                TaskRunResult.Failed,
-                -> Unit
-
-                TaskRunResult.WaitingForNetwork -> {
-                    return if (container.settings.settings.first().autoResumeNetwork) {
-                        Result.retry()
-                    } else {
-                        Result.success()
-                    }
-                }
-                TaskRunResult.Idle -> {
-                    showCompletionNotification()
-                    return Result.success()
-                }
+        setForeground(createForegroundInfo(DownloadNotificationState.preparing()))
+        val foregroundUpdates = launch {
+            container.downloads.activeTasks.collect { queue ->
+                setForeground(createForegroundInfo(DownloadNotificationState.from(queue)))
             }
         }
-        return Result.success()
+        var processedTask = false
+
+        try {
+            while (!isStopped) {
+                when (container.taskRunner.runNext()) {
+                    TaskRunResult.Completed,
+                    TaskRunResult.Skipped,
+                    TaskRunResult.Failed,
+                    -> processedTask = true
+
+                    TaskRunResult.WaitingForNetwork -> {
+                        return@coroutineScope if (container.settings.settings.first().autoResumeNetwork) {
+                            Result.retry()
+                        } else {
+                            Result.success()
+                        }
+                    }
+                    TaskRunResult.Idle -> {
+                        if (processedTask) showCompletionNotification()
+                        return@coroutineScope Result.success()
+                    }
+                }
+            }
+            Result.success()
+        } finally {
+            foregroundUpdates.cancel()
+        }
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo =
-        createForegroundInfo("正在下载队列作品")
+        createForegroundInfo(DownloadNotificationState.preparing())
 
-    private fun createForegroundInfo(content: String): ForegroundInfo {
+    private fun createForegroundInfo(state: DownloadNotificationState): ForegroundInfo {
         ensureChannel()
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("南烛枫视频下载器")
-            .setContentText(content)
+            .setContentText(state.content)
             .setOnlyAlertOnce(true)
             .setOngoing(true)
-            .setProgress(0, 0, true)
+            .setProgress(state.max, state.value, state.indeterminate)
             .build()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ForegroundInfo(
