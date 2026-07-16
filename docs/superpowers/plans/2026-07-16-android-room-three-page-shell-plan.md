@@ -356,7 +356,7 @@ data class DownloadTaskEntity(
 @Entity(
     tableName = "download_history",
     indices = [
-        Index(value = ["platform", "contentId", "resolution"], unique = true),
+        Index(value = ["platform", "contentId", "resolution"]),
         Index("completedAt"),
         Index("creator"),
     ],
@@ -421,7 +421,7 @@ interface DownloadHistoryDao {
     @Upsert suspend fun upsert(item: DownloadHistoryEntity)
     @Query("SELECT * FROM download_history ORDER BY completedAt DESC")
     fun observeAll(): Flow<List<DownloadHistoryEntity>>
-    @Query("SELECT * FROM download_history WHERE platform = :platform AND contentId = :contentId AND resolution = :resolution LIMIT 1")
+    @Query("SELECT * FROM download_history WHERE platform = :platform AND contentId = :contentId AND resolution = :resolution AND finalStatus = 'COMPLETED' ORDER BY completedAt DESC LIMIT 1")
     suspend fun findCompleted(platform: String, contentId: String, resolution: String): DownloadHistoryEntity?
 }
 ```
