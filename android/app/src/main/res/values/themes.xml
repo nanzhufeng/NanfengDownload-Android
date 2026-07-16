@@ -6,4 +6,10 @@
         <item name="android:statusBarColor">#F5F7FC</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
+
+    <style name="Theme.NanzhufengVideoDownloader.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#F5F7FC</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/nanzhufeng_app_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.NanzhufengVideoDownloader</item>
+    </style>
 </resources>

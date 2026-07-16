@@ -320,7 +320,9 @@ private fun QueuePanel(
         modifier = modifier.testTag("formal-queue-tabs"),
         tone = AppCardTone.NEUTRAL,
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = if (expandedLayout) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+        ) {
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 QueueTab.entries.forEach { tab ->
                     Tab(

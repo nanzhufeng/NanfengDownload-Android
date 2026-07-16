@@ -1,6 +1,9 @@
 package com.nanzhufeng.videodownloader.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getBoundsInRoot
@@ -10,6 +13,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
@@ -18,6 +23,7 @@ import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.AppSettings
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
+import com.nanzhufeng.videodownloader.feature.home.HomeScreen
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import kotlinx.coroutines.flow.Flow
@@ -157,6 +163,33 @@ class NanzhufengAppInstrumentedTest {
         assertTrue(
             "The outer-screen queue must stay ahead of the add-task action",
             runStatus.bottom <= queue.top && queue.bottom <= readEntry.top,
+        )
+    }
+
+    @Test
+    fun compactEmptyQueue_doesNotOccupyTheWholeOuterScreen() {
+        composeRule.setContent {
+            Box(Modifier.requiredWidth(360.dp).height(800.dp)) {
+                HomeScreen(
+                    queue = emptyList(),
+                    input = "",
+                    onInputChange = {},
+                    onSmartRead = {},
+                )
+            }
+        }
+
+        val queueHeight = composeRule.onNodeWithTag("formal-queue-tabs")
+            .assertIsDisplayed()
+            .getBoundsInRoot()
+            .let { bounds -> bounds.bottom - bounds.top }
+        val screenHeight = composeRule.onNodeWithTag("home-screen")
+            .getBoundsInRoot()
+            .let { bounds -> bounds.bottom - bounds.top }
+
+        assertTrue(
+            "外屏空队列必须保留紧凑工作区，不能占满后续页面",
+            queueHeight <= screenHeight * 0.26f,
         )
     }
 
