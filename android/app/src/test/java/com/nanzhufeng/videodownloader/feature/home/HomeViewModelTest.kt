@@ -93,6 +93,7 @@ private class RecordingDownloads : DownloadRepository {
     }
 
     override suspend fun setSelected(taskId: String, selected: Boolean) = Unit
+    override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) = Unit
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) = Unit
     override suspend fun archiveTerminal(history: DownloadHistory) = Unit
 }

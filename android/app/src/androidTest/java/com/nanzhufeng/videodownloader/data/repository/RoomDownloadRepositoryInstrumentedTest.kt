@@ -59,6 +59,17 @@ class RoomDownloadRepositoryInstrumentedTest {
     }
 
     @Test
+    fun resolutionChangePersistsForOneTaskOnly() = runBlocking {
+        repository.enqueue(listOf(media(), media().copy(contentId = "content-2")), ResolutionPreset.UP_TO_720P)
+
+        repository.setResolution("task-2", ResolutionPreset.UP_TO_1080P)
+
+        val queued = repository.activeTasks.first()
+        assertEquals(ResolutionPreset.UP_TO_720P, queued.first().task.resolution)
+        assertEquals(ResolutionPreset.UP_TO_1080P, queued.last().task.resolution)
+    }
+
+    @Test
     fun invalidTransitionIsRejectedAndLegalSequenceSucceeds() = runBlocking {
         repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P)
 

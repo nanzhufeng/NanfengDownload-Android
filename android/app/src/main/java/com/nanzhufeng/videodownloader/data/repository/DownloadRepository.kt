@@ -18,6 +18,8 @@ interface DownloadRepository {
 
     suspend fun setSelected(taskId: String, selected: Boolean)
 
+    suspend fun setResolution(taskId: String, resolution: ResolutionPreset)
+
     suspend fun transition(taskId: String, to: DownloadTaskStatus)
 
     suspend fun archiveTerminal(history: DownloadHistory)

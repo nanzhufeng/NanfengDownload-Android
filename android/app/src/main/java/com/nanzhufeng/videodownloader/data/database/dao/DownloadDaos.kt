@@ -52,6 +52,15 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET resolution = :resolution, updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateResolution(taskId: String, resolution: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = :status, updatedAt = :updatedAt
         WHERE taskId = :taskId
         """,

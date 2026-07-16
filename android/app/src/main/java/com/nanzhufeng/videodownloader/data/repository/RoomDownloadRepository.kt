@@ -76,6 +76,12 @@ class RoomDownloadRepository(
         }
     }
 
+    override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) {
+        check(taskDao.updateResolution(taskId, resolution.name, clock()) == 1) {
+            "找不到下载任务：$taskId"
+        }
+    }
+
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) {
         database.withTransaction {
             val task = requireNotNull(taskDao.getById(taskId)) { "找不到下载任务：$taskId" }
