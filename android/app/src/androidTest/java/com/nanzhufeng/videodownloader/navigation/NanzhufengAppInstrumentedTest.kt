@@ -14,6 +14,8 @@ import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.AppSettings
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
+import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
+import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -29,6 +31,7 @@ class NanzhufengAppInstrumentedTest {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
+                discovery = NeverReadDiscovery(),
                 expandedOverride = false,
             )
         }
@@ -52,6 +55,7 @@ class NanzhufengAppInstrumentedTest {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
+                discovery = NeverReadDiscovery(),
                 expandedOverride = true,
             )
         }
@@ -66,6 +70,7 @@ class NanzhufengAppInstrumentedTest {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
+                discovery = NeverReadDiscovery(),
                 expandedOverride = false,
             )
         }
@@ -77,6 +82,11 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithTag("probe-screen").assertDoesNotExist()
         composeRule.onNodeWithText("检查 Python/yt-dlp").assertDoesNotExist()
     }
+}
+
+private class NeverReadDiscovery : SourceDiscoveryEngine {
+    override suspend fun read(input: String, page: Int): DiscoveryResult =
+        DiscoveryResult.Failure("测试读取失败")
 }
 
 private class FakeDownloadRepository : DownloadRepository {

@@ -40,10 +40,14 @@ fun HomeScreen(
     input: String,
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
+    isReading: Boolean = false,
+    notice: String = "",
+    canLoadMore: Boolean = false,
+    onLoadMore: () -> Unit = {},
     expanded: Boolean = false,
 ) {
     if (expanded) {
-        ExpandedHome(queue, input, onInputChange, onSmartRead)
+        ExpandedHome(queue, input, onInputChange, onSmartRead, isReading, notice, canLoadMore, onLoadMore)
         return
     }
     LazyColumn(
@@ -82,14 +86,17 @@ fun HomeScreen(
                     )
                     Button(
                         onClick = onSmartRead,
-                        enabled = input.isNotBlank(),
+                        enabled = input.isNotBlank() && !isReading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("smart-read"),
                     ) {
                         androidx.compose.material3.Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
                         Spacer(Modifier.padding(horizontal = 4.dp))
-                        Text("智能读取")
+                        Text(if (isReading) "正在读取" else "智能读取")
+                    }
+                    if (notice.isNotBlank()) {
+                        Text(notice, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -106,6 +113,13 @@ fun HomeScreen(
                 QueueItem(queued)
             }
         }
+        if (canLoadMore) {
+            item {
+                Button(onClick = onLoadMore, modifier = Modifier.fillMaxWidth(), enabled = !isReading) {
+                    Text("加载更多作品")
+                }
+            }
+        }
     }
 }
 
@@ -115,6 +129,10 @@ private fun ExpandedHome(
     input: String,
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
+    isReading: Boolean,
+    notice: String,
+    canLoadMore: Boolean,
+    onLoadMore: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -139,7 +157,7 @@ private fun ExpandedHome(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 QueueSummary(queue)
-                InputCard(input, onInputChange, onSmartRead)
+                InputCard(input, onInputChange, onSmartRead, isReading, notice)
             }
             Column(
                 modifier = Modifier.weight(1.1f),
@@ -156,6 +174,11 @@ private fun ExpandedHome(
                         items(queue, key = { it.task.taskId }) { queued -> QueueItem(queued) }
                     }
                 }
+                if (canLoadMore) {
+                    Button(onClick = onLoadMore, enabled = !isReading, modifier = Modifier.fillMaxWidth()) {
+                        Text("加载更多作品")
+                    }
+                }
             }
         }
     }
@@ -166,6 +189,8 @@ private fun InputCard(
     input: String,
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
+    isReading: Boolean,
+    notice: String,
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -182,14 +207,17 @@ private fun InputCard(
             )
             Button(
                 onClick = onSmartRead,
-                enabled = input.isNotBlank(),
+                enabled = input.isNotBlank() && !isReading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("smart-read"),
             ) {
                 androidx.compose.material3.Icon(Icons.Outlined.AutoAwesome, contentDescription = null)
                 Spacer(Modifier.padding(horizontal = 4.dp))
-                Text("智能读取")
+                Text(if (isReading) "正在读取" else "智能读取")
+            }
+            if (notice.isNotBlank()) {
+                Text(notice, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

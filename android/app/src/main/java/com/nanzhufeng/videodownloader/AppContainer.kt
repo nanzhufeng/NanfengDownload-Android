@@ -7,11 +7,15 @@ import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.repository.RoomDownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.PreferencesSettingsRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
+import com.nanzhufeng.videodownloader.domain.discovery.ChaquopyProbeDiscoveryGateway
+import com.nanzhufeng.videodownloader.domain.discovery.PlatformSourceDiscoveryEngine
+import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 
 class AppContainer private constructor(
     val database: NanzhufengDatabase,
     val downloads: DownloadRepository,
     val settings: SettingsRepository,
+    val discovery: SourceDiscoveryEngine,
 ) {
     companion object {
         fun create(context: Context): AppContainer {
@@ -25,6 +29,7 @@ class AppContainer private constructor(
                 database = database,
                 downloads = RoomDownloadRepository(database),
                 settings = PreferencesSettingsRepository(applicationContext),
+                discovery = PlatformSourceDiscoveryEngine(ChaquopyProbeDiscoveryGateway()),
             )
         }
     }

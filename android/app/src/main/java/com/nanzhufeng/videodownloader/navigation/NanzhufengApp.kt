@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,7 +35,9 @@ import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
 import com.nanzhufeng.videodownloader.feature.history.HistoryScreen
 import com.nanzhufeng.videodownloader.feature.home.HomeScreen
+import com.nanzhufeng.videodownloader.feature.home.HomeViewModel
 import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
+import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import kotlinx.coroutines.launch
 
 @Composable
@@ -44,6 +47,7 @@ fun NanzhufengApp(
     NanzhufengApp(
         downloads = container.downloads,
         settings = container.settings,
+        discovery = container.discovery,
     )
 }
 
@@ -51,6 +55,7 @@ fun NanzhufengApp(
 fun NanzhufengApp(
     downloads: DownloadRepository,
     settings: SettingsRepository,
+    discovery: SourceDiscoveryEngine,
     expandedOverride: Boolean? = null,
 ) {
     NanzhufengTheme {
@@ -60,16 +65,11 @@ fun NanzhufengApp(
             initialValue = com.nanzhufeng.videodownloader.data.settings.AppSettings(),
         )
         val scope = rememberCoroutineScope()
+        val homeViewModel: HomeViewModel = viewModel(
+            factory = HomeViewModel.factory(downloads, settings, discovery),
+        )
+        val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
         val navController = rememberNavController()
-        var input by rememberSaveable { mutableStateOf("") }
-        var inputRestored by rememberSaveable { mutableStateOf(false) }
-
-        LaunchedEffect(appSettings.inputDraft) {
-            if (!inputRestored) {
-                input = appSettings.inputDraft
-                inputRestored = true
-            }
-        }
 
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val expanded = expandedOverride ?: (maxWidth >= 600.dp)
@@ -84,11 +84,15 @@ fun NanzhufengApp(
                         queue = queue,
                         history = history,
                         settings = appSettings,
-                        input = input,
-                        onInputChange = { input = it },
+                        input = homeState.input,
+                        isReading = homeState.isReading,
+                        notice = homeState.notice,
+                        canLoadMore = homeState.canLoadMore,
+                        onInputChange = homeViewModel::onInputChanged,
                         onSmartRead = {
-                            scope.launch { settings.saveInputDraft(input) }
+                            scope.launch { homeViewModel.smartRead() }
                         },
+                        onLoadMore = { scope.launch { homeViewModel.loadMore() } },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -109,11 +113,15 @@ fun NanzhufengApp(
                         queue = queue,
                         history = history,
                         settings = appSettings,
-                        input = input,
-                        onInputChange = { input = it },
+                        input = homeState.input,
+                        isReading = homeState.isReading,
+                        notice = homeState.notice,
+                        canLoadMore = homeState.canLoadMore,
+                        onInputChange = homeViewModel::onInputChanged,
                         onSmartRead = {
-                            scope.launch { settings.saveInputDraft(input) }
+                            scope.launch { homeViewModel.smartRead() }
                         },
+                        onLoadMore = { scope.launch { homeViewModel.loadMore() } },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -133,8 +141,12 @@ private fun AppNavHost(
     history: List<com.nanzhufeng.videodownloader.core.model.DownloadHistory>,
     settings: com.nanzhufeng.videodownloader.data.settings.AppSettings,
     input: String,
+    isReading: Boolean,
+    notice: String,
+    canLoadMore: Boolean,
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
+    onLoadMore: () -> Unit,
     onResolutionSelected: (com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
     expanded: Boolean,
     modifier: Modifier = Modifier,
@@ -145,7 +157,17 @@ private fun AppNavHost(
         modifier = modifier.fillMaxSize(),
     ) {
         composable(AppDestination.HOME.route) {
-            HomeScreen(queue, input, onInputChange, onSmartRead, expanded)
+            HomeScreen(
+                queue = queue,
+                input = input,
+                onInputChange = onInputChange,
+                onSmartRead = onSmartRead,
+                isReading = isReading,
+                notice = notice,
+                canLoadMore = canLoadMore,
+                onLoadMore = onLoadMore,
+                expanded = expanded,
+            )
         }
         composable(AppDestination.HISTORY.route) {
             HistoryScreen(history)
