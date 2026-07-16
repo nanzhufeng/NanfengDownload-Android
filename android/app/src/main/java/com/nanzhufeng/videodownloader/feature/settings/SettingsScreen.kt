@@ -8,12 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Science
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,7 +25,6 @@ import com.nanzhufeng.videodownloader.data.settings.AppSettings
 fun SettingsScreen(
     settings: AppSettings,
     onResolutionSelected: (ResolutionPreset) -> Unit,
-    onOpenProbe: () -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier
@@ -72,30 +67,6 @@ fun SettingsScreen(
                         settings.customTreeUri ?: "使用系统 Movies 公共目录",
                         color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-        }
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenProbe)
-                    .testTag("probe-entry"),
-                colors = CardDefaults.cardColors(containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Outlined.Science, contentDescription = null)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("技术验证", fontWeight = FontWeight.SemiBold)
-                        Text("检查 yt-dlp、媒体写入与平台解析能力", color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Icon(Icons.Outlined.ChevronRight, contentDescription = null)
                 }
             }
         }

@@ -1,9 +1,9 @@
 package com.nanzhufeng.videodownloader.navigation
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
@@ -24,13 +24,12 @@ class NanzhufengAppInstrumentedTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun compactNavigationOpensHomeHistorySettingsAndProbe() {
+    fun compactNavigationOpensOnlyHomeHistoryAndSettings() {
         composeRule.setContent {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
                 expandedOverride = false,
-                onOpenDouyin = {},
             )
         }
 
@@ -43,8 +42,8 @@ class NanzhufengAppInstrumentedTest {
 
         composeRule.onNodeWithTag("nav-settings").performClick()
         composeRule.onNodeWithTag("settings-screen").assertIsDisplayed()
-        composeRule.onNodeWithTag("probe-entry").performClick()
-        composeRule.onNodeWithTag("probe-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("probe-entry").assertDoesNotExist()
+        composeRule.onNodeWithTag("probe-screen").assertDoesNotExist()
     }
 
     @Test
@@ -54,7 +53,6 @@ class NanzhufengAppInstrumentedTest {
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
                 expandedOverride = true,
-                onOpenDouyin = {},
             )
         }
 
@@ -63,20 +61,21 @@ class NanzhufengAppInstrumentedTest {
     }
 
     @Test
-    fun smartReadCarriesCurrentInputIntoProbe() {
+    fun smartReadStaysOnHomeAndNeverShowsProbeControls() {
         composeRule.setContent {
             NanzhufengApp(
                 downloads = FakeDownloadRepository(),
                 settings = FakeSettingsRepository(),
                 expandedOverride = false,
-                onOpenDouyin = {},
             )
         }
 
         val input = "https://www.tiktok.com/@creator/video/123456789"
         composeRule.onNodeWithTag("home-input").performTextInput(input)
         composeRule.onNodeWithTag("smart-read").performClick()
-        composeRule.onNodeWithTag("probe-input").assertTextContains(input)
+        composeRule.onNodeWithTag("home-screen").assertIsDisplayed()
+        composeRule.onNodeWithTag("probe-screen").assertDoesNotExist()
+        composeRule.onNodeWithText("检查 Python/yt-dlp").assertDoesNotExist()
     }
 }
 

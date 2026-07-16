@@ -16,5 +16,3 @@ internal enum class AppDestination(
     HISTORY("history", "历史", Icons.Outlined.History, "nav-history"),
     SETTINGS("settings", "设置", Icons.Outlined.Settings, "nav-settings"),
 }
-
-internal const val PROBE_ROUTE = "probe"
