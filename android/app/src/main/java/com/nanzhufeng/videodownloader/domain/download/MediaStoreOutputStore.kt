@@ -34,7 +34,11 @@ class MediaStoreOutputStore(
     override suspend fun uriExists(uri: String): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             resolver.openFileDescriptor(Uri.parse(uri), "r")?.use { descriptor ->
-                descriptor.statSize >= MIN_MEDIA_BYTES
+                val size = descriptor.statSize
+                if (size < MIN_MP3_BYTES) return@use false
+                requireNotNull(resolver.openInputStream(Uri.parse(uri))).use { input ->
+                    MediaFileValidator.isLikelyMedia(input, size)
+                }
             } == true
         }.getOrDefault(false)
     }
@@ -83,11 +87,27 @@ class MediaStoreOutputStore(
     }
 
     private fun loadIndex(): List<IndexedMedia> = cachedIndex ?: buildList {
-        addAll(queryCollection(MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
-        addAll(queryCollection(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI))
+        addAll(
+            queryCollection(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                "Movies/南烛枫视频下载器/%",
+                MIN_CONTAINER_BYTES,
+            ),
+        )
+        addAll(
+            queryCollection(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                "Music/南烛枫视频下载器/%",
+                MIN_MP3_BYTES,
+            ),
+        )
     }.also { cachedIndex = it }
 
-    private fun queryCollection(collection: Uri): List<IndexedMedia> {
+    private fun queryCollection(
+        collection: Uri,
+        relativePathPattern: String,
+        minimumBytes: Long,
+    ): List<IndexedMedia> {
         val projection = arrayOf(
             MediaStore.MediaColumns._ID,
             MediaStore.MediaColumns.DISPLAY_NAME,
@@ -95,7 +115,7 @@ class MediaStoreOutputStore(
             MediaStore.MediaColumns.SIZE,
         )
         val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?"
-        val args = arrayOf("Movies/南烛枫视频下载器/%")
+        val args = arrayOf(relativePathPattern)
         return resolver.query(collection, projection, selection, args, null)?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
             val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
@@ -104,7 +124,7 @@ class MediaStoreOutputStore(
             buildList {
                 while (cursor.moveToNext()) {
                     val size = cursor.getLong(sizeIndex)
-                    if (size < MIN_MEDIA_BYTES) continue
+                    if (size < minimumBytes) continue
                     val uri = ContentUris.withAppendedId(collection, cursor.getLong(idIndex))
                     val directory = cursor.getString(pathIndex).orEmpty().trimEnd('/')
                     val name = cursor.getString(nameIndex).orEmpty()
@@ -120,7 +140,7 @@ class MediaStoreOutputStore(
     }
 
     private fun isValid(stored: StoredMedia): Boolean = runCatching {
-        if (stored.fileSize < MIN_MEDIA_BYTES) return@runCatching false
+        if (stored.fileSize < MIN_MP3_BYTES) return@runCatching false
         val uri = Uri.parse(stored.uri)
         requireNotNull(resolver.openInputStream(uri)).use { input ->
             MediaFileValidator.isLikelyMedia(input, stored.fileSize)
@@ -140,6 +160,7 @@ class MediaStoreOutputStore(
     )
 
     private companion object {
-        const val MIN_MEDIA_BYTES = 64 * 1024L
+        const val MIN_MP3_BYTES = 1024L
+        const val MIN_CONTAINER_BYTES = 64 * 1024L
     }
 }

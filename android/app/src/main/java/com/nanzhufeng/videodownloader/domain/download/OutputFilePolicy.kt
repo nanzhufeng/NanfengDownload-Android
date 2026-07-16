@@ -15,7 +15,8 @@ class OutputFilePolicy {
         val creator = sanitize(media.creator.ifBlank { "未知作者" })
         val title = sanitize(media.title.ifBlank { "未知标题" })
         val publishDate = normalizeDate(media.publishDate)
-        return "Movies/南烛枫视频下载器/$platform/$creator/$publishDate $title.$extension"
+        val root = if (resolution == ResolutionPreset.AUDIO_MP3) "Music" else "Movies"
+        return "$root/南烛枫视频下载器/$platform/$creator/$publishDate $title.$extension"
     }
 
     fun displayName(media: MediaItem, resolution: ResolutionPreset): String =

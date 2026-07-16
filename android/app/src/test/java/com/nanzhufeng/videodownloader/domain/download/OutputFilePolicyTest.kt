@@ -54,7 +54,7 @@ class OutputFilePolicyTest {
         )
 
         assertEquals(
-            "Movies/南烛枫视频下载器/TikTok/作者/2026-07-16 标题.mp3",
+            "Music/南烛枫视频下载器/TikTok/作者/2026-07-16 标题.mp3",
             output,
         )
     }

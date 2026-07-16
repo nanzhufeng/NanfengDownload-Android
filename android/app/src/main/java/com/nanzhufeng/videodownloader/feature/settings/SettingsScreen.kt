@@ -115,7 +115,10 @@ fun SettingsScreen(
         }
         item {
             SettingsCard(title = "保存位置") {
-                Text("Movies/南烛枫视频下载器/平台/博主", fontWeight = FontWeight.Medium)
+                Text(
+                    "视频：Movies/南烛枫视频下载器；MP3：Music/南烛枫视频下载器",
+                    fontWeight = FontWeight.Medium,
+                )
                 Text("使用 Android 公共媒体目录，卸载应用后已下载文件仍会保留。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
