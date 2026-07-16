@@ -38,7 +38,7 @@
 - Consumes: `nanzhufeng.buildPython` Gradle 属性或 `NANZHUFENG_BUILD_PYTHON` 环境变量。
 - Produces: Chaquopy `buildPython(...)` 的可选本机路径；未配置时让 Chaquopy 按标准名称发现解释器。
 
-- [ ] **Step 1: 记录当前失败基线**
+- [x] **Step 1: 记录当前失败基线**
 
 Run:
 
@@ -49,7 +49,7 @@ JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradle
 
 Expected: FAIL，错误直接指向 Windows `C:/Users/.../Python313/python.exe` 不存在，或 Python 3.13 构建解释器不可用；不得把 Java PATH 问题误记为项目代码失败。
 
-- [ ] **Step 2: 改为可选本机配置**
+- [x] **Step 2: 改为可选本机配置**
 
 在 `android/app/build.gradle.kts` 顶部加入：
 
@@ -75,7 +75,7 @@ chaquopy {
 }
 ```
 
-- [ ] **Step 3: 配置当前 Mac 的私有路径**
+- [x] **Step 3: 配置当前 Mac 的私有路径**
 
 在不提交的 `android/local.properties` 中保留 `sdk.dir`；Python 路径通过命令环境传入：
 
@@ -85,7 +85,7 @@ export NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13"
 
 Expected: `git status --short` 不出现 `android/local.properties`，且 `build.gradle.kts` 不包含 `/Users/`、`C:/Users/` 或账号信息。
 
-- [ ] **Step 4: 运行 JVM 测试确认通过**
+- [x] **Step 4: 运行 JVM 测试确认通过**
 
 Run:
 
@@ -98,7 +98,7 @@ NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
 
 Expected: `BUILD SUCCESSFUL`，且全部现有 JVM 测试通过。
 
-- [ ] **Step 5: 提交 Mac 构建适配**
+- [x] **Step 5: 提交 Mac 构建适配**
 
 ```bash
 git add android/app/build.gradle.kts
@@ -115,13 +115,13 @@ git commit -m "build(android): make Chaquopy Python path portable"
 - Consumes: 已安装的 `system-images;android-35;google_apis;arm64-v8a` 和设备模板 `84`（7.6 英寸折叠屏）。
 - Produces: 序列号固定通过运行时探测获得的隔离模拟器；仪器测试命令必须设置 `ANDROID_SERIAL`，不得误装到 OPPO。
 
-- [ ] **Step 1: 创建 AVD**
+- [x] **Step 1: 创建 AVD**
 
 Run:
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-/opt/homebrew/share/android-commandlinetools/cmdline-tools/latest/bin/avdmanager \
+/Users/nanzhufeng/Library/Android/sdk/cmdline-tools/latest/bin/avdmanager \
 create avd --force \
   --name NanzhufengFindN5Api35 \
   --package 'system-images;android-35;google_apis;arm64-v8a' \
@@ -130,7 +130,7 @@ create avd --force \
 
 Expected: AVD 创建成功，未连接、安装或修改 OPPO。
 
-- [ ] **Step 2: 启动并等待模拟器完成开机**
+- [x] **Step 2: 启动并等待模拟器完成开机**
 
 Run:
 
@@ -142,11 +142,11 @@ Run:
 在另一终端运行：
 
 ```bash
-ANDROID_SERIAL=emulator-5554 \
+ANDROID_SERIAL=emulator-5556 \
 /Users/nanzhufeng/Library/Android/sdk/platform-tools/adb wait-for-device
 ```
 
-Expected: `adb -s emulator-5554 shell getprop sys.boot_completed` 返回 `1`。若序列号不是 `emulator-5554`，只用 `adb devices -l` 中以 `emulator-` 开头的实际序列号替换，不使用 OPPO 序列号。
+Expected: `adb -s emulator-5556 shell getprop sys.boot_completed` 返回 `1`，且 `adb -s emulator-5556 emu avd name` 返回 `NanzhufengFindN5Api35`。若序列号变化，必须先按 AVD 名称核对，不使用 OPPO 序列号或其他项目的模拟器。
 
 ### Task 3: 固化 380dp 外屏筛选可见性契约
 
@@ -158,12 +158,12 @@ Expected: `adb -s emulator-5554 shell getprop sys.boot_completed` 返回 `1`。�
 - Consumes: `HistoryScreen(history, onRetry, onDeleteRecord)`。
 - Produces: 380dp 宽度下“全部状态”“全部平台”“近 30 天”三个筛选组代表项同时可见的回归契约。
 
-- [ ] **Step 1: 扩充失败测试**
+- [x] **Step 1: 扩充失败测试**
 
 在现有测试末尾加入：
 
 ```kotlin
-composeRule.onNodeWithText("全部状态").assertIsDisplayed()
+composeRule.onNodeWithText("全部").assertIsDisplayed()
 composeRule.onNodeWithText("全部平台").assertIsDisplayed()
 composeRule.onNodeWithText("近 30 天").assertIsDisplayed()
 ```
@@ -174,13 +174,13 @@ composeRule.onNodeWithText("近 30 天").assertIsDisplayed()
 composeRule.onNodeWithTag("history-filters").assertIsDisplayed()
 ```
 
-- [ ] **Step 2: 在指定模拟器上验证测试失败**
+- [x] **Step 2: 在指定模拟器上验证测试失败**
 
 Run:
 
 ```bash
 cd android
-ANDROID_SERIAL=emulator-5554 \
+ANDROID_SERIAL=emulator-5556 \
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
 ./gradlew :app:connectedDebugAndroidTest \
@@ -199,7 +199,7 @@ Expected: FAIL，失败原因是窄屏下筛选项不在可见区域，而不是
 - Consumes: `HistoryStatusFilter.entries`、`DownloadPlatform.entries`、`HistoryPeriod.entries`。
 - Produces: 不需要水平手势即可访问所有筛选项的 `HistoryFilters`。
 
-- [ ] **Step 1: 删除水平滚动依赖并标记筛选容器**
+- [x] **Step 1: 删除水平滚动依赖并标记筛选容器**
 
 删除 `horizontalScroll` 与 `rememberScrollState` import；在筛选根容器加入：
 
@@ -213,7 +213,7 @@ Modifier.testTag("history-filters")
 import androidx.compose.ui.test.onNodeWithTag
 ```
 
-- [ ] **Step 2: 用 FlowRow 呈现三个独立筛选组**
+- [x] **Step 2: 用 FlowRow 呈现三个独立筛选组**
 
 引入 `androidx.compose.foundation.layout.ExperimentalLayoutApi` 与 `FlowRow`，并在 `HistoryFilters` 上加入 `@OptIn(ExperimentalLayoutApi::class)`。将两个横向滚动 `Row` 改为三个 `FlowRow`：状态、平台、日期各自换行，统一使用：
 
@@ -224,13 +224,13 @@ verticalArrangement = Arrangement.spacedBy(8.dp)
 
 每组保留现有 `FilterChip` 的 selected/onClick 逻辑，不合并平台与日期状态，不引入第二份筛选真值。
 
-- [ ] **Step 3: 运行定向仪器测试确认通过**
+- [x] **Step 3: 运行定向仪器测试确认通过**
 
 Run: Task 3 Step 2 的同一条定向命令。
 
 Expected: `HistoryScreenInstrumentedTest` PASS；380dp 下四个断言均可见。
 
-- [ ] **Step 4: 运行全量自动测试与 Debug 构建**
+- [x] **Step 4: 运行全量自动测试与 Debug 构建**
 
 Run:
 
@@ -243,7 +243,7 @@ NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
 
 Expected: `BUILD SUCCESSFUL`，Debug APK 生成；不把该结果写成 OPPO 真机通过。
 
-- [ ] **Step 5: 提交外屏布局修复**
+- [x] **Step 5: 提交外屏布局修复**
 
 ```bash
 git add android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt \

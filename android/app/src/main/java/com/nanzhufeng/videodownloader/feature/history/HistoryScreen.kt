@@ -3,9 +3,10 @@ package com.nanzhufeng.videodownloader.feature.history
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -147,6 +147,7 @@ fun HistoryScreen(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun HistoryFilters(
     status: HistoryStatusFilter,
     platform: DownloadPlatform?,
@@ -155,10 +156,13 @@ private fun HistoryFilters(
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+    Column(
+        modifier = Modifier.testTag("history-filters"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             HistoryStatusFilter.entries.forEach { filter ->
                 FilterChip(
@@ -168,9 +172,9 @@ private fun HistoryFilters(
                 )
             }
         }
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FilterChip(selected = platform == null, onClick = { onPlatformChange(null) }, label = { Text("全部平台") })
             DownloadPlatform.entries.forEach { value ->
@@ -180,7 +184,11 @@ private fun HistoryFilters(
                     label = { Text(value.label()) },
                 )
             }
-            Spacer(Modifier.width(8.dp))
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             HistoryPeriod.entries.forEach { value ->
                 FilterChip(
                     selected = period == value,
