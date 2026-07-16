@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
+import okhttp3.mockwebserver.SocketPolicy
 import okio.Buffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
@@ -17,6 +18,55 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HttpFileDownloaderTest {
+    @Test
+    fun retriesInterruptedResponseFromPartialLength() {
+        val payload = fakeMp4Payload()
+        var requestCount = 0
+        val server = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    requestCount += 1
+                    if (requestCount == 1) {
+                        return MockResponse()
+                            .setResponseCode(200)
+                            .setBody(Buffer().write(payload))
+                            .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_RESPONSE_BODY)
+                    }
+                    val start = request.getHeader("Range")
+                        ?.removePrefix("bytes=")
+                        ?.substringBefore('-')
+                        ?.toIntOrNull()
+                        ?: 0
+                    return MockResponse()
+                        .setResponseCode(206)
+                        .setHeader("Content-Range", "bytes $start-${payload.lastIndex}/${payload.size}")
+                        .setBody(Buffer().write(payload.copyOfRange(start, payload.size)))
+                }
+            }
+            start()
+        }
+        val directory = createTempDirectory("download-retry-").toFile()
+        try {
+            val target = File(directory, "video.mp4")
+
+            val result = HttpFileDownloader(retryDelayMillis = 0).download(
+                request = DirectDownloadRequest(
+                    url = server.url("/video.mp4").toString(),
+                    headers = emptyMap(),
+                    target = target,
+                ),
+                cancelled = AtomicBoolean(false),
+                onProgress = { _, _ -> },
+            )
+
+            assertArrayEquals(payload, result.readBytes())
+            assertTrue(requestCount >= 2)
+        } finally {
+            server.shutdown()
+            directory.deleteRecursively()
+        }
+    }
+
     @Test
     fun resumesPartialDownloadAndProducesExactFile() {
         val payload = fakeMp4Payload()
