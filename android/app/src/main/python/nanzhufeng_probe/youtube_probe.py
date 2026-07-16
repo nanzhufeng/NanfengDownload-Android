@@ -83,13 +83,17 @@ def _platform_name(info):
     return extractor or "unknown"
 
 
-def _media_result(info):
+def _media_result(info, cookie_header=""):
     if info.get("_type") in {"playlist", "multi_video"} or info.get("entries"):
         raise ValueError("单视频探测返回了列表，已中止")
 
     chosen_video, audio = _select_streams(info.get("formats") or [])
     if not chosen_video:
         raise ValueError("没有找到可下载且具备音频的 MP4 视频流")
+
+    headers = dict(info.get("http_headers") or {})
+    if cookie_header:
+        headers["Cookie"] = cookie_header
 
     return {
         "platform": _platform_name(info),
@@ -104,7 +108,7 @@ def _media_result(info):
         "audio_url": (audio or {}).get("url", ""),
         "video_ext": chosen_video.get("ext") or "mp4",
         "audio_ext": (audio or {}).get("ext", ""),
-        "headers": info.get("http_headers") or {},
+        "headers": headers,
     }
 
 
@@ -257,5 +261,14 @@ def extract_single(url: str) -> str:
     }
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
+        chosen_video, _ = _select_streams(info.get("formats") or [])
+        cookie_header = (
+            ydl.cookiejar.get_cookie_header(chosen_video["url"])
+            if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
+            else ""
+        )
 
-    return json.dumps(_media_result(info), ensure_ascii=False)
+    return json.dumps(
+        _media_result(info, cookie_header=cookie_header),
+        ensure_ascii=False,
+    )

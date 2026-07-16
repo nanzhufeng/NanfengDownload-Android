@@ -89,6 +89,32 @@ class SelectAudioTest(unittest.TestCase):
         self.assertEqual("https://example.com/video.mp4", result["video_url"])
         self.assertEqual("", result["audio_url"])
 
+    def test_media_result_includes_cookie_header_when_provided(self):
+        info = {
+            "id": "7512345678901234567",
+            "extractor_key": "TikTok",
+            "formats": [
+                {
+                    "url": "https://example.com/video.mp4",
+                    "ext": "mp4",
+                    "vcodec": "h264",
+                    "acodec": "aac",
+                    "height": 720,
+                },
+            ],
+            "http_headers": {"Referer": "https://www.tiktok.com/"},
+        }
+
+        result = _media_result(
+            info,
+            cookie_header="ttwid=abc; tt_csrf_token=def",
+        )
+
+        self.assertEqual(
+            "ttwid=abc; tt_csrf_token=def",
+            result["headers"]["Cookie"],
+        )
+
     def test_tiktok_playlist_is_resolved_as_creator(self):
         result = _source_result(
             {
