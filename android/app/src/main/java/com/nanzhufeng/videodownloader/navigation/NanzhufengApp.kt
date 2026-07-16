@@ -327,6 +327,7 @@ private fun AppNavHost(
                 onOpenLogin = onOpenLogin,
                 onImportYoutubeCookies = onImportYoutubeCookies,
                 onClearSession = onClearSession,
+                expanded = expanded,
             )
         }
     }
