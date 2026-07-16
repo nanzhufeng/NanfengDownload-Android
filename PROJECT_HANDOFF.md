@@ -32,30 +32,40 @@
 - 380dp Compose 仪器测试覆盖筛选容器、“全部”、“全部平台”和“近 30 天”可见性。
 - 720×1280 模拟器视觉检查中，状态、平台、日期筛选均完整换行，无横向滚动。
 
+### OPPO Find N5 真机落地
+
+- Debug APK 已使用覆盖安装方式落到 OPPO `PKH120`，应用数据未清除：`firstInstallTime` 保持 `2026-07-16 18:55:48`，本轮 `lastUpdateTime` 为 `2026-07-16 19:12:22`。
+- OPPO Android 16/API 36 arm64 上的完整仪器测试通过：31 次执行、0 失败；3 项仅因 TikTok 外部实时条件跳过。
+- Find N5 外屏 1140×2616、展开内屏 2248×2480、折回外屏均已真机检查；进程和当前页面在折叠状态切换期间保持连续。
+- Android 16 不允许音频写入 `Movies` 的真机问题已修复：视频继续保存到 `Movies/南烛枫视频下载器`，MP3 改存 `Music/南烛枫视频下载器`，并新增真实 MediaStore 仪器回归。
+- YouTube 公开样本 `Me at the zoo` 已在 OPPO 上完成读取、下载、M4A→MP3 转码和系统媒体库发布；历史记录为“完成”，文件 448.2 KB。
+- 从 OPPO 媒体库读回的成品经 `ffprobe` 确认为真实 MP3：19.121583 秒、192 kbps、44.1 kHz、双声道；重复提交相同链接与“仅音频”规格后进入“已跳过”，未重复下载。
+- 强制停止并重新启动应用后，“完成”和“已跳过”两条历史仍在，证明结果持久化正常。
+- TikTok 官方公开示例已真机成功读取标题、作者并进入队列；抖音公开链接已进入真实解析链路，但当前外部条件明确要求 fresh cookies，未伪报成功。
+
 ## 当前验证证据
 
 - JVM：`testDebugUnitTest` 通过，共 68 项测试、0 失败。
 - 静态检查：`lintDebug` 通过，无阻断问题。
-- 构建：`testDebugUnitTest + lintDebug + assembleDebug` 于本轮全新执行，`BUILD SUCCESSFUL in 1m 8s`。
+- 构建：MediaStore 修复后重新执行 `testDebugUnitTest + lintDebug + assembleDebug`，`BUILD SUCCESSFUL in 30s`。
 - 模拟器全套仪器测试：`NanzhufengFindN5Api35`、Android 15/API 35、arm64，XML 记录 28 项、0 失败、3 项跳过；跳过项均为需要外部实时 TikTok 条件的 `TikTokLiveProbeInstrumentedTest`。
 - MP3 定向验证：2 项 LAME PCM 编码、2 项 M4A→MP3/取消清理、1 项 `DirectMediaTransfer` 主链路端到端测试均通过；转码测试连续运行两次通过。
 - 模拟器 UI：冷启动、通知权限、首页、历史、设置均可到达；应用进程定向错误日志为 0 行。
-- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，约 59 MB，SHA-256 `78ace7ce4e4613d2ad64e3fa7f0f0af1229bdf2f4708625d8b7e0134868db9f0`。
+- MediaStore 定向验证：新增 1 项真实 MP3 写入 `Music`、内容校验和清理测试，Android 15 模拟器通过。
+- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，约 59 MB，SHA-256 `5702a012ec4a4e635dbae0dba5ebcf77bd255cf8f21be5b6ebaf5f54e0c36ccc`。
 - APK 完整性：`unzip -t` 返回无错误；两套 ABI 均包含 LAME 与 JNI 共享库。
-- OPPO 连接状态：设备序列号 `3B157F009E800000`、型号 `PKH120` 已授权 ADB；截至本记录仍未安装本轮 APK、未卸载应用、未清空数据。
+- OPPO 安装状态：设备序列号 `3B157F009E800000`、型号 `PKH120`，包版本 `0.1.0-probe`/`versionCode 1`；通知权限已授予，应用可直接启动。
 
-## 尚未完成，禁止宣称正式版落地
+## 尚未完成，禁止宣称正式 Release
 
-1. 在 OPPO 上记录已有安装/版本状态，并使用 `adb install -r` 做不清数据覆盖安装。
-2. 在 OPPO arm64 上运行 LAME、M4A→MP3、DirectMediaTransfer 定向测试及完整仪器测试。
-3. Find N5 外屏、内屏切换和任务状态连续性真机验收。
-4. YouTube、抖音、TikTok 的公开单视频，以及作者/频道/播放列表真实读取、过滤、分页与下载；需要登录/cookie/地区网络的路径必须单独标明外部条件。
-5. 取消勾选不下载、有效已有文件跳过、断网恢复、用户暂停不自动恢复、完成通知、历史归档和重启后状态保留的真机生命周期验收。
-6. 正式版本号、Release APK/AAB、签名与覆盖升级策略；当前产物仍是 `0.1.0-probe` Debug APK。
+1. 抖音真实公开内容目前被平台 fresh-cookies 要求阻断；需要在设置中的登录会话完成一次抖音 Cookie 刷新后再验。
+2. 作者/频道/播放列表的大批量分页、过滤与取消勾选仍需更长时间的公开内容回归。
+3. 断网恢复、用户暂停不自动恢复和完成通知已有自动化覆盖，但尚未在本轮 OPPO 用户界面逐项人工触发。
+4. 正式版本号、Release APK/AAB、发布签名与后续覆盖升级策略仍未配置；当前安装的是可用的 `0.1.0-probe` Debug 验收版。
 
 ## 下一阶段唯一任务
 
-先在 OPPO 上无损覆盖安装本轮 Debug APK，完成 arm64 真 MP3和全套仪器验证，再进入三平台公开内容与任务生命周期的用户路径验收。遇到签名不兼容必须停止，禁止通过卸载旧应用绕过。
+如需对外分发，下一阶段只做 Release 收口：确定正式版本号和签名保管方案，构建 Release APK/AAB，并在不清数据前提下验证 Debug 验收版到正式签名版本的升级边界。抖音 Cookie 属于外部登录条件，单独处理。
 
 执行依据：
 
