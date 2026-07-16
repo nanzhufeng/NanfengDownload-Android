@@ -37,6 +37,9 @@ interface DownloadTaskDao {
     @Query("SELECT * FROM download_tasks WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadTaskEntity?
 
+    @Query("SELECT COALESCE(MAX(sortOrder), 0) + 1 FROM download_tasks")
+    suspend fun nextSortOrder(): Long
+
     @Query(
         """
         UPDATE download_tasks
