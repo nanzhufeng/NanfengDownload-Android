@@ -15,6 +15,7 @@ val configuredBuildPython = providers.gradleProperty("nanzhufeng.buildPython")
 android {
     namespace = "com.nanzhufeng.videodownloader"
     compileSdk = 35
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.nanzhufeng.videodownloader"
@@ -49,6 +50,13 @@ android {
 
     sourceSets {
         getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 
