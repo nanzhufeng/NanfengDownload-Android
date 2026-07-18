@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
@@ -110,6 +111,20 @@ class RoomDownloadRepositoryInstrumentedTest {
     }
 
     @Test
+    fun removeQueueTaskDeletesWaitingTaskButRefusesActiveTransfer() = runBlocking {
+        repository.enqueue(listOf(media(), media().copy(contentId = "content-2")), ResolutionPreset.UP_TO_720P)
+        repository.transition("task-2", DownloadTaskStatus.PARSING)
+        repository.transition("task-2", DownloadTaskStatus.DOWNLOADING)
+
+        assertTrue(repository.removeQueueTask("task-1"))
+        assertFalse(repository.removeQueueTask("task-2"))
+
+        val remaining = repository.activeTasks.first().single()
+        assertEquals("task-2", remaining.task.taskId)
+        assertEquals(DownloadTaskStatus.DOWNLOADING, remaining.task.status)
+    }
+
+    @Test
     fun retryHistoryRequeuesFailedTaskAndRemovesStaleTerminalRecord() = runBlocking {
         repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P)
         repository.transition("task-1", DownloadTaskStatus.PARSING)
@@ -133,6 +148,47 @@ class RoomDownloadRepositoryInstrumentedTest {
         assertNull(queued.task.failureType)
         assertNull(queued.task.errorSummary)
         assertTrue(repository.history.first().isEmpty())
+    }
+
+    @Test
+    fun failedTaskRemainsVisibleInQueueWithItsProblemUntilUserActs() = runBlocking {
+        repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P)
+        repository.transition("task-1", DownloadTaskStatus.PARSING)
+        repository.transitionWithProblem(
+            taskId = "task-1",
+            to = DownloadTaskStatus.FAILED,
+            failureType = com.nanzhufeng.videodownloader.core.model.DownloadFailureType.TRANSFER,
+            errorSummary = "unexpected end of stream",
+        )
+
+        val failed = repository.activeTasks.first().single()
+        assertEquals(DownloadTaskStatus.FAILED, failed.task.status)
+        assertEquals("unexpected end of stream", failed.task.errorSummary)
+    }
+
+    @Test
+    fun enqueueSkipsItemsAlreadyPresentInDownloadListAndDuplicatesWithinTheSameRead() = runBlocking {
+        assertEquals(
+            listOf("task-1"),
+            repository.enqueue(listOf(media(), media()), ResolutionPreset.UP_TO_720P),
+        )
+
+        assertTrue(repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_1080P).isEmpty())
+        assertEquals(1, repository.activeTasks.first().size)
+    }
+
+    @Test
+    fun enqueueSkipsCompletedHistoryRegardlessOfRequestedResolution() = runBlocking {
+        repository.archiveTerminal(history().copy(taskId = "completed-history"))
+
+        assertTrue(repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_1080P).isEmpty())
+        assertTrue(repository.activeTasks.first().isEmpty())
+
+        val added = repository.enqueue(
+            listOf(media().copy(contentId = "new-content")),
+            ResolutionPreset.UP_TO_1080P,
+        )
+        assertEquals(listOf("task-1"), added)
     }
 
     @Test

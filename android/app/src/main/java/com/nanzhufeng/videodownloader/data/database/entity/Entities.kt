@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.data.database.entity
 
 import androidx.room.Embedded
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -43,6 +44,7 @@ data class DownloadTaskEntity(
     val selected: Boolean,
     val sortOrder: Long,
     val resolution: String,
+    val fileNameRule: String = "DATE_AND_TITLE",
     val saveTreeUri: String?,
     val tempPath: String?,
     val downloadedBytes: Long,
@@ -55,6 +57,8 @@ data class DownloadTaskEntity(
     val retryCount: Int,
     val createdAt: Long,
     val updatedAt: Long,
+    val connectionMode: String = "UNKNOWN",
+    val connectionCount: Int = 0,
 )
 
 data class DownloadTaskWithMedia(
@@ -89,4 +93,36 @@ data class DownloadHistoryEntity(
     val completedAt: Long,
     val failureType: String? = null,
     val errorSummary: String? = null,
+)
+
+data class DownloadHistoryWithThumbnail(
+    @Embedded val history: DownloadHistoryEntity,
+    @ColumnInfo(name = "mediaThumbnailUrl") val thumbnailUrl: String?,
+)
+
+@Entity(
+    tableName = "download_throughput_reports",
+    indices = [Index("taskId"), Index("startedAt")],
+)
+data class DownloadThroughputReportEntity(
+    @PrimaryKey val reportId: String,
+    val taskId: String,
+    val platform: String,
+    val streamLabel: String,
+    val outcome: String,
+    val connectionMode: String,
+    val connectionCount: Int,
+    val rangeSupported: Boolean,
+    val expectedBytes: Long,
+    val committedBytes: Long,
+    val networkBytes: Long,
+    val startedAt: Long,
+    val finishedAt: Long,
+    val elapsedMillis: Long,
+    val averageBytesPerSecond: Long,
+    val peakBytesPerSecond: Long,
+    val retryCount: Int,
+    val reprobeCount: Int,
+    val fallbackReason: String?,
+    val errorSummary: String?,
 )

@@ -7,13 +7,17 @@ import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import java.io.File
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import com.nanzhufeng.videodownloader.probe.HttpDownloadException
 import java.util.concurrent.CancellationException
 import javax.net.ssl.SSLException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class ResolvedMedia(
     val videoUrl: String,
@@ -21,6 +25,7 @@ data class ResolvedMedia(
     val videoExtension: String,
     val audioExtension: String?,
     val headers: Map<String, String>,
+    val reprobeCount: Int = 0,
 )
 
 data class PreparedMedia(
@@ -53,6 +58,13 @@ interface MediaTransfer {
 interface DownloadOutputStore {
     suspend fun findExisting(media: MediaItem, resolution: ResolutionPreset): StoredMedia?
 
+    suspend fun findExisting(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
+    ): StoredMedia? = findExisting(media, resolution)
+
     suspend fun uriExists(uri: String): Boolean
 
     suspend fun publish(
@@ -60,6 +72,14 @@ interface DownloadOutputStore {
         resolution: ResolutionPreset,
         prepared: PreparedMedia,
     ): StoredMedia
+
+    suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
+    ): StoredMedia = publish(media, resolution, prepared)
 }
 
 sealed interface TaskRunResult {
@@ -76,9 +96,17 @@ class DownloadTaskRunner(
     private val transfer: MediaTransfer,
     private val outputStore: DownloadOutputStore,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val performanceReporter: DownloadPerformanceReporter = DownloadPerformanceReporter.NONE,
+    private val monotonicNanos: () -> Long = System::nanoTime,
 ) {
+    private val claimMutex = Mutex()
+
     suspend fun runNext(): TaskRunResult {
-        val queued = repository.nextSelectedRunnable() ?: return TaskRunResult.Idle
+        val queued = claimMutex.withLock {
+            val next = repository.nextSelectedRunnable() ?: return@withLock null
+            repository.transition(next.task.taskId, DownloadTaskStatus.PARSING)
+            next
+        } ?: return TaskRunResult.Idle
         val completed = repository.findCompleted(
             queued.media.platform,
             queued.media.contentId,
@@ -88,7 +116,12 @@ class DownloadTaskRunner(
             completed?.outputUri != null && outputStore.uriExists(completed.outputUri) ->
                 StoredMedia(completed.outputUri, completed.fileSize)
 
-            else -> outputStore.findExisting(queued.media, queued.task.resolution)
+            else -> outputStore.findExisting(
+                queued.media,
+                queued.task.resolution,
+                queued.task.saveTreeUri,
+                queued.task.fileNameRule,
+            )
         }
         if (existing != null) {
             repository.transition(queued.task.taskId, DownloadTaskStatus.SKIPPED)
@@ -96,34 +129,76 @@ class DownloadTaskRunner(
             return TaskRunResult.Skipped
         }
 
-        var status = queued.task.status
+        var status = DownloadTaskStatus.PARSING
         try {
-            repository.transition(queued.task.taskId, DownloadTaskStatus.PARSING)
-            status = DownloadTaskStatus.PARSING
-            val source = resolver.resolve(queued.media, queued.task.resolution)
-
-            repository.transition(queued.task.taskId, DownloadTaskStatus.DOWNLOADING)
-            status = DownloadTaskStatus.DOWNLOADING
-            val prepared = transfer.download(queued, source) { downloaded, total, speed, remaining ->
-                repository.updateTransfer(
+            var reprobeCount = 0
+            var prepared: PreparedMedia
+            while (true) {
+                val source = measureDownloadStage(
                     taskId = queued.task.taskId,
-                    downloadedBytes = downloaded,
-                    totalBytes = total,
-                    speedBytesPerSecond = speed,
-                    remainingSeconds = remaining,
-                )
+                    stage = if (reprobeCount == 0) "resolve" else "reprobe_source",
+                    reporter = performanceReporter,
+                    nowNanos = monotonicNanos,
+                ) {
+                    resolver.resolve(queued.media, queued.task.resolution)
+                        .copy(reprobeCount = reprobeCount)
+                }
+
+                if (status == DownloadTaskStatus.PARSING) {
+                    repository.transition(queued.task.taskId, DownloadTaskStatus.DOWNLOADING)
+                    status = DownloadTaskStatus.DOWNLOADING
+                }
+                try {
+                    prepared = measureDownloadStage(
+                        taskId = queued.task.taskId,
+                        stage = "prepare_media",
+                        reporter = performanceReporter,
+                        nowNanos = monotonicNanos,
+                    ) {
+                        transfer.download(queued, source) { downloaded, total, speed, remaining ->
+                            repository.updateTransfer(
+                                taskId = queued.task.taskId,
+                                downloadedBytes = downloaded,
+                                totalBytes = total,
+                                speedBytesPerSecond = speed,
+                                remainingSeconds = remaining,
+                            )
+                        }
+                    }
+                    break
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    if (reprobeCount >= MAX_SOURCE_REPROBES || !TransferReprobePolicy.shouldReprobe(error)) {
+                        throw error
+                    }
+                    reprobeCount += 1
+                }
             }
 
             repository.transition(queued.task.taskId, DownloadTaskStatus.VALIDATING)
             status = DownloadTaskStatus.VALIDATING
-            val stored = outputStore.publish(queued.media, queued.task.resolution, prepared)
+            val stored = measureDownloadStage(
+                taskId = queued.task.taskId,
+                stage = "publish",
+                reporter = performanceReporter,
+                nowNanos = monotonicNanos,
+            ) {
+                outputStore.publish(
+                    queued.media,
+                    queued.task.resolution,
+                    prepared,
+                    queued.task.saveTreeUri,
+                    queued.task.fileNameRule,
+                )
+            }
             repository.transition(queued.task.taskId, DownloadTaskStatus.COMPLETED)
             repository.archiveTerminal(queued.toHistory(DownloadTaskStatus.COMPLETED, stored))
             return TaskRunResult.Completed
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            val retryable = NetworkErrorClassifier.isRetryable(error)
+            val retryable = NetworkErrorClassifier.shouldWaitForNetwork(error)
             val terminal = if (retryable) {
                 DownloadTaskStatus.WAITING_NETWORK
             } else {
@@ -199,7 +274,18 @@ class DownloadTaskRunner(
 
     private companion object {
         const val MAX_ERROR_SUMMARY_LENGTH = 400
+        const val MAX_SOURCE_REPROBES = 1
     }
+}
+
+object TransferReprobePolicy {
+    fun shouldReprobe(error: Throwable): Boolean = generateSequence(error) { it.cause }
+        .any { cause ->
+            (cause is HttpDownloadException && cause.statusCode in REFRESHABLE_HTTP_STATUSES) ||
+                NetworkErrorClassifier.isRetryable(cause)
+        }
+
+    private val REFRESHABLE_HTTP_STATUSES = setOf(401, 403, 404, 410, 416)
 }
 
 object NetworkErrorClassifier {
@@ -215,15 +301,36 @@ object NetworkErrorClassifier {
                 RETRYABLE_MESSAGE_PARTS.any { part -> message.contains(part, ignoreCase = true) }
         }
 
+    /**
+     * A stream which is still truncated after all connection retries and a
+     * fresh source probe needs an explicit retry, not an endless network wait.
+     */
+    fun shouldWaitForNetwork(error: Throwable): Boolean =
+        isRetryable(error) && generateSequence(error) { it.cause }.none { cause ->
+            val message = cause.message.orEmpty()
+            EXHAUSTED_STREAM_PARTS.any { part -> message.contains(part, ignoreCase = true) }
+        }
+
     private val RETRYABLE_MESSAGE_PARTS = listOf(
         "timed out",
         "timeout",
         "connection closed",
         "connection reset",
+        "unexpected end of stream",
+        "premature eof",
+        "stream was reset",
         "network is unreachable",
         "temporary failure",
         "urlopen error",
         "ssl",
+    )
+
+    private val EXHAUSTED_STREAM_PARTS = listOf(
+        "unexpected end of stream",
+        "premature eof",
+        "stream was reset",
+        "分段连接提前结束",
+        "下载连接提前结束",
     )
 }
 

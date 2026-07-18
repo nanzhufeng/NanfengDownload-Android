@@ -4,6 +4,7 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -56,6 +57,20 @@ class OutputFilePolicyTest {
         assertEquals(
             "Music/南烛枫视频下载器/TikTok/作者/2026-07-16 标题.mp3",
             output,
+        )
+    }
+
+    @Test
+    fun namingRuleChangesTheActualPublishedFileName() {
+        val item = media(platform = DownloadPlatform.YOUTUBE, creator = "频道A", title = "示例标题")
+
+        assertEquals(
+            "示例标题.mp4",
+            policy.displayName(item, ResolutionPreset.UP_TO_1080P, FileNameRule.TITLE_ONLY),
+        )
+        assertEquals(
+            "频道A 示例标题.mp4",
+            policy.displayName(item, ResolutionPreset.UP_TO_1080P, FileNameRule.CREATOR_AND_TITLE),
         )
     }
 

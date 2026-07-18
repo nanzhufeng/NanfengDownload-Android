@@ -16,6 +16,16 @@ class UrlClassifierTest {
     }
 
     @Test
+    fun youtubeLiveRouteIsSingleVideo() {
+        val source = UrlClassifier.extractAndClassify(
+            "https://www.youtube.com/live/Z98F3gyNFqM",
+        )
+
+        assertEquals(Platform.YOUTUBE, source.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, source.kind)
+    }
+
+    @Test
     fun douyinShareTextExtractsShortUrl() {
         val source = UrlClassifier.extractAndClassify(
             "复制打开抖音，看看TA的更多作品。 https://v.douyin.com/AbCdEfGh/",

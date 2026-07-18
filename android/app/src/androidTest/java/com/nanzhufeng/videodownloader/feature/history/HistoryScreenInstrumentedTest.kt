@@ -12,6 +12,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
+import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
+import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
@@ -30,6 +33,9 @@ class HistoryScreenInstrumentedTest {
         composeRule.onNodeWithTag("history-platform-time-filters").assertIsDisplayed()
         composeRule.onNodeWithText("全部平台").assertIsDisplayed()
         composeRule.onNodeWithText("近 30 天").assertIsDisplayed()
+        composeRule.onNodeWithText("只展示已完成的下载记录").assertDoesNotExist()
+        composeRule.onNodeWithText("平台").assertDoesNotExist()
+        composeRule.onNodeWithText("时间").assertDoesNotExist()
         composeRule.onNodeWithText("已跳过").assertDoesNotExist()
         composeRule.onNodeWithText("已取消").assertDoesNotExist()
     }
@@ -67,6 +73,69 @@ class HistoryScreenInstrumentedTest {
         composeRule.onNodeWithText("复制原链接").assertIsDisplayed()
         composeRule.onNodeWithText("分享原链接").assertIsDisplayed()
         composeRule.onNodeWithText("删除历史记录").assertIsDisplayed()
+    }
+
+    @Test
+    fun completedRecordShowsExplicitConnectionModeAndPermanentReportDetails() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(completedHistory("report-task", "真实下载")),
+                throughputReports = listOf(
+                    DownloadThroughputReport(
+                        reportId = "report-1",
+                        taskId = "report-task",
+                        platform = DownloadPlatform.YOUTUBE,
+                        streamLabel = "视频流",
+                        outcome = TransferReportOutcome.COMPLETED,
+                        connectionMode = DownloadConnectionMode.MULTI,
+                        connectionCount = 6,
+                        rangeSupported = true,
+                        expectedBytes = 20_000_000L,
+                        committedBytes = 20_000_000L,
+                        networkBytes = 20_000_000L,
+                        startedAt = 100L,
+                        finishedAt = 2_100L,
+                        elapsedMillis = 2_000L,
+                        averageBytesPerSecond = 10_000_000L,
+                        peakBytesPerSecond = 13_000_000L,
+                        retryCount = 0,
+                        reprobeCount = 1,
+                        fallbackReason = null,
+                        errorSummary = null,
+                    ),
+                ),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithText("多连接 ×6", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("history-overflow-report-task").performClick()
+        composeRule.onNodeWithText("查看吞吐报告").performClick()
+        composeRule.onNodeWithText("真实吞吐报告").assertIsDisplayed()
+        composeRule.onNodeWithText("Range：已验证支持").assertIsDisplayed()
+        composeRule.onNodeWithText("重新探测：1 次", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun completedVideo_showsThumbnailAndCardOpensActionDetails() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(
+                    completedHistory("interactive", "可播放的视频").copy(
+                        outputUri = "content://media/external/video/media/1",
+                        fileExists = true,
+                        thumbnailUrl = "https://example.com/thumbnail.jpg",
+                    ),
+                ),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithTag("history-thumbnail-interactive").assertIsDisplayed()
+        composeRule.onNodeWithTag("history-card-interactive").performClick()
+        composeRule.onNodeWithText("视频详情").assertIsDisplayed()
+        composeRule.onNodeWithText("默认播放器播放").assertIsDisplayed()
+        composeRule.onNodeWithText("选择播放器").assertIsDisplayed()
     }
 
     @Test

@@ -1,5 +1,9 @@
 package com.nanzhufeng.videodownloader.probe
 
+import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
+import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
+import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -7,40 +11,189 @@ import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CompletionException
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.UUID
+import okhttp3.Dispatcher
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Request
+import okhttp3.Response
+
+class HttpDownloadException(
+    val statusCode: Int,
+) : IOException("下载请求失败：HTTP $statusCode")
+
+data class TransferPolicy(
+    val platform: String,
+    val maxConnections: Int,
+    val segmentedThresholdBytes: Long,
+    val chunkSizeBytes: Long? = null,
+)
 
 data class DirectDownloadRequest(
     val url: String,
     val headers: Map<String, String>,
     val target: File,
+    val taskId: String = "",
+    val platform: DownloadPlatform? = null,
+    val streamLabel: String = "媒体",
+    val transferPolicy: TransferPolicy? = null,
+    val reprobeCount: Int = 0,
+    val onModeResolved: (DownloadConnectionMode, Int) -> Unit = { _, _ -> },
+    val onReport: (DownloadThroughputReport) -> Unit = {},
 )
 
-class HttpFileDownloader(
-    private val maxAttempts: Int = 3,
-    private val retryDelayMillis: Long = 400L,
-) {
+fun interface FileDownloader {
     fun download(
         request: DirectDownloadRequest,
         cancelled: AtomicBoolean,
         onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): File
+}
+
+class HttpFileDownloader(
+    private val maxAttempts: Int = 6,
+    private val retryDelayMillis: Long = 400L,
+    private val maxSegments: Int = 6,
+    private val segmentedThresholdBytes: Long = 8L * 1024L * 1024L,
+    private val epochMillis: () -> Long = System::currentTimeMillis,
+    private val monotonicNanos: () -> Long = System::nanoTime,
+    private val httpClient: OkHttpClient = DEFAULT_HTTP_CLIENT,
+) : FileDownloader {
+    override fun download(
+        request: DirectDownloadRequest,
+        cancelled: AtomicBoolean,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+    ): File {
+        val startedAt = epochMillis()
+        val startedNanos = monotonicNanos()
+        val meter = TransferMeter(monotonicNanos)
+        val state = TransferReportState()
+        return try {
+            val file = downloadMeasured(request, cancelled, onProgress, meter, state)
+            request.onReport(
+                state.toReport(
+                    request = request,
+                    outcome = TransferReportOutcome.COMPLETED,
+                    committedBytes = file.length(),
+                    startedAt = startedAt,
+                    elapsedMillis = elapsedMillis(startedNanos),
+                    meter = meter,
+                    error = null,
+                ),
+            )
+            file
+        } catch (error: Throwable) {
+            request.onReport(
+                state.toReport(
+                    request = request,
+                    outcome = if (error is CancellationException) {
+                        TransferReportOutcome.CANCELLED
+                    } else {
+                        TransferReportOutcome.FAILED
+                    },
+                    committedBytes = 0L,
+                    startedAt = startedAt,
+                    elapsedMillis = elapsedMillis(startedNanos),
+                    meter = meter,
+                    error = error,
+                ),
+            )
+            throw error
+        }
+    }
+
+    private fun downloadMeasured(
+        request: DirectDownloadRequest,
+        cancelled: AtomicBoolean,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+        meter: TransferMeter,
+        reportState: TransferReportState,
     ): File {
         val partial = File(request.target.parentFile, request.target.name + ".part")
         partial.parentFile?.mkdirs()
         var lastError: IOException? = null
+        var rangePlanResolved = partial.exists() && !segmentPlanFile(partial).exists()
+        var rangePlan: RangePlan? = null
+        val policy = request.transferPolicy ?: TransferPolicy(
+            platform = request.platform?.name ?: "GENERIC",
+            maxConnections = maxSegments,
+            segmentedThresholdBytes = segmentedThresholdBytes,
+        )
 
         repeat(maxAttempts) { attempt ->
             if (cancelled.get()) throw CancellationException("下载已取消")
             try {
-                downloadAttempt(request, partial, cancelled, onProgress)
+                if (!rangePlanResolved) {
+                    val probe = probeRangePlan(request, cancelled, policy)
+                    rangePlan = probe.plan
+                    reportState.rangeSupported = probe.rangeSupported
+                    reportState.expectedBytes = probe.totalBytes
+                    reportState.fallbackReason = probe.reason
+                    rangePlanResolved = true
+                }
+                val plan = rangePlan
+                if (plan != null) {
+                    reportState.mode = DownloadConnectionMode.MULTI
+                    reportState.connectionCount = plan.segmentCount
+                    request.onModeResolved(reportState.mode, reportState.connectionCount)
+                    try {
+                        downloadSegmentedAttempt(request, partial, plan, cancelled, onProgress, meter)
+                    } catch (_: RangeNotSupportedException) {
+                        deleteSegments(partial)
+                        rangePlan = null
+                        reportState.mode = DownloadConnectionMode.SINGLE
+                        reportState.connectionCount = 1
+                        reportState.rangeSupported = false
+                        reportState.fallbackReason = "分片响应不稳定，已回退单连接"
+                        request.onModeResolved(reportState.mode, reportState.connectionCount)
+                        downloadAttempt(request, partial, cancelled, onProgress, meter)
+                    }
+                } else if (
+                    policy.chunkSizeBytes != null &&
+                    reportState.rangeSupported &&
+                    reportState.expectedBytes > 0L
+                ) {
+                    reportState.mode = DownloadConnectionMode.SINGLE
+                    reportState.connectionCount = 1
+                    request.onModeResolved(reportState.mode, reportState.connectionCount)
+                    try {
+                        downloadChunkedAttempt(
+                            request = request,
+                            partial = partial,
+                            totalBytes = reportState.expectedBytes,
+                            chunkSizeBytes = policy.chunkSizeBytes,
+                            cancelled = cancelled,
+                            onProgress = onProgress,
+                            meter = meter,
+                        )
+                    } catch (_: RangeNotSupportedException) {
+                        partial.delete()
+                        reportState.rangeSupported = false
+                        reportState.fallbackReason = "小分块 Range 不稳定，已回退完整单连接"
+                        downloadAttempt(request, partial, cancelled, onProgress, meter)
+                    }
+                } else {
+                    reportState.mode = DownloadConnectionMode.SINGLE
+                    reportState.connectionCount = 1
+                    request.onModeResolved(reportState.mode, reportState.connectionCount)
+                    downloadAttempt(request, partial, cancelled, onProgress, meter)
+                }
                 publish(partial, request.target)
+                deleteSegments(partial)
                 return request.target
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: HttpStatusException) {
+            } catch (error: HttpDownloadException) {
                 throw error
             } catch (error: IOException) {
                 lastError = error
                 if (attempt == maxAttempts - 1) throw error
+                reportState.retryCount += 1
                 if (retryDelayMillis > 0L) {
                     Thread.sleep(retryDelayMillis * (attempt + 1))
                 }
@@ -49,39 +202,262 @@ class HttpFileDownloader(
         throw lastError ?: IOException("下载失败，且没有错误详情")
     }
 
+    private fun probeRangePlan(
+        request: DirectDownloadRequest,
+        cancelled: AtomicBoolean,
+        policy: TransferPolicy,
+    ): RangeProbe {
+        if (cancelled.get()) {
+            return RangeProbe(reason = "平台策略使用单连接")
+        }
+        if (policy.maxConnections < 2 && policy.chunkSizeBytes == null) {
+            return RangeProbe(reason = "平台策略使用完整单连接")
+        }
+        return try {
+            execute(request, range = "bytes=0-0").use { response ->
+                val responseCode = response.code
+                if (responseCode >= 400 && responseCode != 416) {
+                    throw HttpDownloadException(responseCode)
+                }
+                if (responseCode != HTTP_PARTIAL) {
+                    return RangeProbe(reason = "服务器未返回 206 Range 响应")
+                }
+                val contentRange = response.header("Content-Range")
+                val total = contentRange
+                    ?.substringAfterLast('/')
+                    ?.toLongOrNull()
+                    ?: return RangeProbe(reason = "Content-Range 无有效总长度")
+                if (!contentRange.startsWith("bytes 0-0/")) {
+                    return RangeProbe(reason = "Range 探测响应区间不匹配", totalBytes = total)
+                }
+                if (policy.chunkSizeBytes != null) {
+                    return RangeProbe(
+                        rangeSupported = true,
+                        totalBytes = total,
+                        reason = "使用顺序小分块 Range 单连接",
+                    )
+                }
+                if (total < policy.segmentedThresholdBytes) {
+                    return RangeProbe(
+                        rangeSupported = true,
+                        totalBytes = total,
+                        reason = "文件小于平台分片阈值",
+                    )
+                }
+                RangeProbe(
+                    plan = RangePlan(total, policy.maxConnections.coerceAtLeast(2)),
+                    rangeSupported = true,
+                    totalBytes = total,
+                )
+            }
+        } catch (error: HttpDownloadException) {
+            throw error
+        } catch (_: IOException) {
+            RangeProbe(reason = "Range 能力探测失败，使用单连接")
+        }
+    }
+
+    private fun downloadSegmentedAttempt(
+        request: DirectDownloadRequest,
+        partial: File,
+        plan: RangePlan,
+        cancelled: AtomicBoolean,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+        meter: TransferMeter,
+    ) {
+        ensureSegmentPlan(partial, plan)
+        val ranges = plan.ranges()
+        val segmentFiles = ranges.indices.map { index ->
+            File(partial.parentFile, "${partial.name}.segment-$index")
+        }
+        val progressLock = Any()
+        val segmentProgress = LongArray(ranges.size) { index ->
+            segmentFiles[index].takeIf(File::exists)?.length() ?: 0L
+        }
+        val abortAllSegments = AtomicBoolean(false)
+        val futures = ranges.mapIndexed { index, range ->
+            java.util.concurrent.CompletableFuture.runAsync({
+                try {
+                    downloadRange(
+                        request = request,
+                        target = segmentFiles[index],
+                        range = range,
+                        cancelled = cancelled,
+                        abortAllSegments = abortAllSegments,
+                        meter = meter,
+                    ) { bytesInSegment ->
+                        synchronized(progressLock) {
+                            segmentProgress[index] = bytesInSegment
+                            onProgress(segmentProgress.sum(), plan.totalBytes)
+                        }
+                    }
+                } catch (error: Throwable) {
+                    if (
+                        error is CancellationException ||
+                        error is HttpDownloadException ||
+                        error is RangeNotSupportedException
+                    ) {
+                        abortAllSegments.set(true)
+                    }
+                    throw CompletionException(error)
+                }
+            }, SEGMENT_EXECUTOR)
+        }
+        val failures = futures.mapNotNull { future ->
+            try {
+                future.join()
+                null
+            } catch (error: CompletionException) {
+                error.rootCause()
+            }
+        }
+        if (failures.isNotEmpty()) {
+            val cause = failures.firstOrNull { it !is CancellationException } ?: failures.first()
+            when (cause) {
+                is CancellationException -> throw cause
+                is HttpDownloadException -> throw cause
+                is RangeNotSupportedException -> throw cause
+                is IOException -> throw cause
+                else -> throw IOException("分段下载失败", cause)
+            }
+        }
+        if (cancelled.get()) throw CancellationException("下载已取消")
+
+        FileOutputStream(partial, false).buffered().use { output ->
+            segmentFiles.forEach { segment -> segment.inputStream().buffered().use { it.copyTo(output) } }
+        }
+        if (partial.length() != plan.totalBytes) {
+            throw IOException("分段合并后长度异常：${partial.length()}/${plan.totalBytes} 字节")
+        }
+        deleteSegments(partial)
+        onProgress(plan.totalBytes, plan.totalBytes)
+    }
+
+    private fun downloadRange(
+        request: DirectDownloadRequest,
+        target: File,
+        range: ByteRange,
+        cancelled: AtomicBoolean,
+        abortAllSegments: AtomicBoolean,
+        meter: TransferMeter,
+        onProgress: (bytesInSegment: Long) -> Unit,
+    ) {
+        val expectedLength = range.endInclusive - range.start + 1L
+        if (target.length() > expectedLength) target.delete()
+        val existing = target.takeIf(File::exists)?.length() ?: 0L
+        if (existing == expectedLength) {
+            onProgress(existing)
+            return
+        }
+        val requestStart = range.start + existing
+        execute(request, range = "bytes=$requestStart-${range.endInclusive}").use { response ->
+            if (response.code != HTTP_PARTIAL) {
+                throw RangeNotSupportedException()
+            }
+            val contentRange = response.header("Content-Range").orEmpty()
+            if (!contentRange.startsWith("bytes $requestStart-${range.endInclusive}/")) {
+                throw RangeNotSupportedException()
+            }
+            var downloaded = existing
+            val body = response.body ?: throw IOException("下载响应缺少内容")
+            body.byteStream().use { input ->
+                FileOutputStream(target, true).buffered().use { output ->
+                    val buffer = ByteArray(BUFFER_SIZE_BYTES)
+                    while (true) {
+                        if (cancelled.get() || abortAllSegments.get()) {
+                            throw CancellationException("下载已取消")
+                        }
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                        meter.record(count)
+                        downloaded += count
+                        onProgress(downloaded)
+                    }
+                }
+            }
+            if (downloaded != expectedLength) {
+                throw IOException("分段连接提前结束：$downloaded/$expectedLength 字节")
+            }
+        }
+    }
+
+    private fun downloadChunkedAttempt(
+        request: DirectDownloadRequest,
+        partial: File,
+        totalBytes: Long,
+        chunkSizeBytes: Long,
+        cancelled: AtomicBoolean,
+        onProgress: (downloaded: Long, total: Long) -> Unit,
+        meter: TransferMeter,
+    ) {
+        require(chunkSizeBytes > 0L) { "小分块大小必须大于 0" }
+        if (partial.length() > totalBytes) partial.delete()
+        var downloaded = partial.takeIf(File::exists)?.length() ?: 0L
+        onProgress(downloaded, totalBytes)
+        while (downloaded < totalBytes) {
+            if (cancelled.get()) throw CancellationException("下载已取消")
+            val endInclusive = minOf(downloaded + chunkSizeBytes - 1L, totalBytes - 1L)
+            val connection = openRangeConnection(request, "bytes=$downloaded-$endInclusive")
+            try {
+                if (connection.responseCode != HTTP_PARTIAL) throw RangeNotSupportedException()
+                val contentRange = connection.getHeaderField("Content-Range").orEmpty()
+                if (!contentRange.startsWith("bytes $downloaded-$endInclusive/$totalBytes")) {
+                    throw RangeNotSupportedException()
+                }
+                connection.inputStream.use { input ->
+                    FileOutputStream(partial, true).buffered().use { output ->
+                        val buffer = ByteArray(BUFFER_SIZE_BYTES)
+                        while (downloaded <= endInclusive) {
+                            if (cancelled.get()) throw CancellationException("下载已取消")
+                            val remaining = endInclusive - downloaded + 1L
+                            val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                            if (count < 0) break
+                            output.write(buffer, 0, count)
+                            meter.record(count)
+                            downloaded += count
+                            onProgress(downloaded, totalBytes)
+                        }
+                    }
+                }
+                if (downloaded != endInclusive + 1L) {
+                    throw IOException("小分块连接提前结束：$downloaded/${endInclusive + 1L} 字节")
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+    }
+
     private fun downloadAttempt(
         request: DirectDownloadRequest,
         partial: File,
         cancelled: AtomicBoolean,
         onProgress: (downloaded: Long, total: Long) -> Unit,
+        meter: TransferMeter,
     ) {
         val existing = partial.takeIf(File::exists)?.length() ?: 0L
-        val connection = URL(request.url).openConnection() as HttpURLConnection
-        request.headers.forEach(connection::setRequestProperty)
-        if (existing > 0L) {
-            connection.setRequestProperty("Range", "bytes=$existing-")
-        }
-        connection.connectTimeout = 20_000
-        connection.readTimeout = 30_000
-        connection.instanceFollowRedirects = true
-
-        try {
-            val responseCode = connection.responseCode
+        execute(
+            request,
+            range = if (existing > 0L) "bytes=$existing-" else null,
+        ).use { response ->
+            val responseCode = response.code
             if (responseCode !in 200..299) {
-                throw HttpStatusException(responseCode)
+                throw HttpDownloadException(responseCode)
             }
-            val append = existing > 0L && responseCode == HttpURLConnection.HTTP_PARTIAL
+            val append = existing > 0L && responseCode == HTTP_PARTIAL
             val start = if (append) existing else 0L
             if (!append && partial.exists()) {
                 partial.delete()
             }
-            val bodyLength = connection.contentLengthLong.coerceAtLeast(0L)
+            val body = response.body ?: throw IOException("下载响应缺少内容")
+            val bodyLength = body.contentLength().coerceAtLeast(0L)
             val total = if (bodyLength > 0L) start + bodyLength else 0L
             var downloaded = start
 
-            connection.inputStream.use { input ->
+            body.byteStream().use { input ->
                 FileOutputStream(partial, append).buffered().use { output ->
-                    val buffer = ByteArray(128 * 1024)
+                    val buffer = ByteArray(BUFFER_SIZE_BYTES)
                     while (true) {
                         if (cancelled.get()) {
                             throw CancellationException("下载已取消")
@@ -89,6 +465,7 @@ class HttpFileDownloader(
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
+                        meter.record(count)
                         downloaded += count
                         onProgress(downloaded, total)
                     }
@@ -97,10 +474,60 @@ class HttpFileDownloader(
             if (total > 0L && downloaded < total) {
                 throw IOException("下载连接提前结束：$downloaded/$total 字节")
             }
-        } finally {
-            connection.disconnect()
         }
     }
+
+    private fun execute(
+        request: DirectDownloadRequest,
+        range: String?,
+    ): Response {
+        val builder = Request.Builder().url(request.url)
+        request.headers.forEach(builder::header)
+        builder.header("Accept-Encoding", "identity")
+        range?.let { builder.header("Range", it) }
+        return httpClient.newCall(builder.build()).execute()
+    }
+
+    private fun openRangeConnection(
+        request: DirectDownloadRequest,
+        range: String,
+    ): HttpURLConnection = (
+        URL(request.url).openConnection() as HttpURLConnection
+        ).apply {
+        request.headers.forEach(::setRequestProperty)
+        setRequestProperty("Accept-Encoding", "identity")
+        setRequestProperty("Range", range)
+        connectTimeout = 20_000
+        readTimeout = 30_000
+        instanceFollowRedirects = true
+    }
+
+    private fun deleteSegments(partial: File) {
+        partial.parentFile?.listFiles()
+            ?.filter { it.name.startsWith("${partial.name}.segment-") }
+            ?.forEach(File::delete)
+        segmentPlanFile(partial).delete()
+    }
+
+    private fun ensureSegmentPlan(partial: File, plan: RangePlan) {
+        val planFile = segmentPlanFile(partial)
+        val fingerprint = "${plan.totalBytes}:${plan.segmentCount}"
+        val hasSegments = partial.parentFile?.listFiles()
+            ?.any { it.name.startsWith("${partial.name}.segment-") }
+            ?: false
+        if (hasSegments && planFile.takeIf(File::exists)?.readText() != fingerprint) {
+            deleteSegments(partial)
+        }
+        if (!planFile.exists() || planFile.readText() != fingerprint) {
+            planFile.writeText(fingerprint)
+        }
+    }
+
+    private fun segmentPlanFile(partial: File): File =
+        File(partial.parentFile, "${partial.name}.segments.meta")
+
+    private fun Throwable.rootCause(): Throwable = generateSequence(this) { it.cause }
+        .last()
 
     private fun publish(partial: File, target: File) {
         if (!partial.renameTo(target)) {
@@ -109,7 +536,142 @@ class HttpFileDownloader(
         }
     }
 
-    private class HttpStatusException(code: Int) : IOException("下载请求失败：HTTP $code")
+    private class RangeNotSupportedException : IOException("服务器不支持稳定的分段下载")
+
+    private data class RangeProbe(
+        val plan: RangePlan? = null,
+        val rangeSupported: Boolean = false,
+        val totalBytes: Long = 0L,
+        val reason: String? = null,
+    )
+
+    private data class ByteRange(val start: Long, val endInclusive: Long)
+
+    private data class RangePlan(val totalBytes: Long, val segmentCount: Int) {
+        fun ranges(): List<ByteRange> {
+            val baseSize = totalBytes / segmentCount
+            val remainder = totalBytes % segmentCount
+            var start = 0L
+            return List(segmentCount) { index ->
+                val size = baseSize + if (index < remainder) 1L else 0L
+                ByteRange(start, start + size - 1L).also { start += size }
+            }
+        }
+    }
+
+    private fun elapsedMillis(startedNanos: Long): Long =
+        ((monotonicNanos() - startedNanos).coerceAtLeast(0L) / 1_000_000L)
+
+    private class TransferMeter(
+        private val nowNanos: () -> Long,
+    ) {
+        private val totalBytes = AtomicLong(0L)
+        private var windowStartedNanos = nowNanos()
+        private var windowBytes = 0L
+        private var peakBytesPerSecond = 0L
+
+        @Synchronized
+        fun record(count: Int) {
+            if (count <= 0) return
+            totalBytes.addAndGet(count.toLong())
+            windowBytes += count
+            val now = nowNanos()
+            val elapsed = now - windowStartedNanos
+            if (elapsed >= SPEED_WINDOW_NANOS) {
+                val speed = (windowBytes * 1_000_000_000.0 / elapsed.coerceAtLeast(1L)).toLong()
+                peakBytesPerSecond = maxOf(peakBytesPerSecond, speed)
+                windowStartedNanos = now
+                windowBytes = 0L
+            }
+        }
+
+        @Synchronized
+        fun snapshot(elapsedMillis: Long): MeterSnapshot {
+            val now = nowNanos()
+            val windowElapsed = now - windowStartedNanos
+            if (windowBytes > 0L && windowElapsed > 0L) {
+                val speed = (windowBytes * 1_000_000_000.0 / windowElapsed).toLong()
+                peakBytesPerSecond = maxOf(peakBytesPerSecond, speed)
+            }
+            val bytes = totalBytes.get()
+            val average = if (elapsedMillis > 0L) bytes * 1000L / elapsedMillis else 0L
+            return MeterSnapshot(bytes, average, peakBytesPerSecond)
+        }
+    }
+
+    private data class MeterSnapshot(
+        val networkBytes: Long,
+        val averageBytesPerSecond: Long,
+        val peakBytesPerSecond: Long,
+    )
+
+    private data class TransferReportState(
+        var mode: DownloadConnectionMode = DownloadConnectionMode.UNKNOWN,
+        var connectionCount: Int = 0,
+        var rangeSupported: Boolean = false,
+        var expectedBytes: Long = 0L,
+        var retryCount: Int = 0,
+        var fallbackReason: String? = null,
+    ) {
+        fun toReport(
+            request: DirectDownloadRequest,
+            outcome: TransferReportOutcome,
+            committedBytes: Long,
+            startedAt: Long,
+            elapsedMillis: Long,
+            meter: TransferMeter,
+            error: Throwable?,
+        ): DownloadThroughputReport {
+            val measured = meter.snapshot(elapsedMillis)
+            return DownloadThroughputReport(
+                reportId = UUID.randomUUID().toString(),
+                taskId = request.taskId,
+                platform = request.platform ?: DownloadPlatform.YOUTUBE,
+                streamLabel = request.streamLabel,
+                outcome = outcome,
+                connectionMode = mode,
+                connectionCount = connectionCount,
+                rangeSupported = rangeSupported,
+                expectedBytes = expectedBytes.takeIf { it > 0L } ?: committedBytes,
+                committedBytes = committedBytes,
+                networkBytes = measured.networkBytes,
+                startedAt = startedAt,
+                finishedAt = startedAt + elapsedMillis,
+                elapsedMillis = elapsedMillis,
+                averageBytesPerSecond = measured.averageBytesPerSecond,
+                peakBytesPerSecond = measured.peakBytesPerSecond,
+                retryCount = retryCount,
+                reprobeCount = request.reprobeCount,
+                fallbackReason = fallbackReason,
+                errorSummary = error?.message?.take(400),
+            )
+        }
+    }
+
+    private companion object {
+        const val HTTP_PARTIAL = 206
+        const val BUFFER_SIZE_BYTES = 512 * 1024
+        const val SPEED_WINDOW_NANOS = 250_000_000L
+        val DEFAULT_HTTP_CLIENT = OkHttpClient.Builder()
+            .dispatcher(
+                Dispatcher().apply {
+                    maxRequests = 32
+                    maxRequestsPerHost = 12
+                },
+            )
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            // Googlevideo can starve sibling byte-range streams when OkHttp
+            // multiplexes them over one HTTP/2 socket. Independent HTTP/1.1
+            // connections preserve the intended platform connection count.
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
+        val SEGMENT_EXECUTOR = Executors.newFixedThreadPool(8) { runnable ->
+            Thread(runnable, "nanzhufeng-range-download").apply { isDaemon = true }
+        }
+    }
 }
 
 object MediaFileValidator {

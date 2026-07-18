@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.domain.discovery
 
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
 import com.nanzhufeng.videodownloader.probe.ClassifiedSource
 import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
 import com.nanzhufeng.videodownloader.probe.Platform
@@ -49,7 +50,7 @@ class PlatformSourceDiscoveryEngine(
                 -> error("链接未能解析为单视频或作品列表")
             }
     } catch (error: Exception) {
-        DiscoveryResult.Failure(error.message ?: "读取作品失败")
+        DiscoveryResult.Failure(DiscoveryFailurePresenter.message(error))
     }
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {
@@ -126,6 +127,26 @@ class PlatformSourceDiscoveryEngine(
                     isDaemon = true
                 }
             },
+        )
+    }
+}
+
+internal object DiscoveryFailurePresenter {
+    fun message(error: Throwable): String {
+        val evidence = generateSequence(error) { it.cause }
+            .mapNotNull(Throwable::message)
+            .joinToString("\n")
+        val platform = when {
+            evidence.contains("Douyin", ignoreCase = true) -> DownloadPlatform.DOUYIN
+            evidence.contains("TikTok", ignoreCase = true) -> DownloadPlatform.TIKTOK
+            evidence.contains("YouTube", ignoreCase = true) -> DownloadPlatform.YOUTUBE
+            else -> null
+        }
+        return UserFacingErrorPresenter.message(
+            rawError = evidence.ifBlank { error.message },
+            platform = platform,
+            fallbackProblem = "读取作品失败，平台未返回可识别的原因",
+            fallbackAction = "请检查链接是否可在平台 App 中打开，再重新复制分享链接并重试",
         )
     }
 }

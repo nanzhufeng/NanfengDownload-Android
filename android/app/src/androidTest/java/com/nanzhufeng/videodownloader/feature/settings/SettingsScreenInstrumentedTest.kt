@@ -5,6 +5,8 @@ import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import com.nanzhufeng.videodownloader.data.settings.AppSettings
 import com.nanzhufeng.videodownloader.domain.session.SessionSite
@@ -27,6 +29,7 @@ class SettingsScreenInstrumentedTest {
         val shortVideoPlatforms = composeRule.onNodeWithTag("settings-short-video-platforms").assertIsDisplayed()
         composeRule.onNodeWithTag("settings-douyin").assertIsDisplayed()
         composeRule.onNodeWithTag("settings-tiktok").assertIsDisplayed()
+        composeRule.onNodeWithText("默认规则用于之后新加入的任务，登录会话保存在本机。").assertDoesNotExist()
 
         assertTrue(
             "YouTube must appear before the grouped short-video platforms",
@@ -79,6 +82,73 @@ class SettingsScreenInstrumentedTest {
             "The quality card must not occupy more than 28% of the outer screen",
             qualityCardBounds.run { bottom - top } <= screenBounds.run { bottom - top } * 0.28f,
         )
+    }
+
+    @Test
+    fun formerlyStaticSettingsOpenRealChoicesAndReportTheSelection() {
+        var concurrentDownloads = 1
+        var fileNameRule = com.nanzhufeng.videodownloader.data.settings.FileNameRule.DATE_AND_TITLE
+        composeRule.setContent {
+            SettingsScreen(
+                settings = settings(),
+                sessions = sessions(),
+                onResolutionSelected = {},
+                onAutoResumeChanged = {},
+                onOpenLogin = {},
+                onImportYoutubeCookies = {},
+                onClearSession = {},
+                onMaxConcurrentDownloadsSelected = { concurrentDownloads = it },
+                onFileNameRuleSelected = { fileNameRule = it },
+                expanded = false,
+            )
+        }
+
+        composeRule.onNodeWithTag("settings-screen")
+            .performScrollToNode(hasTestTag("settings-concurrency"))
+        composeRule.onNodeWithTag("settings-concurrency").performClick()
+        composeRule.onNodeWithText("3 个任务").performClick()
+        composeRule.runOnIdle { assertTrue(concurrentDownloads == 3) }
+
+        composeRule.onNodeWithTag("settings-file-name").performClick()
+        composeRule.onNodeWithText("作者 + 视频标题").performClick()
+        composeRule.runOnIdle {
+            assertTrue(
+                fileNameRule == com.nanzhufeng.videodownloader.data.settings.FileNameRule.CREATOR_AND_TITLE,
+            )
+        }
+    }
+
+    @Test
+    fun anonymousBrowserCookiesDoNotClaimSuccessfulLogin() {
+        composeRule.setContent {
+            SettingsScreen(
+                settings = settings(),
+                sessions = listOf(
+                    SiteSessionState(SessionSite.YOUTUBE, false, "未保存登录会话"),
+                    SiteSessionState(
+                        SessionSite.DOUYIN,
+                        true,
+                        "已保存网页会话，尚未确认登录",
+                        isAuthenticated = false,
+                    ),
+                    SiteSessionState(
+                        SessionSite.TIKTOK,
+                        true,
+                        "已检测到登录 Cookie，使用时仍会验证",
+                        isAuthenticated = true,
+                    ),
+                ),
+                onResolutionSelected = {},
+                onAutoResumeChanged = {},
+                onOpenLogin = {},
+                onImportYoutubeCookies = {},
+                onClearSession = {},
+                expanded = false,
+            )
+        }
+
+        composeRule.onNodeWithText("继续登录").assertIsDisplayed()
+        composeRule.onNodeWithText("重新登录").assertIsDisplayed()
     }
 
     private fun settings() = AppSettings()

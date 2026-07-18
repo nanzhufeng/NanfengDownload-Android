@@ -7,12 +7,30 @@ import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DownloadNotificationStateTest {
+    @Test
+    fun progressAndCompletionNotificationsOpenTheAppWhenTapped() {
+        val source = File("src/main/java/com/nanzhufeng/videodownloader/domain/download/ForegroundDownloadWorker.kt")
+            .readText()
+
+        assertTrue(source.contains("private fun appLaunchPendingIntent()"))
+        assertTrue(source.split(".setContentIntent(appLaunchPendingIntent())").size >= 3)
+    }
+
+    @Test
+    fun completionNotificationKeepsFailuresVisibleAndActionable() {
+        assertEquals(
+            "2 项下载失败，已保留在队列；点开查看原因并重试。",
+            completionNotificationText(completedCount = 1, skippedCount = 0, failedCount = 2),
+        )
+    }
+
     @Test
     fun activeQueue_reportsDeterminateProgressForCurrentTransfers() {
         val state = DownloadNotificationState.from(

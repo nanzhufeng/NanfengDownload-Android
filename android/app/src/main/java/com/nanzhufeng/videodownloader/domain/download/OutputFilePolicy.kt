@@ -3,9 +3,14 @@ package com.nanzhufeng.videodownloader.domain.download
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 
 class OutputFilePolicy {
-    fun relativePath(media: MediaItem, resolution: ResolutionPreset): String {
+    fun relativePath(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        fileNameRule: FileNameRule = FileNameRule.DATE_AND_TITLE,
+    ): String {
         val extension = if (resolution == ResolutionPreset.AUDIO_MP3) "mp3" else "mp4"
         val platform = when (media.platform) {
             DownloadPlatform.DOUYIN -> "抖音"
@@ -16,11 +21,19 @@ class OutputFilePolicy {
         val title = sanitize(media.title.ifBlank { "未知标题" })
         val publishDate = normalizeDate(media.publishDate)
         val root = if (resolution == ResolutionPreset.AUDIO_MP3) "Music" else "Movies"
-        return "$root/南烛枫视频下载器/$platform/$creator/$publishDate $title.$extension"
+        val baseName = when (fileNameRule) {
+            FileNameRule.DATE_AND_TITLE -> "$publishDate $title"
+            FileNameRule.TITLE_ONLY -> title
+            FileNameRule.CREATOR_AND_TITLE -> "$creator $title"
+        }
+        return "$root/南烛枫视频下载器/$platform/$creator/$baseName.$extension"
     }
 
-    fun displayName(media: MediaItem, resolution: ResolutionPreset): String =
-        relativePath(media, resolution).substringAfterLast('/')
+    fun displayName(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        fileNameRule: FileNameRule = FileNameRule.DATE_AND_TITLE,
+    ): String = relativePath(media, resolution, fileNameRule).substringAfterLast('/')
 
     fun relativeDirectory(media: MediaItem): String {
         val path = relativePath(media, ResolutionPreset.UP_TO_720P)

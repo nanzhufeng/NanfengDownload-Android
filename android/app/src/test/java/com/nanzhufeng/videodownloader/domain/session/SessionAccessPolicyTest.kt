@@ -1,7 +1,9 @@
 package com.nanzhufeng.videodownloader.domain.session
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionAccessPolicyTest {
@@ -12,7 +14,7 @@ class SessionAccessPolicyTest {
             SessionSite.TIKTOK to "sessionid=tiktok-session",
         )
         val policy = SessionAccessPolicy(
-            cookieLookup = { site -> cookies[site].orEmpty() },
+            cookieLookup = { site, _ -> cookies[site].orEmpty() },
             youtubeCookieFile = { "C:/private/youtube-cookies.txt" },
         )
 
@@ -30,7 +32,7 @@ class SessionAccessPolicyTest {
     @Test
     fun youtubeUsesImportedCookieFileWithoutLeakingOtherCookies() {
         val policy = SessionAccessPolicy(
-            cookieLookup = { "should-not-leak" },
+            cookieLookup = { _, _ -> "should-not-leak" },
             youtubeCookieFile = { "C:/private/youtube-cookies.txt" },
         )
 
@@ -43,10 +45,70 @@ class SessionAccessPolicyTest {
     @Test
     fun unrelatedUrlGetsNoAuthorizationMaterial() {
         val policy = SessionAccessPolicy(
-            cookieLookup = { "secret" },
+            cookieLookup = { _, _ -> "secret" },
             youtubeCookieFile = { "C:/private/youtube-cookies.txt" },
         )
 
         assertEquals(SessionAccess(), policy.accessFor("https://example.com/video"))
+    }
+
+    @Test
+    fun anonymousCookiesAreSavedButNotReportedAsAuthenticated() {
+        val header = "ttwid=anonymous; msToken=temporary"
+
+        assertFalse(classifyAuthenticatedSession(SessionSite.DOUYIN, header))
+        assertFalse(classifyAuthenticatedSession(SessionSite.TIKTOK, header))
+    }
+
+    @Test
+    fun accountCookiesAreReportedAsAuthenticated() {
+        assertTrue(
+            classifyAuthenticatedSession(
+                SessionSite.DOUYIN,
+                "ttwid=anonymous; sessionid=account-session",
+            ),
+        )
+        assertTrue(classifyAuthenticatedSession(SessionSite.TIKTOK, "sessionid_ss=account-session"))
+    }
+
+    @Test
+    fun cookieHeadersMergePlatformScopesWithoutDuplicatingNames() {
+        assertEquals(
+            "ttwid=short-link; sessionid=account; msToken=web",
+            mergeCookieHeaders(
+                listOf(
+                    "ttwid=short-link; sessionid=account",
+                    "ttwid=web; msToken=web",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun cookieDeletionCoversParentHostAndDotPrefixedHostScopes() {
+        assertEquals(
+            setOf(
+                ".douyin.com",
+                "v.douyin.com",
+                ".v.douyin.com",
+                "www.douyin.com",
+                ".www.douyin.com",
+                "www.iesdouyin.com",
+                ".www.iesdouyin.com",
+                "passport.douyin.com",
+                ".passport.douyin.com",
+                "sso.douyin.com",
+                ".sso.douyin.com",
+            ),
+            cookieDeletionDomains(SessionSite.DOUYIN),
+        )
+    }
+
+    @Test
+    fun cookieAssignmentsPreserveValuesContainingEqualsSigns() {
+        assertEquals(
+            listOf("sessionid=abc==", "msToken=one"),
+            cookieAssignments("sessionid=abc==; malformed; msToken=one"),
+        )
     }
 }

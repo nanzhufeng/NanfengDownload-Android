@@ -5,8 +5,10 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadHistoryEntity
+import com.nanzhufeng.videodownloader.data.database.entity.DownloadHistoryWithThumbnail
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskWithMedia
+import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputReportEntity
 import com.nanzhufeng.videodownloader.data.database.entity.MediaItemEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -28,11 +30,19 @@ interface DownloadTaskDao {
     @Query(
         """
         SELECT * FROM download_tasks
-        WHERE status NOT IN ('COMPLETED', 'FAILED', 'CANCELLED')
+        WHERE status NOT IN ('COMPLETED', 'CANCELLED')
         ORDER BY sortOrder
         """,
     )
     fun observeActive(): Flow<List<DownloadTaskWithMedia>>
+
+    @Query(
+        """
+        SELECT mediaKey FROM download_tasks
+        WHERE status NOT IN ('COMPLETED', 'CANCELLED')
+        """,
+    )
+    suspend fun getDownloadListMediaKeys(): List<String>
 
     @Query("SELECT * FROM download_tasks WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadTaskEntity?
@@ -148,6 +158,22 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET connectionMode = :connectionMode,
+            connectionCount = :connectionCount,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateConnectionMode(
+        taskId: String,
+        connectionMode: String,
+        connectionCount: Int,
+        updatedAt: Long,
+    ): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = 'PAUSED', updatedAt = :updatedAt
         WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'WAITING_NETWORK')
         """,
@@ -175,12 +201,23 @@ interface DownloadTaskDao {
 
     @Query(
         """
+        DELETE FROM download_tasks
+        WHERE taskId = :taskId
+          AND status NOT IN ('PARSING', 'DOWNLOADING', 'VALIDATING')
+        """,
+    )
+    suspend fun deleteRemovableById(taskId: String): Int
+
+    @Query(
+        """
         UPDATE download_tasks
         SET selected = 1,
             downloadedBytes = 0,
             totalBytes = 0,
             speedBytesPerSecond = 0,
             remainingSeconds = NULL,
+            connectionMode = 'UNKNOWN',
+            connectionCount = 0,
             status = 'WAITING',
             failureType = NULL,
             errorSummary = NULL,
@@ -200,6 +237,31 @@ interface DownloadTaskDao {
         """,
     )
     suspend fun recoverInterruptedTasks(updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'FAILED',
+            failureType = 'TRANSFER',
+            errorSummary = '已由较新的同作品任务接替，旧尝试已保留，可重试或删除',
+            updatedAt = :updatedAt
+        WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'VALIDATING', 'WAITING_NETWORK')
+          AND EXISTS (
+              SELECT 1
+              FROM download_tasks AS newer
+              WHERE newer.mediaKey = download_tasks.mediaKey
+                AND newer.sortOrder > download_tasks.sortOrder
+                AND newer.status NOT IN ('COMPLETED', 'CANCELLED')
+          )
+        """,
+    )
+    suspend fun failSupersededDuplicateAttempts(updatedAt: Long): Int
+
+    @Transaction
+    suspend fun recoverQueueAfterProcessDeath(updatedAt: Long): Int {
+        failSupersededDuplicateAttempts(updatedAt)
+        return recoverInterruptedTasks(updatedAt)
+    }
 }
 
 @Dao
@@ -207,8 +269,25 @@ interface DownloadHistoryDao {
     @Upsert
     suspend fun upsert(item: DownloadHistoryEntity)
 
-    @Query("SELECT * FROM download_history ORDER BY completedAt DESC")
-    fun observeAll(): Flow<List<DownloadHistoryEntity>>
+    @Query(
+        """
+        SELECT history.*, media.thumbnailUrl AS mediaThumbnailUrl
+        FROM download_history AS history
+        LEFT JOIN media_items AS media
+          ON media.platform = history.platform
+         AND media.contentId = history.contentId
+        ORDER BY history.completedAt DESC
+        """,
+    )
+    fun observeAll(): Flow<List<DownloadHistoryWithThumbnail>>
+
+    @Query(
+        """
+        SELECT platform || ':' || contentId FROM download_history
+        WHERE finalStatus = 'COMPLETED'
+        """,
+    )
+    suspend fun getCompletedMediaKeys(): List<String>
 
     @Query("SELECT * FROM download_history WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadHistoryEntity?
@@ -232,4 +311,19 @@ interface DownloadHistoryDao {
         contentId: String,
         resolution: String,
     ): DownloadHistoryEntity?
+}
+
+@Dao
+interface DownloadThroughputReportDao {
+    @Upsert
+    suspend fun upsert(item: DownloadThroughputReportEntity)
+
+    @Query("SELECT * FROM download_throughput_reports ORDER BY startedAt DESC")
+    fun observeAll(): Flow<List<DownloadThroughputReportEntity>>
+
+    @Query("SELECT * FROM download_throughput_reports WHERE taskId = :taskId ORDER BY startedAt DESC")
+    suspend fun getByTaskId(taskId: String): List<DownloadThroughputReportEntity>
+
+    @Query("DELETE FROM download_throughput_reports WHERE taskId = :taskId")
+    suspend fun deleteByTaskId(taskId: String): Int
 }

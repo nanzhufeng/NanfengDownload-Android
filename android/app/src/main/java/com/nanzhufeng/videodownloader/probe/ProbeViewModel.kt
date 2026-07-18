@@ -4,6 +4,7 @@ import android.app.Application
 import android.webkit.CookieManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -168,9 +169,14 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 _uiState.value = ProbeUiState.Passed(action())
             } catch (error: Throwable) {
-                val type = error::class.simpleName ?: error.javaClass.simpleName
-                val message = error.message?.takeIf(String::isNotBlank) ?: "没有错误详情"
-                _uiState.value = ProbeUiState.Failed(stage, "$type: $message")
+                _uiState.value = ProbeUiState.Failed(
+                    stage,
+                    UserFacingErrorPresenter.message(
+                        rawError = error.message,
+                        fallbackProblem = "$stage 失败",
+                        fallbackAction = "请检查网络和登录信息后重试",
+                    ),
+                )
             }
         }
     }

@@ -76,6 +76,20 @@ class PlatformSourceDiscoveryEngineTest {
             assertTrue("取消耗时 ${elapsedMillis}ms", elapsedMillis < 250)
         }
     }
+
+    @Test
+    fun freshDouyinCookiesFailureBecomesActionableChineseMessage() {
+        val message = DiscoveryFailurePresenter.message(
+            IllegalStateException(
+                "DownloadError: ERROR: [Douyin] 123: Fresh cookies (not necessarily logged in) are needed",
+            ),
+        )
+
+        assertEquals(
+            "抖音需要新的网页会话。请到“设置 → 账号与权限 → 抖音”重新登录，返回后重试。",
+            message,
+        )
+    }
 }
 
 private class BlockingGateway : ProbeDiscoveryGateway {

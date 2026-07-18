@@ -1,25 +1,33 @@
 package com.nanzhufeng.videodownloader.core.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.SmartDisplay
-import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 
 enum class AppCardTone {
@@ -34,17 +42,22 @@ enum class AppCardTone {
 fun WorkbenchCard(
     tone: AppCardTone,
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(
+    Surface(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = tone.containerColor()),
+        color = Color.White,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, tone.borderColor()),
+        tonalElevation = 0.dp,
+        shadowElevation = 1.dp,
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(contentPadding),
             content = content,
         )
     }
@@ -75,8 +88,10 @@ fun SelectedFilterChip(
         label = { Text(label) },
         modifier = modifier,
         colors = FilterChipDefaults.filterChipColors(
-            selectedContainerColor = SelectedSage,
-            selectedLabelColor = ForestGreen,
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = ForestGreen,
+            selectedLabelColor = Color.White,
         ),
     )
 }
@@ -85,31 +100,82 @@ fun SelectedFilterChip(
 fun PlatformIcon(
     platform: DownloadPlatform,
     contentDescription: String,
+    modifier: Modifier = Modifier,
 ) {
-    Icon(
-        imageVector = platform.icon(),
+    when (platform.iconTreatment()) {
+        PlatformIconTreatment.YOUTUBE_RED -> PlatformImage(
+            resource = R.drawable.platform_youtube,
+            tint = Color(0xFFFF0000),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
+        PlatformIconTreatment.DOUYIN_LAYERED -> DouyinPlatformMark(contentDescription, modifier)
+        PlatformIconTreatment.TIKTOK_MONOCHROME -> PlatformImage(
+            resource = R.drawable.platform_tiktok,
+            tint = Color(0xFF161823),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
+    }
+}
+
+internal enum class PlatformIconTreatment {
+    YOUTUBE_RED,
+    DOUYIN_LAYERED,
+    TIKTOK_MONOCHROME,
+}
+
+internal fun DownloadPlatform.iconTreatment(): PlatformIconTreatment = when (this) {
+    DownloadPlatform.YOUTUBE -> PlatformIconTreatment.YOUTUBE_RED
+    DownloadPlatform.DOUYIN -> PlatformIconTreatment.DOUYIN_LAYERED
+    DownloadPlatform.TIKTOK -> PlatformIconTreatment.TIKTOK_MONOCHROME
+}
+
+@Composable
+private fun PlatformImage(
+    resource: Int,
+    tint: Color,
+    contentDescription: String,
+    modifier: Modifier,
+) {
+    Image(
+        painter = painterResource(resource),
         contentDescription = contentDescription,
-        tint = platform.brandColor(),
+        colorFilter = ColorFilter.tint(tint),
+        contentScale = ContentScale.Fit,
+        modifier = modifier.size(24.dp),
     )
 }
 
 @Composable
-private fun AppCardTone.containerColor(): Color = when (this) {
-    AppCardTone.NEUTRAL -> MaterialTheme.colorScheme.surface
-    AppCardTone.MINT -> MintWorkspace
-    AppCardTone.ORANGE -> Color(0xFFFFEEE7)
-    AppCardTone.PURPLE -> Color(0xFFF0EAFA)
-    AppCardTone.OCHRE -> Color(0xFFFFF0DB)
+private fun DouyinPlatformMark(contentDescription: String, modifier: Modifier) {
+    Surface(
+        modifier = modifier.size(PlatformMarkSize).clip(RoundedCornerShape(6.dp)),
+        color = Color(0xFF10111A),
+        shape = RoundedCornerShape(6.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            LayeredDouyinGlyph(Color(0xFF25F4EE), (-1.2).dp, null)
+            LayeredDouyinGlyph(Color(0xFFFE2C55), 1.2.dp, null)
+            LayeredDouyinGlyph(Color.White, 0.dp, contentDescription)
+        }
+    }
 }
 
-private fun DownloadPlatform.icon(): ImageVector = when (this) {
-    DownloadPlatform.YOUTUBE -> Icons.Filled.PlayCircle
-    DownloadPlatform.DOUYIN -> Icons.Filled.VideoLibrary
-    DownloadPlatform.TIKTOK -> Icons.Filled.SmartDisplay
+@Composable
+private fun LayeredDouyinGlyph(tint: Color, xOffset: Dp, contentDescription: String?) {
+    Image(
+        painter = painterResource(R.drawable.platform_tiktok),
+        contentDescription = contentDescription,
+        colorFilter = ColorFilter.tint(tint),
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.size(DouyinGlyphSize).offset(x = xOffset),
+    )
 }
 
-private fun DownloadPlatform.brandColor(): Color = when (this) {
-    DownloadPlatform.YOUTUBE -> Color(0xFFFF0000)
-    DownloadPlatform.DOUYIN -> Color(0xFF161823)
-    DownloadPlatform.TIKTOK -> Color(0xFF00B5C8)
-}
+internal val PlatformMarkSize = 24.dp
+internal val DouyinGlyphSize = 12.dp
+
+internal fun AppCardTone.containerColor(): Color = Color.White
+
+internal fun AppCardTone.borderColor(): Color = WorkbenchBorder

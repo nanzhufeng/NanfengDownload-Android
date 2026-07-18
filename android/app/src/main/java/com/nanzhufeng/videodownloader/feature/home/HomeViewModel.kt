@@ -82,30 +82,37 @@ class HomeViewModel(
             }
 
             is DiscoveryResult.Single -> {
-                enqueue(listOf(result.item), DownloadSourceKind.SINGLE_VIDEO)
+                val addedCount = enqueue(listOf(result.item), DownloadSourceKind.SINGLE_VIDEO)
                 mutableUiState.update {
                     it.copy(
                         isReading = false,
                         sourceInput = input,
                         nextPage = null,
                         canLoadMore = false,
-                        notice = "已加入 1 个作品，请在队列中确认后开始下载",
+                        notice = if (addedCount == 1) {
+                            "已加入 1 个作品，请在下载列表中确认后开始下载"
+                        } else {
+                            "该作品已存在于下载列表或历史中，未重复添加"
+                        },
                     )
                 }
             }
 
             is DiscoveryResult.Collection -> {
-                enqueue(result.items, DownloadSourceKind.CREATOR)
+                val addedCount = enqueue(result.items, DownloadSourceKind.CREATOR)
+                val skippedCount = (result.items.size - addedCount).coerceAtLeast(0)
                 mutableUiState.update {
                     it.copy(
                         isReading = false,
                         sourceInput = input,
                         nextPage = result.nextPage,
                         canLoadMore = result.hasMore && result.nextPage != null,
-                        notice = if (append) {
-                            "已加载更多 ${result.items.size} 个作品"
-                        } else {
-                            "已加入 ${result.items.size} 个作品，请在队列中确认后开始下载"
+                        notice = when {
+                            addedCount == 0 -> "读取到的作品已存在于下载列表或历史中，未重复添加"
+                            append && skippedCount == 0 -> "已加载更多 $addedCount 个作品"
+                            append -> "已加载更多 $addedCount 个作品，跳过 $skippedCount 个重复作品"
+                            skippedCount == 0 -> "已加入 $addedCount 个作品，请在下载列表中确认后开始下载"
+                            else -> "已加入 $addedCount 个作品，跳过 $skippedCount 个重复作品"
                         },
                     )
                 }
@@ -113,10 +120,15 @@ class HomeViewModel(
         }
     }
 
-    private suspend fun enqueue(items: List<DiscoveredMedia>, sourceKind: DownloadSourceKind) {
-        if (items.isEmpty()) return
-        val resolution = settings.settings.first().defaultResolution
-        downloads.enqueue(items.map { it.toMediaItem(sourceKind) }, resolution)
+    private suspend fun enqueue(items: List<DiscoveredMedia>, sourceKind: DownloadSourceKind): Int {
+        if (items.isEmpty()) return 0
+        val defaults = settings.settings.first()
+        return downloads.enqueue(
+            items = items.map { it.toMediaItem(sourceKind) },
+            resolution = defaults.defaultResolution,
+            saveTreeUri = defaults.customTreeUri,
+            fileNameRule = defaults.fileNameRule,
+        ).size
     }
 
 }

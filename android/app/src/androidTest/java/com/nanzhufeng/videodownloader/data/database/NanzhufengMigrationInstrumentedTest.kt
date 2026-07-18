@@ -52,7 +52,51 @@ class NanzhufengMigrationInstrumentedTest {
         }
     }
 
+    @Test
+    fun migration3To4PreservesTasksAndAddsPermanentThroughputReports() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL(
+                """
+                INSERT INTO media_items VALUES (
+                    'YOUTUBE:one', 'YOUTUBE', 'one', 'https://youtu.be/one', 'SINGLE_VIDEO',
+                    '标题', '作者', 'creator', '20260717', '', 100
+                )
+                """.trimIndent(),
+            )
+            execSQL(
+                """
+                INSERT INTO download_tasks VALUES (
+                    'task-1', 'YOUTUBE:one', 1, 1, 'UP_TO_720P', 'DATE_AND_TITLE', NULL, NULL,
+                    0, 0, 0, NULL, 'WAITING', NULL, NULL, 0, 100, 100
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val database = helper.runMigrationsAndValidate(
+            TEST_DB,
+            4,
+            true,
+            NanzhufengMigrations.MIGRATION_3_4,
+        )
+
+        database.query(
+            "SELECT connectionMode, connectionCount FROM download_tasks WHERE taskId = 'task-1'",
+        ).use { cursor ->
+            cursor.moveToFirst()
+            assertEquals("UNKNOWN", cursor.getString(0))
+            assertEquals(0, cursor.getInt(1))
+        }
+        database.query("SELECT COUNT(*) FROM download_throughput_reports").use { cursor ->
+            cursor.moveToFirst()
+            assertEquals(0, cursor.getInt(0))
+        }
+        database.close()
+    }
+
     private companion object {
         const val TEST_DATABASE = "migration-test"
+        const val TEST_DB = "migration-3-4-test"
     }
 }

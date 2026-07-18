@@ -1,22 +1,35 @@
 package com.nanzhufeng.videodownloader.data.repository
 
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
+import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 interface DownloadRepository {
     val activeTasks: Flow<List<QueuedDownload>>
     val history: Flow<List<DownloadHistory>>
+    val throughputReports: Flow<List<DownloadThroughputReport>>
+        get() = emptyFlow()
 
     suspend fun enqueue(
         items: List<MediaItem>,
         resolution: ResolutionPreset,
     ): List<String>
+
+    suspend fun enqueue(
+        items: List<MediaItem>,
+        resolution: ResolutionPreset,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
+    ): List<String> = enqueue(items, resolution)
 
     suspend fun setSelected(taskId: String, selected: Boolean)
 
@@ -34,6 +47,8 @@ interface DownloadRepository {
 
     suspend fun cancelTask(taskId: String): Boolean = false
 
+    suspend fun removeQueueTask(taskId: String): Boolean = false
+
     suspend fun retryHistory(taskId: String): Boolean = false
 
     suspend fun deleteHistoryRecord(taskId: String): Boolean = false
@@ -47,6 +62,14 @@ interface DownloadRepository {
         speedBytesPerSecond: Long,
         remainingSeconds: Long?,
     )
+
+    suspend fun updateConnectionMode(
+        taskId: String,
+        mode: DownloadConnectionMode,
+        connectionCount: Int,
+    ) = Unit
+
+    suspend fun recordThroughputReport(report: DownloadThroughputReport) = Unit
 
     suspend fun transition(taskId: String, to: DownloadTaskStatus)
 

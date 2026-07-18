@@ -10,7 +10,9 @@ object UrlClassifier {
         val lower = raw.lowercase()
 
         return when {
-            "youtube.com/watch" in lower || "youtu.be/" in lower ->
+            "youtube.com/watch" in lower ||
+                "youtube.com/live/" in lower ||
+                "youtu.be/" in lower ->
                 ClassifiedSource(Platform.YOUTUBE, SourceKind.SINGLE_VIDEO, raw)
 
             "youtube.com/playlist" in lower ||

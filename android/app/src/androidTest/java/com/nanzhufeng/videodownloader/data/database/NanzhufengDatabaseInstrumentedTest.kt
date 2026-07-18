@@ -6,6 +6,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadHistoryEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskEntity
 import com.nanzhufeng.videodownloader.data.database.entity.MediaItemEntity
+import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputReportEntity
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -60,6 +61,41 @@ class NanzhufengDatabaseInstrumentedTest {
 
         assertNotNull(found)
         assertEquals("task-1", found!!.taskId)
+    }
+
+    @Test
+    fun throughputReportPersistsAllMeasuredTransferFacts() = runBlocking {
+        database.downloadThroughputReportDao().upsert(
+            DownloadThroughputReportEntity(
+                reportId = "report-1",
+                taskId = "task-1",
+                platform = "YOUTUBE",
+                streamLabel = "视频流",
+                outcome = "COMPLETED",
+                connectionMode = "MULTI",
+                connectionCount = 6,
+                rangeSupported = true,
+                expectedBytes = 20_000_000L,
+                committedBytes = 20_000_000L,
+                networkBytes = 20_000_000L,
+                startedAt = 100L,
+                finishedAt = 2100L,
+                elapsedMillis = 2000L,
+                averageBytesPerSecond = 10_000_000L,
+                peakBytesPerSecond = 13_000_000L,
+                retryCount = 0,
+                reprobeCount = 1,
+                fallbackReason = null,
+                errorSummary = null,
+            ),
+        )
+
+        val report = database.downloadThroughputReportDao().getByTaskId("task-1").single()
+
+        assertEquals("MULTI", report.connectionMode)
+        assertEquals(6, report.connectionCount)
+        assertEquals(10_000_000L, report.averageBytesPerSecond)
+        assertEquals(1, report.reprobeCount)
     }
 
     private fun media() = MediaItemEntity(

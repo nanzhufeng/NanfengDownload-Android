@@ -62,6 +62,7 @@ def _select_streams(formats, resolution="UP_TO_720P"):
         return audio, None
 
     max_short_edge = {
+        "UP_TO_360P": 360,
         "UP_TO_720P": 720,
         "UP_TO_1080P": 1080,
         "BEST": float("inf"),
@@ -114,7 +115,13 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
     if not chosen_video:
         raise ValueError("没有找到可下载且具备音频的 MP4 视频流")
 
+    # yt-dlp may attach the working player User-Agent and fetch headers to the
+    # selected formats rather than to the top-level result. Dropping them can
+    # make googlevideo reject or severely throttle otherwise valid Range URLs.
     headers = dict(info.get("http_headers") or {})
+    headers.update(chosen_video.get("http_headers") or {})
+    if audio:
+        headers.update(audio.get("http_headers") or {})
     if cookie_header:
         headers["Cookie"] = cookie_header
 

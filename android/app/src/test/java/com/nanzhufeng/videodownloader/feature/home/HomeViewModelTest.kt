@@ -71,6 +71,18 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun smartRead_whenRepositoryRejectsDuplicate_showsSkippedInsteadOfAdded() = runBlocking {
+        val downloads = RecordingDownloads(acceptItems = false)
+        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+
+        viewModel.onInputChanged("https://youtu.be/one")
+        viewModel.smartRead()
+
+        assertTrue(viewModel.uiState.value.notice.contains("已存在"))
+        assertTrue(!viewModel.uiState.value.notice.contains("已加入 1 个作品"))
+    }
+
+    @Test
     fun restoredDraftFillsEmptyInputButNeverOverwritesIncomingShare() {
         val viewModel = HomeViewModel(RecordingDownloads(), FakeSettings(), FakeDiscovery())
 
@@ -115,7 +127,9 @@ private class FakeDiscovery : SourceDiscoveryEngine {
     )
 }
 
-private class RecordingDownloads : DownloadRepository {
+private class RecordingDownloads(
+    private val acceptItems: Boolean = true,
+) : DownloadRepository {
     override val activeTasks: Flow<List<QueuedDownload>> = MutableStateFlow(emptyList())
     override val history: Flow<List<DownloadHistory>> = MutableStateFlow(emptyList())
     val enqueued = mutableListOf<List<MediaItem>>()
@@ -124,7 +138,7 @@ private class RecordingDownloads : DownloadRepository {
     override suspend fun enqueue(items: List<MediaItem>, resolution: ResolutionPreset): List<String> {
         enqueued += items
         resolutions += resolution
-        return items.map(MediaItem::contentId)
+        return if (acceptItems) items.map(MediaItem::contentId) else emptyList()
     }
 
     override suspend fun setSelected(taskId: String, selected: Boolean) = Unit

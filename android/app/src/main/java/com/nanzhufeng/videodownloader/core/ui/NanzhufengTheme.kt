@@ -12,12 +12,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val MintWorkspace = Color(0xFFF1F8F4)
-val ForestGreen = Color(0xFF1E6A45)
-val SelectedSage = Color(0xFFDCEFE3)
-val WarmOrange = Color(0xFFE86E2F)
-val QualityPurple = Color(0xFF7250B5)
-val StorageOchre = Color(0xFFB36A16)
+val MintWorkspace = Color(0xFFE6EAE7)
+val ForestGreen = Color(0xFF168A4A)
+val SelectedSage = Color(0xFFE5F4EA)
+val WarmOrange = Color(0xFFFF5A1F)
+val QualityPurple = Color(0xFF7552B8)
+val StorageOchre = Color(0xFFB96812)
+val WorkbenchBorder = Color(0xFFD7DED9)
+val SecondaryText = Color(0xFF5F6C64)
 
 val PrussianBlue = ForestGreen
 val HermesOrange = WarmOrange
@@ -35,15 +37,21 @@ private val NanzhufengColors = lightColorScheme(
     tertiary = QualityPurple,
     onTertiary = Color.White,
     background = MintWorkspace,
-    onBackground = Color(0xFF101828),
+    onBackground = Color(0xFF16231B),
     surface = Color.White,
-    onSurface = Color(0xFF101828),
+    onSurface = Color(0xFF16231B),
     surfaceVariant = SelectedSage,
-    onSurfaceVariant = ForestGreen,
+    onSurfaceVariant = SecondaryText,
     error = FailureRed,
 )
 
 private val NanzhufengTypography = Typography(
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+    ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
@@ -53,8 +61,8 @@ private val NanzhufengTypography = Typography(
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
+        fontSize = 20.sp,
+        lineHeight = 26.sp,
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -62,21 +70,44 @@ private val NanzhufengTypography = Typography(
         fontSize = 16.sp,
         lineHeight = 22.sp,
     ),
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+    ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
+        fontSize = 13.sp,
+        lineHeight = 19.sp,
+    ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontSize = 12.sp,
+        lineHeight = 17.sp,
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
     ),
     labelMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
+    ),
+    labelSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
     ),
 )
 

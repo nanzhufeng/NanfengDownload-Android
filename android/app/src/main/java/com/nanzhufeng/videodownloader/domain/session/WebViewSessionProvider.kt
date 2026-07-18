@@ -7,10 +7,12 @@ import android.webkit.CookieManager
 import com.nanzhufeng.videodownloader.feature.settings.SessionLoginActivity
 import java.io.ByteArrayOutputStream
 import java.io.File
+import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
 class WebViewSessionProvider(context: Context) : SessionProvider {
@@ -19,7 +21,7 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
     private val sessionDirectory = File(applicationContext.filesDir, "sessions").apply { mkdirs() }
     private val youtubeCookieFile = File(sessionDirectory, "youtube-cookies.txt")
     private val accessPolicy = SessionAccessPolicy(
-        cookieLookup = { site -> cookieManager.getCookie(site.cookieProbeUrl).orEmpty() },
+        cookieLookup = ::cookiesForSite,
         youtubeCookieFile = { youtubeCookieFile.takeIf(File::isFile)?.absolutePath },
     )
     private val mutableStates = MutableStateFlow(buildStates())
@@ -53,21 +55,62 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
         }
     }
 
-    override fun clear(site: SessionSite) {
-        if (site == SessionSite.YOUTUBE) {
-            youtubeCookieFile.delete()
-        } else {
-            val cookieNames = cookieManager.getCookie(site.cookieProbeUrl)
-                .orEmpty()
-                .split(';')
-                .mapNotNull { cookie -> cookie.substringBefore('=').trim().takeIf(String::isNotBlank) }
-            cookieNames.forEach { name ->
-                cookieManager.setCookie(
-                    site.cookieProbeUrl,
-                    "$name=; Max-Age=0; Path=/; SameSite=Lax",
-                )
+    override suspend fun exportCookies(destinationUri: String): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val sections = buildList {
+                if (youtubeCookieFile.isFile && youtubeCookieFile.length() > 0L) {
+                    add(
+                        youtubeCookieFile.readLines()
+                            .filter { line -> line.isNotBlank() && !line.startsWith("# Netscape") }
+                            .joinToString("\n"),
+                    )
+                }
+                listOf(
+                    SessionSite.DOUYIN to ".douyin.com",
+                    SessionSite.TIKTOK to ".tiktok.com",
+                ).forEach { (site, domain) ->
+                    cookieManager.getCookie(site.cookieProbeUrl)
+                        .orEmpty()
+                        .split(';')
+                        .map(String::trim)
+                        .filter(String::isNotBlank)
+                        .mapNotNull { cookie ->
+                            val separator = cookie.indexOf('=')
+                            if (separator <= 0) return@mapNotNull null
+                            val name = cookie.substring(0, separator).trim()
+                            val value = cookie.substring(separator + 1)
+                            "$domain\tTRUE\t/\tTRUE\t0\t$name\t$value"
+                        }
+                        .takeIf(List<String>::isNotEmpty)
+                        ?.joinToString("\n")
+                        ?.let(::add)
+                }
+            }.filter(String::isNotBlank)
+            require(sections.isNotEmpty()) { "当前没有可导出的登录会话" }
+            val output = buildString {
+                appendLine("# Netscape HTTP Cookie File")
+                appendLine("# Exported by Nanzhufeng Video Downloader")
+                append(sections.joinToString("\n"))
+                appendLine()
             }
-            cookieManager.flush()
+            requireNotNull(
+                applicationContext.contentResolver.openOutputStream(Uri.parse(destinationUri), "w"),
+            ) { "无法打开所选导出文件" }.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.write(output)
+            }
+            sections.size
+        }
+    }
+
+    override suspend fun clear(site: SessionSite): Result<Unit> = runCatching {
+        if (site == SessionSite.YOUTUBE) {
+            withContext(Dispatchers.IO) {
+                if (youtubeCookieFile.exists()) {
+                    require(youtubeCookieFile.delete()) { "无法清除 YouTube cookies.txt" }
+                }
+            }
+        } else {
+            withContext(Dispatchers.Main.immediate) { clearWebViewCookies(site) }
         }
         refresh()
     }
@@ -77,16 +120,102 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
     }
 
     private fun buildStates(): List<SiteSessionState> = SessionSite.entries.map { site ->
-        val saved = when (site) {
-            SessionSite.YOUTUBE -> youtubeCookieFile.isFile && youtubeCookieFile.length() > 0L
-            else -> cookieManager.getCookie(site.cookieProbeUrl).orEmpty().isNotBlank()
+        val cookieHeader = if (site == SessionSite.YOUTUBE) "" else cookiesForSite(site, site.cookieProbeUrl)
+        val saved = if (site == SessionSite.YOUTUBE) {
+            youtubeCookieFile.isFile && youtubeCookieFile.length() > 0L
+        } else {
+            cookieHeader.isNotBlank()
         }
+        val authenticated = saved && classifyAuthenticatedSession(site, cookieHeader)
         SiteSessionState(
             site = site,
             hasSavedSession = saved,
-            summary = if (saved) "会话已保存，可在下次启动继续使用" else "未保存登录会话",
+            summary = when {
+                site == SessionSite.YOUTUBE && saved -> "cookies.txt 已导入"
+                authenticated -> "已检测到登录 Cookie，使用时仍会验证"
+                saved -> "已保存网页会话，尚未确认登录"
+                else -> "未保存登录会话"
+            },
+            isAuthenticated = authenticated,
         )
     }
+
+    private fun cookiesForSite(site: SessionSite, preferredUrl: String): String {
+        val urls = buildList {
+            add(preferredUrl)
+            addAll(site.cookieScopeUrls)
+        }.distinct()
+        return mergeCookieHeaders(urls.map { url -> cookieManager.getCookie(url).orEmpty() })
+    }
+
+    private suspend fun clearWebViewCookies(site: SessionSite) {
+        val preservedScopes = SessionSite.entries
+            .filter { candidate -> candidate != site && candidate != SessionSite.YOUTUBE }
+            .flatMap { candidate ->
+                candidate.cookieScopeUrls.mapNotNull { url ->
+                    cookieManager.getCookie(url).orEmpty()
+                        .takeIf(String::isNotBlank)
+                        ?.let { header -> PreservedCookieScope(candidate, url, header) }
+                }
+            }
+        val names = site.cookieScopeUrls
+            .flatMap { url -> cookieNames(cookieManager.getCookie(url).orEmpty()) }
+            .toSet()
+        names.forEach { name ->
+            site.cookieScopeUrls.forEach { url ->
+                expireCookie(url, "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/")
+                cookieDeletionDomains(site).forEach { domain ->
+                    expireCookie(
+                        url,
+                        "$name=; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; " +
+                            "Domain=$domain; Path=/",
+                    )
+                }
+            }
+        }
+        cookieManager.flush()
+        if (cookiesForSite(site, site.cookieProbeUrl).isNotBlank()) {
+            removeAllCookies()
+            preservedScopes.forEach { scope ->
+                cookieAssignments(scope.header).forEach { assignment ->
+                    setCookie(
+                        scope.url,
+                        "$assignment; Path=/; Secure; SameSite=None",
+                    )
+                }
+            }
+            cookieManager.flush()
+            preservedScopes.map(PreservedCookieScope::site).distinct().forEach { preservedSite ->
+                require(cookiesForSite(preservedSite, preservedSite.cookieProbeUrl).isNotBlank()) {
+                    "${preservedSite.label} 会话未能恢复，请重新登录"
+                }
+            }
+        }
+        require(cookiesForSite(site, site.cookieProbeUrl).isBlank()) {
+            "${site.label} 会话未能完全清除，请关闭登录页后重试"
+        }
+    }
+
+    private suspend fun expireCookie(url: String, value: String) =
+        suspendCancellableCoroutine { continuation ->
+            cookieManager.setCookie(url, value) {
+                if (continuation.isActive) continuation.resume(Unit)
+            }
+        }
+
+    private suspend fun setCookie(url: String, value: String) =
+        suspendCancellableCoroutine { continuation ->
+            cookieManager.setCookie(url, value) {
+                if (continuation.isActive) continuation.resume(Unit)
+            }
+        }
+
+    private suspend fun removeAllCookies() =
+        suspendCancellableCoroutine { continuation ->
+            cookieManager.removeAllCookies {
+                if (continuation.isActive) continuation.resume(Unit)
+            }
+        }
 
     private fun readLimited(input: java.io.InputStream): ByteArray {
         val output = ByteArrayOutputStream()
@@ -101,6 +230,12 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
         }
         return output.toByteArray()
     }
+
+    private data class PreservedCookieScope(
+        val site: SessionSite,
+        val url: String,
+        val header: String,
+    )
 
     private fun isValidNetscapeCookieFile(bytes: ByteArray): Boolean {
         val text = bytes.toString(Charsets.UTF_8)

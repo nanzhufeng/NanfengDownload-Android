@@ -2,6 +2,9 @@ package com.nanzhufeng.videodownloader.data.repository
 
 import androidx.room.withTransaction
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
+import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
+import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
@@ -11,12 +14,15 @@ import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.core.model.TaskTransitionPolicy
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import com.nanzhufeng.videodownloader.core.model.isTerminal
 import com.nanzhufeng.videodownloader.data.database.NanzhufengDatabase
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadHistoryEntity
+import com.nanzhufeng.videodownloader.data.database.entity.DownloadHistoryWithThumbnail
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskWithMedia
 import com.nanzhufeng.videodownloader.data.database.entity.MediaItemEntity
+import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputReportEntity
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -28,22 +34,42 @@ class RoomDownloadRepository(
 ) : DownloadRepository {
     private val taskDao = database.downloadTaskDao()
     private val historyDao = database.downloadHistoryDao()
+    private val throughputDao = database.downloadThroughputReportDao()
 
     override val activeTasks: Flow<List<QueuedDownload>> =
         taskDao.observeActive().map { rows -> rows.map(DownloadTaskWithMedia::toDomain) }
 
     override val history: Flow<List<DownloadHistory>> =
-        historyDao.observeAll().map { rows -> rows.map(DownloadHistoryEntity::toDomain) }
+        historyDao.observeAll().map { rows -> rows.map(DownloadHistoryWithThumbnail::toDomain) }
+
+    override val throughputReports: Flow<List<DownloadThroughputReport>> =
+        throughputDao.observeAll().map { rows -> rows.map(DownloadThroughputReportEntity::toDomain) }
 
     override suspend fun enqueue(
         items: List<MediaItem>,
         resolution: ResolutionPreset,
+    ): List<String> = enqueue(items, resolution, null, FileNameRule.DATE_AND_TITLE)
+
+    override suspend fun enqueue(
+        items: List<MediaItem>,
+        resolution: ResolutionPreset,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
     ): List<String> = database.withTransaction {
         if (items.isEmpty()) return@withTransaction emptyList()
 
+        val existingMediaKeys = buildSet {
+            addAll(taskDao.getDownloadListMediaKeys())
+            addAll(historyDao.getCompletedMediaKeys())
+        }
+        val normalized = items
+            .map(MediaItem::normalized)
+            .distinctBy(MediaItem::mediaKey)
+            .filterNot { it.mediaKey in existingMediaKeys }
+        if (normalized.isEmpty()) return@withTransaction emptyList()
+
         val now = clock()
         val firstSortOrder = taskDao.nextSortOrder()
-        val normalized = items.map(MediaItem::normalized)
         val tasks = normalized.mapIndexed { index, media ->
             DownloadTaskEntity(
                 taskId = idFactory(),
@@ -51,7 +77,8 @@ class RoomDownloadRepository(
                 selected = true,
                 sortOrder = firstSortOrder + index,
                 resolution = resolution.name,
-                saveTreeUri = null,
+                fileNameRule = fileNameRule.name,
+                saveTreeUri = saveTreeUri,
                 tempPath = null,
                 downloadedBytes = 0L,
                 totalBytes = 0L,
@@ -113,6 +140,12 @@ class RoomDownloadRepository(
         true
     }
 
+    override suspend fun removeQueueTask(taskId: String): Boolean = database.withTransaction {
+        if (taskDao.deleteRemovableById(taskId) != 1) return@withTransaction false
+        throughputDao.deleteByTaskId(taskId)
+        true
+    }
+
     override suspend fun retryHistory(taskId: String): Boolean = database.withTransaction {
         val history = historyDao.getById(taskId) ?: return@withTransaction false
         val finalStatus = DownloadTaskStatus.valueOf(history.finalStatus)
@@ -127,7 +160,7 @@ class RoomDownloadRepository(
     override suspend fun deleteHistoryRecord(taskId: String): Boolean =
         historyDao.deleteById(taskId) == 1
 
-    override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverInterruptedTasks(clock())
+    override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverQueueAfterProcessDeath(clock())
 
     override suspend fun updateTransfer(
         taskId: String,
@@ -146,6 +179,25 @@ class RoomDownloadRepository(
                 updatedAt = clock(),
             ) == 1,
         ) { "找不到下载任务：$taskId" }
+    }
+
+    override suspend fun updateConnectionMode(
+        taskId: String,
+        mode: DownloadConnectionMode,
+        connectionCount: Int,
+    ) {
+        check(
+            taskDao.updateConnectionMode(
+                taskId = taskId,
+                connectionMode = mode.name,
+                connectionCount = connectionCount.coerceAtLeast(0),
+                updatedAt = clock(),
+            ) == 1,
+        ) { "找不到下载任务：$taskId" }
+    }
+
+    override suspend fun recordThroughputReport(report: DownloadThroughputReport) {
+        throughputDao.upsert(report.toEntity())
     }
 
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) {
@@ -223,6 +275,8 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         selected = task.selected,
         sortOrder = task.sortOrder,
         resolution = ResolutionPreset.valueOf(task.resolution),
+        fileNameRule = runCatching { FileNameRule.valueOf(task.fileNameRule) }
+            .getOrDefault(FileNameRule.DATE_AND_TITLE),
         saveTreeUri = task.saveTreeUri,
         downloadedBytes = task.downloadedBytes,
         totalBytes = task.totalBytes,
@@ -233,6 +287,9 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         errorSummary = task.errorSummary,
         retryCount = task.retryCount,
         updatedAt = task.updatedAt,
+        connectionMode = runCatching { DownloadConnectionMode.valueOf(task.connectionMode) }
+            .getOrDefault(DownloadConnectionMode.UNKNOWN),
+        connectionCount = task.connectionCount,
     ),
     media = MediaItem(
         mediaKey = media.mediaKey,
@@ -297,5 +354,55 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     fileExists = fileExists,
     completedAt = completedAt,
     failureType = failureType?.let(DownloadFailureType::valueOf),
+    errorSummary = errorSummary,
+)
+
+private fun DownloadHistoryWithThumbnail.toDomain() = history.toDomain().copy(
+    thumbnailUrl = thumbnailUrl.orEmpty(),
+)
+
+private fun DownloadThroughputReport.toEntity() = DownloadThroughputReportEntity(
+    reportId = reportId,
+    taskId = taskId,
+    platform = platform.name,
+    streamLabel = streamLabel,
+    outcome = outcome.name,
+    connectionMode = connectionMode.name,
+    connectionCount = connectionCount,
+    rangeSupported = rangeSupported,
+    expectedBytes = expectedBytes,
+    committedBytes = committedBytes,
+    networkBytes = networkBytes,
+    startedAt = startedAt,
+    finishedAt = finishedAt,
+    elapsedMillis = elapsedMillis,
+    averageBytesPerSecond = averageBytesPerSecond,
+    peakBytesPerSecond = peakBytesPerSecond,
+    retryCount = retryCount,
+    reprobeCount = reprobeCount,
+    fallbackReason = fallbackReason,
+    errorSummary = errorSummary,
+)
+
+private fun DownloadThroughputReportEntity.toDomain() = DownloadThroughputReport(
+    reportId = reportId,
+    taskId = taskId,
+    platform = DownloadPlatform.valueOf(platform),
+    streamLabel = streamLabel,
+    outcome = TransferReportOutcome.valueOf(outcome),
+    connectionMode = DownloadConnectionMode.valueOf(connectionMode),
+    connectionCount = connectionCount,
+    rangeSupported = rangeSupported,
+    expectedBytes = expectedBytes,
+    committedBytes = committedBytes,
+    networkBytes = networkBytes,
+    startedAt = startedAt,
+    finishedAt = finishedAt,
+    elapsedMillis = elapsedMillis,
+    averageBytesPerSecond = averageBytesPerSecond,
+    peakBytesPerSecond = peakBytesPerSecond,
+    retryCount = retryCount,
+    reprobeCount = reprobeCount,
+    fallbackReason = fallbackReason,
     errorSummary = errorSummary,
 )

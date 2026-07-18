@@ -17,11 +17,14 @@ fun HomeScreen(
     onSelectionChanged: (String, Boolean) -> Unit = { _, _ -> },
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit = { _, _ -> },
     onResolutionChanged: (String, ResolutionPreset) -> Unit = { _, _ -> },
+    onDeleteQueued: (String) -> Unit = {},
+    onRetryQueued: (String) -> Unit = {},
     onStartDownloads: () -> Unit = {},
     onPauseActive: () -> Unit = {},
     onStopActive: (String) -> Unit = {},
     networkAvailable: Boolean = false,
     defaultResolution: ResolutionPreset = ResolutionPreset.UP_TO_720P,
+    completedCount: Int = 0,
     expanded: Boolean = false,
 ) {
     if (expanded) {
@@ -37,11 +40,14 @@ fun HomeScreen(
             onSelectionChanged = onSelectionChanged,
             onBulkSelectionChanged = onBulkSelectionChanged,
             onResolutionChanged = onResolutionChanged,
+            onDeleteQueued = onDeleteQueued,
+            onRetryQueued = onRetryQueued,
             onStartDownloads = onStartDownloads,
             onPauseActive = onPauseActive,
             onStopActive = onStopActive,
             networkAvailable = networkAvailable,
             defaultResolution = defaultResolution,
+            completedCount = completedCount,
         )
     } else {
         CompactHome(
@@ -56,10 +62,13 @@ fun HomeScreen(
             onSelectionChanged = onSelectionChanged,
             onBulkSelectionChanged = onBulkSelectionChanged,
             onResolutionChanged = onResolutionChanged,
+            onDeleteQueued = onDeleteQueued,
+            onRetryQueued = onRetryQueued,
             onStartDownloads = onStartDownloads,
             onPauseActive = onPauseActive,
             onStopActive = onStopActive,
             networkAvailable = networkAvailable,
+            completedCount = completedCount,
         )
     }
 }

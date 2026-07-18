@@ -9,6 +9,10 @@ interface DownloadEngine {
 
     suspend fun stop(taskId: String)
 
+    suspend fun remove(taskId: String)
+
+    suspend fun retry(taskId: String)
+
     suspend fun resumeWhenNetworkAvailable()
 }
 
@@ -16,6 +20,8 @@ object NoOpDownloadEngine : DownloadEngine {
     override suspend fun start() = Unit
     override suspend fun pauseAll() = Unit
     override suspend fun stop(taskId: String) = Unit
+    override suspend fun remove(taskId: String) = Unit
+    override suspend fun retry(taskId: String) = Unit
     override suspend fun resumeWhenNetworkAvailable() = Unit
 }
 
@@ -49,7 +55,20 @@ class DefaultDownloadEngine(
         scheduler.restart()
     }
 
+    override suspend fun remove(taskId: String) {
+        if (repository.removeQueueTask(taskId)) return
+        if (!repository.cancelTask(taskId)) return
+        scheduler.restart()
+        repository.removeQueueTask(taskId)
+    }
+
+    override suspend fun retry(taskId: String) {
+        if (repository.retryHistory(taskId)) {
+            scheduler.enqueue()
+        }
+    }
+
     override suspend fun resumeWhenNetworkAvailable() {
-        scheduler.enqueue()
+        scheduler.restart()
     }
 }

@@ -12,6 +12,7 @@ import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import java.io.File
 import java.net.UnknownHostException
+import com.nanzhufeng.videodownloader.probe.HttpDownloadException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -51,6 +52,18 @@ class DownloadTaskRunnerTest {
         assertFalse(
             NetworkErrorClassifier.isRetryable(
                 RuntimeException("ERROR: HTTP Error 403: Forbidden"),
+            ),
+        )
+        assertTrue(
+            "长视频连接被服务器提前截断时，应刷新来源并继续下载",
+            NetworkErrorClassifier.isRetryable(
+                java.io.IOException("unexpected end of stream"),
+            ),
+        )
+        assertFalse(
+            "内部重试和来源刷新全部耗尽后，应保留为可见失败而不是无限等网络",
+            NetworkErrorClassifier.shouldWaitForNetwork(
+                java.io.IOException("unexpected end of stream"),
             ),
         )
     }
@@ -93,6 +106,27 @@ class DownloadTaskRunnerTest {
         assertEquals(DownloadFailureType.NETWORK, repository.current.task.failureType)
         assertEquals("网络不可用", repository.current.task.errorSummary)
         assertTrue(repository.archived.isEmpty())
+    }
+
+    @Test
+    fun staleMediaUrlTriggersOneFreshResolveBeforeCompleting() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val resolver = SuccessfulResolver()
+        val transfer = RefreshThenSuccessTransfer()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = transfer,
+            outputStore = PublishingOutputStore(),
+            clock = { 300L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Completed, result)
+        assertEquals(2, resolver.calls)
+        assertEquals(listOf(0, 1), transfer.reprobeCounts)
+        assertEquals(DownloadTaskStatus.COMPLETED, repository.archived.single().finalStatus)
     }
 
     private fun queued() = QueuedDownload(
@@ -194,6 +228,35 @@ private class ThrowingResolver(private val error: Throwable) : TaskMediaResolver
     }
 }
 
+private class SuccessfulResolver : TaskMediaResolver {
+    var calls = 0
+
+    override suspend fun resolve(media: MediaItem, resolution: ResolutionPreset): ResolvedMedia {
+        calls += 1
+        return ResolvedMedia(
+            videoUrl = "https://example.invalid/video-$calls",
+            audioUrl = null,
+            videoExtension = "mp4",
+            audioExtension = null,
+            headers = emptyMap(),
+        )
+    }
+}
+
+private class RefreshThenSuccessTransfer : MediaTransfer {
+    val reprobeCounts = mutableListOf<Int>()
+
+    override suspend fun download(
+        task: QueuedDownload,
+        source: ResolvedMedia,
+        onProgress: suspend (Long, Long, Long, Long?) -> Unit,
+    ): PreparedMedia {
+        reprobeCounts += source.reprobeCount
+        if (source.reprobeCount == 0) throw HttpDownloadException(403)
+        return PreparedMedia(File.createTempFile("refreshed-source", ".mp4"), "video/mp4")
+    }
+}
+
 private class FailingTransfer : MediaTransfer {
     override suspend fun download(
         task: QueuedDownload,
@@ -230,4 +293,16 @@ private class EmptyOutputStore : DownloadOutputStore {
         resolution: ResolutionPreset,
         prepared: PreparedMedia,
     ): StoredMedia = error("不应写入")
+}
+
+private class PublishingOutputStore : DownloadOutputStore {
+    override suspend fun findExisting(media: MediaItem, resolution: ResolutionPreset): StoredMedia? = null
+
+    override suspend fun uriExists(uri: String): Boolean = false
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+    ): StoredMedia = StoredMedia("content://media/refreshed", prepared.file.length())
 }

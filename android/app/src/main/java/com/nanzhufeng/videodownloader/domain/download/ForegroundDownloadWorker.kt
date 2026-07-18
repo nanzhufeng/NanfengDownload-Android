@@ -2,7 +2,9 @@ package com.nanzhufeng.videodownloader.domain.download
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -16,7 +18,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.nanzhufeng.videodownloader.NanzhufengApplication
+import com.nanzhufeng.videodownloader.MainActivity
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
@@ -35,30 +40,48 @@ class ForegroundDownloadWorker(
                 setForeground(createForegroundInfo(DownloadNotificationState.from(queue)))
             }
         }
-        var processedTask = false
-
         try {
-            while (!isStopped) {
-                when (container.taskRunner.runNext()) {
-                    TaskRunResult.Completed,
-                    TaskRunResult.Skipped,
-                    TaskRunResult.Failed,
-                    -> processedTask = true
+            val settings = container.settings.settings.first()
+            val lanes = (0 until settings.maxConcurrentDownloads).map {
+                async {
+                    var completed = 0
+                    var skipped = 0
+                    var failed = 0
+                    var waitingForNetwork = false
+                    while (!isStopped) {
+                        when (container.taskRunner.runNext()) {
+                            TaskRunResult.Completed -> completed++
+                            TaskRunResult.Skipped -> skipped++
+                            TaskRunResult.Failed -> failed++
 
-                    TaskRunResult.WaitingForNetwork -> {
-                        return@coroutineScope if (container.settings.settings.first().autoResumeNetwork) {
-                            Result.retry()
-                        } else {
-                            Result.success()
+                            TaskRunResult.WaitingForNetwork -> {
+                                waitingForNetwork = true
+                                break
+                            }
+                            TaskRunResult.Idle -> break
                         }
                     }
-                    TaskRunResult.Idle -> {
-                        if (processedTask) showCompletionNotification()
-                        return@coroutineScope Result.success()
-                    }
+                    LaneResult(completed, skipped, failed, waitingForNetwork)
                 }
             }
-            Result.success()
+            val laneResults = lanes.awaitAll()
+            val completedCount = laneResults.sumOf(LaneResult::completed)
+            val skippedCount = laneResults.sumOf(LaneResult::skipped)
+            val failedCount = laneResults.sumOf(LaneResult::failed)
+            if (completedCount + skippedCount + failedCount > 0) {
+                showCompletionNotification(
+                    completionNotificationText(
+                        completedCount = completedCount,
+                        skippedCount = skippedCount,
+                        failedCount = failedCount,
+                    ),
+                )
+            }
+            if (laneResults.any(LaneResult::waitingForNetwork) && settings.autoResumeNetwork) {
+                Result.retry()
+            } else {
+                Result.success()
+            }
         } finally {
             foregroundUpdates.cancel()
         }
@@ -73,6 +96,7 @@ class ForegroundDownloadWorker(
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("南烛枫视频下载器")
             .setContentText(state.content)
+            .setContentIntent(appLaunchPendingIntent())
             .setOnlyAlertOnce(true)
             .setOngoing(true)
             .setProgress(state.max, state.value, state.indeterminate)
@@ -88,17 +112,27 @@ class ForegroundDownloadWorker(
         }
     }
 
-    private fun showCompletionNotification() {
+    private fun showCompletionNotification(content: String) {
         ensureChannel()
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("下载任务已完成")
-            .setContentText("所选作品已处理完毕，可在历史记录中查看结果。")
+            .setContentTitle("下载任务已结束")
+            .setContentText(content)
+            .setContentIntent(appLaunchPendingIntent())
             .setAutoCancel(true)
             .build()
         applicationContext.getSystemService(NotificationManager::class.java)
             .notify(COMPLETION_NOTIFICATION_ID, notification)
     }
+
+    private fun appLaunchPendingIntent(): PendingIntent = PendingIntent.getActivity(
+        applicationContext,
+        0,
+        Intent(applicationContext, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -127,6 +161,23 @@ class ForegroundDownloadWorker(
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .build()
     }
+
+    private data class LaneResult(
+        val completed: Int,
+        val skipped: Int,
+        val failed: Int,
+        val waitingForNetwork: Boolean,
+    )
+}
+
+internal fun completionNotificationText(
+    completedCount: Int,
+    skippedCount: Int,
+    failedCount: Int,
+): String = when {
+    failedCount > 0 -> "$failedCount 项下载失败，已保留在队列；点开查看原因并重试。"
+    skippedCount > 0 -> "已完成 $completedCount 项，跳过 $skippedCount 项。"
+    else -> "已完成 $completedCount 项下载。"
 }
 
 class WorkManagerDownloadScheduler(context: Context) : DownloadWorkScheduler {

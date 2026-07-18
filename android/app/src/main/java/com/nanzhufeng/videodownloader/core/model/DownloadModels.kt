@@ -1,5 +1,7 @@
 package com.nanzhufeng.videodownloader.core.model
 
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
+
 enum class DownloadPlatform {
     YOUTUBE,
     DOUYIN,
@@ -17,6 +19,7 @@ enum class ResolutionPreset {
     BEST,
     UP_TO_1080P,
     UP_TO_720P,
+    UP_TO_360P,
     AUDIO_MP3,
 }
 
@@ -40,6 +43,41 @@ enum class DownloadFailureType {
     OUTPUT,
     UNKNOWN,
 }
+
+enum class DownloadConnectionMode {
+    UNKNOWN,
+    SINGLE,
+    MULTI,
+}
+
+enum class TransferReportOutcome {
+    COMPLETED,
+    FAILED,
+    CANCELLED,
+}
+
+data class DownloadThroughputReport(
+    val reportId: String,
+    val taskId: String,
+    val platform: DownloadPlatform,
+    val streamLabel: String,
+    val outcome: TransferReportOutcome,
+    val connectionMode: DownloadConnectionMode,
+    val connectionCount: Int,
+    val rangeSupported: Boolean,
+    val expectedBytes: Long,
+    val committedBytes: Long,
+    val networkBytes: Long,
+    val startedAt: Long,
+    val finishedAt: Long,
+    val elapsedMillis: Long,
+    val averageBytesPerSecond: Long,
+    val peakBytesPerSecond: Long,
+    val retryCount: Int,
+    val reprobeCount: Int,
+    val fallbackReason: String?,
+    val errorSummary: String?,
+)
 
 val DownloadTaskStatus.isTerminal: Boolean
     get() = this in setOf(
@@ -68,6 +106,7 @@ data class DownloadTask(
     val selected: Boolean,
     val sortOrder: Long,
     val resolution: ResolutionPreset,
+    val fileNameRule: FileNameRule = FileNameRule.DATE_AND_TITLE,
     val saveTreeUri: String?,
     val downloadedBytes: Long,
     val totalBytes: Long,
@@ -78,6 +117,8 @@ data class DownloadTask(
     val errorSummary: String?,
     val retryCount: Int,
     val updatedAt: Long,
+    val connectionMode: DownloadConnectionMode = DownloadConnectionMode.UNKNOWN,
+    val connectionCount: Int = 0,
 )
 
 data class QueuedDownload(
@@ -100,4 +141,5 @@ data class DownloadHistory(
     val completedAt: Long,
     val failureType: DownloadFailureType? = null,
     val errorSummary: String? = null,
+    val thumbnailUrl: String = "",
 )

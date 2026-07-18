@@ -1,0 +1,10 @@
+Platform logo glyphs are sourced from Simple Icons:
+https://github.com/simple-icons/simple-icons
+
+Source files used:
+- icons/youtube.svg
+- icons/tiktok.svg
+
+Simple Icons is released under CC0-1.0. Brand names and trademarks remain the
+property of their respective owners. These glyphs are used only to identify the
+corresponding download platforms in the application interface.
