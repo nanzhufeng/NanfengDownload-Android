@@ -81,6 +81,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -245,6 +246,7 @@ internal fun ExpandedHome(
 
 @Composable
 private fun HomeHeader(expanded: Boolean) {
+    val appName = stringResource(R.string.app_name)
     if (expanded) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("首页", style = MaterialTheme.typography.headlineMedium)
@@ -259,11 +261,11 @@ private fun HomeHeader(expanded: Boolean) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Image(
             painter = painterResource(R.drawable.nanzhufeng_app_icon),
-            contentDescription = "南烛枫视频下载器",
+            contentDescription = appName,
             modifier = Modifier.size(52.dp),
         )
         Column(modifier = Modifier.padding(start = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("南烛枫视频下载器", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
     }
 }

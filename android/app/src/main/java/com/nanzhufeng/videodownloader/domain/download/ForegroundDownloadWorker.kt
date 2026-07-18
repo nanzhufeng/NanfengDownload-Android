@@ -17,6 +17,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.NanzhufengApplication
 import com.nanzhufeng.videodownloader.MainActivity
 import java.util.concurrent.TimeUnit
@@ -94,7 +95,7 @@ class ForegroundDownloadWorker(
         ensureChannel()
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("南烛枫视频下载器")
+            .setContentTitle(applicationContext.getString(R.string.app_name))
             .setContentText(state.content)
             .setContentIntent(appLaunchPendingIntent())
             .setOnlyAlertOnce(true)

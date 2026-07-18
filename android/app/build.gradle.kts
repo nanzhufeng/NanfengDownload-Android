@@ -61,6 +61,13 @@ android {
     }
 }
 
+@Suppress("DEPRECATION")
+android.applicationVariants.all {
+    outputs.all {
+        (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
+    }
+}
+
 chaquopy {
     defaultConfig {
         version = "3.13"

@@ -101,7 +101,8 @@
 - MP3 定向验证：2 项 LAME PCM 编码、2 项 M4A→MP3/取消清理、1 项 `DirectMediaTransfer` 主链路端到端测试均通过；转码测试连续运行两次通过。
 - 模拟器 UI：冷启动、通知权限、首页、历史、设置均可到达；应用进程定向错误日志为 0 行。
 - MediaStore 定向验证：新增 1 项真实 MP3 写入 `Music`、内容校验和清理测试，Android 15 模拟器通过。
-- Debug APK：`android/app/build/outputs/apk/debug/app-debug.apk`，74,173,334 B，SHA-256 `ebc26b1db6a1fa888a5db03a0da4407a5800e4d688af4e554a0153e83dd646cf`。
+- 当前应用显示名统一为“南枫下载”；Gradle 构建直接输出 `android/app/build/outputs/apk/debug/南枫下载.apk`，不再生成或交付 `app-debug.apk`。
+- Debug APK：`android/app/build/outputs/apk/debug/南枫下载.apk`，62,431,054 B，SHA-256 `7b988b4f20f73bd1ad48c154a875dd0d7d5992dd3f4d212d3e54d75139ad33b7`。
 - APK 完整性：`unzip -t` 返回无错误；两套 ABI 均包含 LAME 与 JNI 共享库。
 - OPPO 安装状态：设备序列号 `3B157F009E800000`、型号 `PKH120`，包版本 `0.1.0-probe`/`versionCode 1`；通知权限已授予，应用可直接启动。
 

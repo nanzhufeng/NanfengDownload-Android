@@ -44,7 +44,7 @@ class StreamSelectionTest(unittest.TestCase):
         self.assertIsNone(secondary)
 
     def test_media_result_keeps_selected_format_headers_for_googlevideo(self):
-        self.formats[0]["http_headers"] = {
+        self.formats[1]["http_headers"] = {
             "User-Agent": "yt-dlp-player-agent",
             "Sec-Fetch-Mode": "navigate",
         }

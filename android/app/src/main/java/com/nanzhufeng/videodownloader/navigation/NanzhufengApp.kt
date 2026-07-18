@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -614,13 +615,14 @@ private fun PrimaryBottomNavigation(navController: NavHostController, currentRou
 
 @Composable
 private fun PrimaryNavigationRail(navController: NavHostController, currentRoute: String) {
+    val appName = stringResource(R.string.app_name)
     NavigationRail(
         modifier = Modifier.testTag("navigation-rail"),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Image(
             painter = painterResource(R.drawable.nanzhufeng_app_icon),
-            contentDescription = "南烛枫视频下载器",
+            contentDescription = appName,
             modifier = Modifier
                 .padding(12.dp)
                 .size(56.dp),
