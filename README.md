@@ -12,6 +12,10 @@
 
 截图来自当前最终 APK 在项目专用 Android 模拟器中的真实运行页面，统一使用 OPPO Find N5 外屏基准 `1140×2616 / 442dpi / font scale 1.0`。每张图片只展示一个页面，不使用旧设计稿或多页面拼接图冒充实际界面。
 
+## 下载安装
+
+前往 [GitHub Releases](https://github.com/nanzhufeng/NanfengDownload-Android/releases) 下载 `南枫下载.apk`。当前提供的是明确标注的 `v0.1.0-probe` Debug 验收版，同时附带 SHA-256 校验文件；它不是正式商店发布版。
+
 ## 核心能力
 
 - 支持粘贴或分享 YouTube、抖音、TikTok 链接，公开单视频优先无需登录使用。
