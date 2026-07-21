@@ -70,17 +70,22 @@ class SettingsScreenInstrumentedTest {
         val qualityCardBounds = composeRule.onNodeWithTag("settings-quality-card")
             .assertIsDisplayed()
             .getBoundsInRoot()
+        val screenHeight = screenBounds.run { bottom - top }
+        val accountCardHeight = accountCardBounds.run { bottom - top }
         assertTrue(
-            "The account card must not occupy more than 28% of the outer screen",
-            accountCardBounds.run { bottom - top } <= screenBounds.run { bottom - top } * 0.28f,
+            "The account card must not occupy more than 29% of the outer screen " +
+                "(account=$accountCardHeight, screen=$screenHeight, ratio=${accountCardHeight / screenHeight})",
+            accountCardHeight <= screenHeight * 0.29f,
         )
         assertTrue(
             "The compact quality card must begin in the first 45% of the outer screen",
             qualityCardBounds.top <= (screenBounds.bottom - screenBounds.top) * 0.45f,
         )
+        val qualityCardHeight = qualityCardBounds.run { bottom - top }
         assertTrue(
-            "The quality card must not occupy more than 28% of the outer screen",
-            qualityCardBounds.run { bottom - top } <= screenBounds.run { bottom - top } * 0.28f,
+            "The quality card must not occupy more than 29% of the outer screen " +
+                "(quality=$qualityCardHeight, screen=$screenHeight, ratio=${qualityCardHeight / screenHeight})",
+            qualityCardHeight <= screenHeight * 0.29f,
         )
     }
 

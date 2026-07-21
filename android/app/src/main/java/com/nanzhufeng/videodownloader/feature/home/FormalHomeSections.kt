@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyListState
@@ -77,8 +79,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -126,45 +133,74 @@ internal fun CompactHome(
     networkAvailable: Boolean,
     completedCount: Int,
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp).testTag("home-screen"),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        HomeHeader(expanded = false)
-        RunStatusCard(
-            queue = queue,
-            completedCount = completedCount,
-            networkAvailable = networkAvailable,
-            expanded = false,
-            modifier = Modifier.testTag("home-compact-run-status"),
-        )
-        QueuePanel(
-            queue = queue,
-            onSelectionChanged = onSelectionChanged,
-            onBulkSelectionChanged = onBulkSelectionChanged,
-            onResolutionChanged = onResolutionChanged,
-            onDeleteQueued = onDeleteQueued,
-            onRetryQueued = onRetryQueued,
-            onStartDownloads = onStartDownloads,
-            expandedLayout = false,
-            modifier = Modifier.fillMaxWidth().weight(1f),
-        )
-        if (canLoadMore) {
-            OutlinedButton(
-                onClick = onLoadMore,
-                enabled = !isReading,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("加载更多作品")
-            }
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val keyboardClearancePx = with(density) { 8.dp.toPx() }
+    val imeBottomPx = WindowInsets.ime.getBottom(density).toFloat()
+    val keyboardTopPx = view.height.toFloat() - imeBottomPx
+    var actionsBottomPx by remember { mutableStateOf(0f) }
+    var keyboardLiftPx by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(imeBottomPx, keyboardTopPx, actionsBottomPx) {
+        if (imeBottomPx <= 0f) {
+            keyboardLiftPx = 0f
+        } else if (keyboardTopPx > 0f && actionsBottomPx > 0f) {
+            val unshiftedActionsBottom = actionsBottomPx + keyboardLiftPx
+            keyboardLiftPx = (
+                unshiftedActionsBottom - keyboardTopPx + keyboardClearancePx
+            ).coerceAtLeast(0f)
         }
-        ReadEntryCard(
-            input = input,
-            onInputChange = onInputChange,
-            onSmartRead = onSmartRead,
-            isReading = isReading,
-            notice = notice,
-        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("home-screen"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { translationY = -keyboardLiftPx }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HomeHeader(expanded = false)
+            RunStatusCard(
+                queue = queue,
+                completedCount = completedCount,
+                networkAvailable = networkAvailable,
+                expanded = false,
+                modifier = Modifier.testTag("home-compact-run-status"),
+            )
+            QueuePanel(
+                queue = queue,
+                onSelectionChanged = onSelectionChanged,
+                onBulkSelectionChanged = onBulkSelectionChanged,
+                onResolutionChanged = onResolutionChanged,
+                onDeleteQueued = onDeleteQueued,
+                onRetryQueued = onRetryQueued,
+                onStartDownloads = onStartDownloads,
+                expandedLayout = false,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            )
+            if (canLoadMore) {
+                OutlinedButton(
+                    onClick = onLoadMore,
+                    enabled = !isReading,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("加载更多作品")
+                }
+            }
+            ReadEntryCard(
+                input = input,
+                onInputChange = onInputChange,
+                onSmartRead = onSmartRead,
+                isReading = isReading,
+                notice = notice,
+                onActionsBottomChanged = { actionsBottomPx = it },
+            )
+        }
     }
 }
 
@@ -1042,6 +1078,7 @@ private fun ReadEntryCard(
     isReading: Boolean,
     notice: String,
     dense: Boolean = false,
+    onActionsBottomChanged: (Float) -> Unit = {},
 ) {
     WorkbenchCard(
         modifier = Modifier.testTag("formal-read-entry"),
@@ -1060,7 +1097,9 @@ private fun ReadEntryCard(
             OutlinedTextField(
                 value = input,
                 onValueChange = onInputChange,
-                modifier = Modifier.fillMaxWidth().testTag("home-input"),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home-input"),
                 minLines = 2,
                 maxLines = if (dense) 2 else 3,
                 leadingIcon = {
@@ -1086,7 +1125,12 @@ private fun ReadEntryCard(
                 placeholder = { Text("支持抖音、YouTube、TikTok 链接或分享文本") },
             )
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coordinates ->
+                        onActionsBottomChanged(coordinates.boundsInRoot().bottom)
+                    }
+                    .testTag("read-entry-actions"),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(

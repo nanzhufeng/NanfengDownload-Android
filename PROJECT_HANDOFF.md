@@ -1,13 +1,29 @@
-# 南烛枫视频下载器 Android 当前交接
+# 南枫下载 Android 当前交接
 
-更新时间：2026-07-17（Asia/Shanghai）
-当前分支：`codex/android-notification-history-checkpoint-20260716`
+更新时间：2026-07-21（Asia/Shanghai）
+当前分支：`codex/android-ui-download-core-checkpoint-20260718`
 
 ## 当前目标
 
 把 Android 正式工作台完整落地到 OPPO Find N5，并以真实设备上的正式用户路径验收为结束条件。模拟器、构建或 APK 生成不能替代 OPPO 真机结论。
 
 ## 已完成阶段
+
+### 外屏键盘可达性（2026-07-21）
+
+- 未打开键盘时保留既有固定首页布局：下载列表继续占满剩余空间，“添加任务”卡片固定在底部，不因键盘适配而改变平时位置。
+- 键盘弹出时读取真实 IME 高度和“智能读取 / 清空”操作区的实际坐标，仅上移到整排按钮完整位于键盘上方；收起键盘立即归零位移，不叠加 `imePadding`，不产生灰绿色空白或遮挡层。
+- OPPO Find N5 外屏已用真实搜狗键盘完成开合对照，用户确认最终位置正确；`testDebugUnitTest`、`lintDebug`、`assembleDebug` 完整门禁通过。
+
+### 最终回归与文档固化（2026-07-21）
+
+- 以当前未提交工作区为对象强制重跑标准门禁：127 项 JVM 测试、0 失败；`lintDebug` 通过；`assembleDebug` 双 ABI 构建通过，69 个任务全部实际执行。
+- 专用模拟器 `emulator-5580` 保持 OPPO 外屏基准 `1140×2616 / 442dpi / font scale 1.0`；完整仪器测试 58 项、0 失败。测试 APK 仅通过指定序列号安装到模拟器，未接触 OPPO。
+- 旧设置页紧凑度测试对两张等高卡片使用 28% 硬阈值，真实值均为 28.36%；统一改为 29% 容差并记录真实比例，生产 UI 没有修改。
+- 最后一次完整门禁后的唯一最终 APK 为 68,046,080 B，SHA-256 `01b01b2386934b82a12b87e3c4f3466a786c6426b20f0ebf48a4d411d43659df`；OPPO 按“推送 APK → `pm install -r --user 0`”同签名覆盖成功，本地 APK 与手机 `base.apk` 哈希一致，冷启动成功。
+- 中间强制构建与最后增量打包之间的 APK 字节差异已收窄为 3 个 Chaquopy 资产：`requirements-common.imy`、`app.imy`、`build.json`。最终验收只引用上述最终哈希；Release 前须另行解决可重复打包。
+- 覆盖安装后再次实测搜狗键盘：开启键盘时整排操作按钮完整位于键盘上方，关闭键盘后恢复原首页坐标，无灰色遮挡层或多余空白。
+- 本轮没有重跑三平台真实网络下载；YouTube、抖音、TikTok 的真实成品与吞吐报告仍以已有里程碑证据为准，不冒充本轮新验证。
 
 ### Mac 构建与原生工具链
 
@@ -102,15 +118,16 @@
 - 模拟器 UI：冷启动、通知权限、首页、历史、设置均可到达；应用进程定向错误日志为 0 行。
 - MediaStore 定向验证：新增 1 项真实 MP3 写入 `Music`、内容校验和清理测试，Android 15 模拟器通过。
 - 当前应用显示名统一为“南枫下载”；Gradle 构建直接输出 `android/app/build/outputs/apk/debug/南枫下载.apk`，不再生成或交付 `app-debug.apk`。
-- Debug APK：`android/app/build/outputs/apk/debug/南枫下载.apk`，62,431,054 B，SHA-256 `7b988b4f20f73bd1ad48c154a875dd0d7d5992dd3f4d212d3e54d75139ad33b7`。
+- Debug APK：`android/app/build/outputs/apk/debug/南枫下载.apk`，68,046,080 B，SHA-256 `01b01b2386934b82a12b87e3c4f3466a786c6426b20f0ebf48a4d411d43659df`。
 - APK 完整性：`unzip -t` 返回无错误；两套 ABI 均包含 LAME 与 JNI 共享库。
-- OPPO 安装状态：设备序列号 `3B157F009E800000`、型号 `PKH120`，包版本 `0.1.0-probe`/`versionCode 1`；通知权限已授予，应用可直接启动。
+- OPPO 安装状态：设备序列号 `3B157F009E800000`、型号 `PKH120`，包版本 `0.1.0-probe`/`versionCode 1`；最终 APK 已同签名覆盖，拉回哈希与本地产物一致，应用冷启动成功。
 
 ## 尚未完成，禁止宣称正式 Release
 
 1. 作者/频道/播放列表的大批量分页、过滤与取消勾选仍需更长时间的公开内容回归。
 2. 断网恢复、用户暂停不自动恢复和完成通知已有自动化覆盖，但尚未在本轮 OPPO 用户界面逐项人工触发。
 3. 正式版本号、Release APK/AAB、发布签名与后续覆盖升级策略仍未配置；当前安装的是可用的 `0.1.0-probe` Debug 验收版。
+4. Debug APK 的 Chaquopy 资产在强制重跑与增量打包间存在字节级差异；虽然差异已收窄到 3 个嵌入式 Python 资产，Release 前仍需建立可重复打包门禁。
 
 ## 后续待办
 

@@ -87,6 +87,32 @@ class HomeLayoutResourceTest {
     }
 
     @Test
+    fun compactAddTaskActionsRemainReachableAboveTheSoftwareKeyboard() {
+        val source = File("src/main/java/com/nanzhufeng/videodownloader/feature/home/FormalHomeSections.kt")
+            .readText()
+        val compactHome = source.substringAfter("internal fun CompactHome(")
+            .substringBefore("internal fun ExpandedHome(")
+        val readEntry = source.substringAfter("private fun ReadEntryCard(")
+            .substringBefore("private fun Thumbnail(")
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+
+        assertTrue("未打开键盘时必须保留原来的固定首页结构", compactHome.contains("Column("))
+        assertFalse("不得为了键盘避让把常态首页改成整页滚动", compactHome.contains("LazyColumn("))
+        assertTrue("下载列表必须继续占满原来的剩余工作区", compactHome.contains("Modifier.fillMaxWidth().weight(1f)"))
+        assertFalse(
+            "adjustResize 已压缩可视窗口，首页不得再叠加整页 IME 留白形成灰色遮挡层",
+            compactHome.contains("imePadding()"),
+        )
+        assertTrue("只允许按系统报告的真实键盘高度计算临时上移", compactHome.contains("WindowInsets.ime.getBottom"))
+        assertTrue(compactHome.contains("val keyboardTopPx = view.height.toFloat() - imeBottomPx"))
+        assertTrue(compactHome.contains("keyboardLiftPx"))
+        assertTrue(compactHome.contains("graphicsLayer"))
+        assertTrue("按钮排必须上报真实底边用于精确避让", readEntry.contains("onActionsBottomChanged"))
+        assertTrue(readEntry.contains("boundsInRoot().bottom"))
+        assertTrue("主 Activity 必须启用 resize 以接收 IME inset", manifest.contains("android:windowSoftInputMode=\"adjustResize\""))
+    }
+
+    @Test
     fun queueRowsPrioritizeFullVideoInformationAndExpandableTransferDetails() {
         val source = File("src/main/java/com/nanzhufeng/videodownloader/feature/home/FormalHomeSections.kt")
             .readText()
