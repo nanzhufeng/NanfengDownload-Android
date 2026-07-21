@@ -14,7 +14,7 @@
 
 ## 下载安装
 
-前往 [v1.0.0 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.0.0) 下载 `南枫下载-Android-v1.0.0.apk`。AAB 用于后续应用商店分发，普通安装请选择 APK；校验值见同一 Release 的 `SHA256SUMS.txt`。
+前往 [v1.0.0 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.0.0) 下载 `NanfengDownload-Android-v1.0.0.apk`。AAB 用于后续应用商店分发，普通安装请选择 APK；校验值见同一 Release 的 `SHA256SUMS.txt`。本地构建仍按约定输出中文名，GitHub Release 因平台会清洗非 ASCII 附件名而使用英文文件名。
 
 正式版使用新的长期 Release 签名。此前安装过 `0.1.0-probe` Debug 验收版的设备无法直接覆盖更新，需先自行备份必要的 App 内数据；本项目不会自动卸载或清除旧版数据。
 
