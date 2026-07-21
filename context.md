@@ -21,7 +21,7 @@
 | 发布状态 | Debug 真机验收版；尚未配置正式版本号、Release 签名和 AAB 发布链路 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
-当前 Git `origin` 仍指向本地交接 bundle，不是可识别的 GitHub URL。若后续要继续发布或推送，必须先核对正确的 Android 专用远端，不要直接覆盖现有远端配置。
+当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
 
 ## 2. 产品核心、边界与数据安全
 
@@ -220,7 +220,7 @@ adb -s <OPPO序列号> shell \
 2. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
 3. 作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
 4. 断网恢复、用户暂停后不自动恢复和完成通知虽有自动化覆盖，但最新里程碑没有逐项重新做 OPPO 人工触发。
-5. Git 远端目前是本地 bundle；对外发布前需要核对 Android 专用 GitHub 仓库和远端真实性。
+5. GitHub 仓库已明确为私有 Android 专用仓库；当前只是源码与文档覆盖上传，未创建正式 GitHub Release，也未上传 Debug APK。
 6. 根目录混有旧桌面原型资产；当前任务不得顺手删除或迁移。若要拆分仓库，应另开任务并先确认历史与发布边界。
 7. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮构建通过，仍应在 Release 收口时升级或重新确认兼容矩阵。
 8. CMake 配置阶段提示 Android SDK XML v4 与当前原生工具只理解到 v3；本轮双 ABI 构建成功，但 SDK command-line tools 与 Android Studio/NDK 版本仍需在发布前对齐。
