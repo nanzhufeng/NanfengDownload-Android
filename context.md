@@ -4,7 +4,7 @@
 
 > 本文件是当前 Android 项目的快速事实入口，供开发者和后续 Codex 任务使用。当前代码与最新真实验证证据高于本文；详细里程碑与真机记录见 `PROJECT_HANDOFF.md`。
 
-## 1. 当前快照
+## 1. 项目身份与当前快照
 
 | 项目 | 当前事实 |
 |---|---|
@@ -13,8 +13,8 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前 HEAD | `20a85c8c1935`（当前成果尚未建立新检查点提交） |
-| Git 状态 | 文档固化时为 5 项已跟踪修改 + 1 个未跟踪 `context.md`；本轮未删除、覆盖、stash、reset 或提交 |
+| 当前代码 checkpoint | `5949206`（`fix(android): keep home actions reachable above keyboard`） |
+| Git 状态 | checkpoint 只包含当前 Android 键盘修复、相关测试与项目事实文档；没有删除、覆盖、stash、reset 或推送 |
 | applicationId | `com.nanzhufeng.videodownloader` |
 | 当前版本 | `0.1.0-probe` / `versionCode 1` |
 | 构建产物 | `android/app/build/outputs/apk/debug/南枫下载.apk` |
@@ -23,7 +23,7 @@
 
 当前 Git `origin` 仍指向本地交接 bundle，不是可识别的 GitHub URL。若后续要继续发布或推送，必须先核对正确的 Android 专用远端，不要直接覆盖现有远端配置。
 
-## 2. 产品核心与边界
+## 2. 产品核心、边界与数据安全
 
 第一用户任务：用户粘贴或分享 YouTube、抖音、TikTok 的公开单视频/直播回放链接，App 完成读取、去重、入队、下载、必要的音视频合并或 MP3 转码、系统媒体库发布，并在下载列表与历史中提供真实状态、中文错误和吞吐报告。
 
@@ -233,6 +233,7 @@ adb -s <OPPO序列号> shell \
 3. 当前代码与测试：确认文档是否已漂移。
 4. 对应 `docs/superpowers/specs/`：仅在相关功能或 UI 任务中读取已确认规格。
 5. `design-qa.md`：仅在视觉回归、折叠屏或截图验收时读取。
+6. `docs/verification/2026-07-21-keyboard-final-regression-experience-audit.md`：只在查阅本轮键盘、最终回归、产物哈希和 checkpoint 增量经验时读取。
 
 禁止把旧桌面 README、早期设计拼图、历史计划或单次构建输出当成当前 Android 项目的唯一真相源。
 

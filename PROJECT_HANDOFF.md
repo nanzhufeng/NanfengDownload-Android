@@ -17,6 +17,7 @@
 
 ### 最终回归与文档固化（2026-07-21）
 
+- 当前代码 checkpoint：`5949206`（`fix(android): keep home actions reachable above keyboard`）；该提交只包含本项目 6 个相关文件，未混入其他项目或未知改动。
 - 以当前未提交工作区为对象强制重跑标准门禁：127 项 JVM 测试、0 失败；`lintDebug` 通过；`assembleDebug` 双 ABI 构建通过，69 个任务全部实际执行。
 - 专用模拟器 `emulator-5580` 保持 OPPO 外屏基准 `1140×2616 / 442dpi / font scale 1.0`；完整仪器测试 58 项、0 失败。测试 APK 仅通过指定序列号安装到模拟器，未接触 OPPO。
 - 旧设置页紧凑度测试对两张等高卡片使用 28% 硬阈值，真实值均为 28.36%；统一改为 29% 容差并记录真实比例，生产 UI 没有修改。
@@ -24,6 +25,7 @@
 - 中间强制构建与最后增量打包之间的 APK 字节差异已收窄为 3 个 Chaquopy 资产：`requirements-common.imy`、`app.imy`、`build.json`。最终验收只引用上述最终哈希；Release 前须另行解决可重复打包。
 - 覆盖安装后再次实测搜狗键盘：开启键盘时整排操作按钮完整位于键盘上方，关闭键盘后恢复原首页坐标，无灰色遮挡层或多余空白。
 - 本轮没有重跑三平台真实网络下载；YouTube、抖音、TikTok 的真实成品与吞吐报告仍以已有里程碑证据为准，不冒充本轮新验证。
+- 本轮只将新经验增量沉淀到 `docs/verification/2026-07-21-keyboard-final-regression-experience-audit.md`；已完成的三平台下载、六屏 UI、图标和登录经验未重写。共享规则已增量更新至用户级工作台 UI 与产品交付 Skill，不复制进项目仓库。
 
 ### Mac 构建与原生工具链
 
