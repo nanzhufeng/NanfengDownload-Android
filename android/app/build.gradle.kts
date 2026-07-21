@@ -12,6 +12,27 @@ val configuredBuildPython = providers.gradleProperty("nanzhufeng.buildPython")
     ?.trim()
     ?.takeIf(String::isNotEmpty)
 
+fun releaseEnvironment(name: String): String? = providers.environmentVariable(name)
+    .orNull
+    ?.trim()
+    ?.takeIf(String::isNotEmpty)
+
+val releaseStoreFilePath = releaseEnvironment("NANFENG_RELEASE_STORE_FILE")
+val releaseStorePassword = releaseEnvironment("NANFENG_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = releaseEnvironment("NANFENG_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = releaseEnvironment("NANFENG_RELEASE_KEY_PASSWORD")
+val releaseSigningValues = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+)
+val releaseSigningConfigured = releaseSigningValues.all { it != null }
+
+check(releaseSigningValues.none { it != null } || releaseSigningConfigured) {
+    "Release signing is partially configured. Provide all NANFENG_RELEASE_* environment variables."
+}
+
 android {
     namespace = "com.nanzhufeng.videodownloader"
     compileSdk = 35
@@ -19,15 +40,35 @@ android {
 
     defaultConfig {
         applicationId = "com.nanzhufeng.videodownloader"
-        minSdk = 24
+        minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-probe"
+        versionCode = 10000
+        versionName = "1.0.0"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(requireNotNull(releaseStoreFilePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("release") {
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            isMinifyEnabled = false
         }
     }
 
@@ -64,8 +105,39 @@ android {
 @Suppress("DEPRECATION")
 android.applicationVariants.all {
     outputs.all {
-        (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
+        if (buildType.name == "release") {
+            (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName =
+                "南枫下载-Android-v1.0.0.apk"
+        } else {
+            (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
+        }
     }
+}
+
+val verifyReleaseSigningConfig by tasks.registering {
+    doLast {
+        check(releaseSigningConfigured) {
+            "Release packaging requires NANFENG_RELEASE_STORE_FILE, " +
+                "NANFENG_RELEASE_STORE_PASSWORD, NANFENG_RELEASE_KEY_ALIAS and " +
+                "NANFENG_RELEASE_KEY_PASSWORD."
+        }
+        check(file(requireNotNull(releaseStoreFilePath)).isFile) {
+            "Release keystore does not exist at NANFENG_RELEASE_STORE_FILE."
+        }
+    }
+}
+
+tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.configureEach {
+    dependsOn(verifyReleaseSigningConfig)
+}
+
+tasks.register<Copy>("stageFormalReleaseArtifacts") {
+    dependsOn("assembleRelease", "bundleRelease")
+    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.0.0.apk"))
+    from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab")) {
+        rename { "南枫下载-Android-v1.0.0.aab" }
+    }
+    into(layout.buildDirectory.dir("outputs/formal-release"))
 }
 
 chaquopy {

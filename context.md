@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | `5949206`（`fix(android): keep home actions reachable above keyboard`） |
-| Git 状态 | checkpoint 只包含当前 Android 键盘修复、相关测试与项目事实文档；没有删除、覆盖、stash、reset 或推送 |
+| 当前代码 checkpoint | 以 GitHub 标签 `v1.0.0` 指向的提交为正式版本事实 |
+| Git 状态 | 正式发布改动只涉及 Android 版本、最低系统、签名构建、产物命名、契约测试和发布文档 |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `0.1.0-probe` / `versionCode 1` |
-| 构建产物 | `android/app/build/outputs/apk/debug/南枫下载.apk` |
-| 发布状态 | Debug 真机验收版；尚未配置正式版本号、Release 签名和 AAB 发布链路 |
+| 当前版本 | `1.0.0` / `versionCode 10000` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.0.0.apk` 与同名 `.aab` |
+| 发布状态 | GitHub 正式 Release；独立长期签名，APK/AAB 与 SHA-256 校验文件齐全 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -42,7 +42,7 @@
 | 层级 | 技术与版本 |
 |---|---|
 | 构建 | Gradle 8.7、Android Gradle Plugin 8.5.2、Kotlin 2.0.20、KSP 2.0.20-1.0.25 |
-| Android SDK | `minSdk 24`、`compileSdk 35`、`targetSdk 35` |
+| Android SDK | `minSdk 29`、`compileSdk 35`、`targetSdk 35` |
 | JVM | Java 17 / Kotlin JVM target 17 |
 | UI | Jetpack Compose、Material 3、Compose BOM 2024.06.00、Navigation Compose 2.8.0 |
 | 异步与生命周期 | Kotlin Coroutines 1.8.1、Lifecycle 2.8.4 |
@@ -152,7 +152,7 @@ NanzhufengVideoDownloader-Android/
 └── app/、start.py、run.ps1 等     # 旧桌面原型遗留；不是当前 Android 构建入口
 ```
 
-根目录 `README.md` 和 `docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md` 主要描述旧桌面原型，目前不能代替本文件或 Android 交接文档。不要根据它们修改 Android 产品边界。
+根目录 `README.md` 已更新为当前 Android 正式版入口；`docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md` 仍是旧桌面原型资料，不能代替本文件或 Android 交接文档。
 
 ## 6. 构建、测试与安装
 
@@ -169,7 +169,8 @@ NanzhufengVideoDownloader-Android/
 cd /Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android/android
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
 NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --max-workers=1
+./gradlew :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease \
+  :app:stageFormalReleaseArtifacts --max-workers=1
 ```
 
 自动 UI 测试必须明确绑定项目专用模拟器，不能把测试 APK 推到 OPPO 真机。Android UI 开发默认保持项目模拟器可见。
@@ -191,18 +192,18 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-本次最终回归以当前未提交成果为对象，所有自动测试仅运行在专用模拟器 `emulator-5580`：
+`v1.0.0` 正式回归以最终 Release APK/AAB 为对象，设备验证只使用专用模拟器 `emulator-5580`，未替换 OPPO 上不同签名的 Debug 版：
 
 - `:app:testDebugUnitTest`：127 项，0 失败、0 错误、0 跳过。
-- `:app:lintDebug`：通过，无阻断问题。
-- `:app:assembleDebug`：通过；强制重跑时 69 个可执行任务全部实际执行，`BUILD SUCCESSFUL in 1m 4s`。
+- `:app:testReleaseUnitTest`：127 项，0 失败、0 错误、0 跳过。
+- `:app:lintRelease`：通过，无阻断问题。
+- 正式门禁共 117 个任务全部实际执行，`BUILD SUCCESSFUL in 2m 31s`。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- 完整模拟器仪器测试：58 项，0 失败；测试 APK 仅通过指定序列号安装到 `emulator-5580`，未接触 OPPO。
-- 设置页紧凑度测试原先用 28% 硬阈值限制两张等高卡片；真实测量均为 `268.6dp / 947.0dp = 28.36%`。测试统一校正为 29% 容差并永久输出实际比例，生产 UI 未改动。
-- 当前 APK：68,046,080 B，SHA-256 `01b01b2386934b82a12b87e3c4f3466a786c6426b20f0ebf48a4d411d43659df`。该哈希对应最后一次完整门禁后的唯一最终产物。
-- OPPO Find N5 通过固定的“推送 APK → `pm install -r --user 0`”路径同签名覆盖成功，未卸载、未清数据；从手机拉回的 `base.apk` 与本地 APK 哈希完全一致，冷启动成功。
-- OPPO 真实搜狗键盘开启时，“智能读取 / 清空”整排完整位于键盘上方；键盘关闭后操作区恢复原坐标，用户已确认该效果正确。
-- 本轮没有重跑 YouTube、抖音、TikTok 的真实网络下载；三平台成品、MediaStore 读回和吞吐报告结论仍引用 `PROJECT_HANDOFF.md` 已记录的最新里程碑证据。
+- Release APK：91,291,547 B，SHA-256 `460a310aa8bfa50ae5cbc4683682c858b0dbc040659bc9300925874a8b88cbca`。
+- Release AAB：38,245,189 B，SHA-256 `70f62007511626186330856765edebb30d269a1d5b0e1578234ad90613b4bab3`；Google bundletool 1.16.0 验证通过。
+- APK 为 `1.0.0 / 10000`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，APK 与 AAB 均使用同一正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- 正式 APK 在专用模拟器冷启动成功；从模拟器拉回的 `base.apk` 与本地 APK 哈希一致。
+- 本轮没有重跑 YouTube、抖音、TikTok 真实网络下载；三平台成品、MediaStore 读回和吞吐报告仍引用 `PROJECT_HANDOFF.md` 既有 OPPO 里程碑，不冒充正式签名版新证据。
 
 已确认的最新里程碑证据来自 `PROJECT_HANDOFF.md`：
 
@@ -216,15 +217,13 @@ adb -s <OPPO序列号> shell \
 
 ## 8. 已知风险与下一步
 
-1. 当前仍是 `0.1.0-probe` Debug 验收版；正式版本号、发布签名、Release APK/AAB 和升级策略尚未完成。
-2. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
-3. 作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
-4. 断网恢复、用户暂停后不自动恢复和完成通知虽有自动化覆盖，但最新里程碑没有逐项重新做 OPPO 人工触发。
-5. GitHub 仓库已明确为私有 Android 专用仓库；当前只是源码与文档覆盖上传，未创建正式 GitHub Release，也未上传 Debug APK。
-6. 根目录混有旧桌面原型资产；当前任务不得顺手删除或迁移。若要拆分仓库，应另开任务并先确认历史与发布边界。
-7. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮构建通过，仍应在 Release 收口时升级或重新确认兼容矩阵。
-8. CMake 配置阶段提示 Android SDK XML v4 与当前原生工具只理解到 v3；本轮双 ABI 构建成功，但 SDK command-line tools 与 Android Studio/NDK 版本仍需在发布前对齐。
-9. 强制重跑与后续增量打包间，Debug APK 的 Chaquopy `requirements-common.imy`、`app.imy` 和 `build.json` 会重新打包，导致字节大小和哈希变化；APK 内容差异已收窄到这 3 个 Chaquopy 资产，但 Release 收口前仍需建立可重复打包验证。
+1. 正式签名密钥只保存在仓库外的本机安全目录，密码在 macOS 钥匙串；仍应建立用户控制的异地加密备份，密钥丢失将导致后续正式版无法覆盖升级。
+2. OPPO 当前安装的是旧 Debug 签名版，不能无损覆盖为 `v1.0.0`；本轮未卸载、未清数据。正式版 OPPO 全链路需在用户明确接受数据迁移方案后另行验收。
+3. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
+4. 作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
+5. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮 Release 构建通过，后续仍应升级 AGP 或重新确认兼容矩阵。
+6. CMake 配置阶段提示 Android SDK XML v4 与当前原生工具只理解到 v3；本轮双 ABI Release 构建成功，但 SDK command-line tools 与 Android Studio/NDK 版本仍需对齐。
+7. 正式 APK/AAB 本轮只冻结一次最终哈希；任何重新打包都会使当前校验值失效，必须重新验证并更新 Release。
 
 ## 9. 后续任务读取顺序
 
@@ -233,7 +232,7 @@ adb -s <OPPO序列号> shell \
 3. 当前代码与测试：确认文档是否已漂移。
 4. 对应 `docs/superpowers/specs/`：仅在相关功能或 UI 任务中读取已确认规格。
 5. `design-qa.md`：仅在视觉回归、折叠屏或截图验收时读取。
-6. `docs/verification/2026-07-21-keyboard-final-regression-experience-audit.md`：只在查阅本轮键盘、最终回归、产物哈希和 checkpoint 增量经验时读取。
+6. `docs/verification/2026-07-21-android-v1.0.0-release.md`：正式签名、Release APK/AAB、哈希和模拟器安装证据。
 
 禁止把旧桌面 README、早期设计拼图、历史计划或单次构建输出当成当前 Android 项目的唯一真相源。
 
