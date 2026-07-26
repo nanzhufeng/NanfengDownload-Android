@@ -8,6 +8,19 @@ import org.junit.Test
 
 class UserFacingErrorPresenterTest {
     @Test
+    fun `ssl hostname mismatch is not reported as generic timeout`() {
+        val message = UserFacingErrorPresenter.message(
+            "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: " +
+                "Hostname mismatch, certificate is not valid for 'b23.tv'>",
+            platform = DownloadPlatform.BILIBILI,
+        )
+
+        assertTrue(message.contains("证书与平台域名不匹配"))
+        assertTrue(message.contains("切换代理或 DNS"))
+        assertFalse(message.contains("网络连接超时"))
+    }
+
+    @Test
     fun youtube403ExplainsThatCookiesOrTheTemporaryUrlMayHaveExpired() {
         val message = UserFacingErrorPresenter.message(
             rawError = "ERROR: HTTP Error 403: Forbidden",

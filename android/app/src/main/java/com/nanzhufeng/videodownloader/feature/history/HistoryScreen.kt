@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -129,7 +127,6 @@ fun HistoryScreen(
                 HistoryFilters(
                     platform = platform,
                     period = period,
-                    expanded = expanded,
                     onPlatformChange = { platform = it },
                     onPeriodChange = { period = it },
                 )
@@ -189,59 +186,73 @@ private fun CompactEmptyHistory(history: List<DownloadHistory>) {
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 private fun HistoryFilters(
     platform: DownloadPlatform?,
     period: HistoryPeriod,
-    expanded: Boolean,
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
 ) {
-    val platformGroup: @Composable () -> Unit = {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SelectedFilterChip(label = "全部平台", selected = platform == null, onClick = { onPlatformChange(null) })
-            DownloadPlatform.entries.forEach { value ->
-                SelectedFilterChip(
-                    label = value.label(),
-                    selected = platform == value,
-                    onClick = { onPlatformChange(value) },
+    var platformMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    var periodMenuExpanded by rememberSaveable { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag("history-platform-time-filters"),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.testTag("history-platform-filter")) {
+            SelectedFilterChip(
+                label = platform?.label() ?: "全部平台",
+                selected = true,
+                onClick = { platformMenuExpanded = true },
+            )
+            DropdownMenu(
+                expanded = platformMenuExpanded,
+                onDismissRequest = { platformMenuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("全部平台") },
+                    onClick = {
+                        platformMenuExpanded = false
+                        onPlatformChange(null)
+                    },
                 )
+                DownloadPlatform.entries.forEach { value ->
+                    DropdownMenuItem(
+                        text = { Text(value.label()) },
+                        onClick = {
+                            platformMenuExpanded = false
+                            onPlatformChange(value)
+                        },
+                    )
+                }
             }
         }
-    }
-    val periodGroup: @Composable () -> Unit = {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            HistoryPeriod.entries.forEach { value ->
-                SelectedFilterChip(
-                    label = value.label,
-                    selected = period == value,
-                    onClick = { onPeriodChange(value) },
-                )
+        Box(modifier = Modifier.testTag("history-period-filter")) {
+            SelectedFilterChip(
+                label = period.label,
+                selected = true,
+                onClick = { periodMenuExpanded = true },
+            )
+            DropdownMenu(
+                expanded = periodMenuExpanded,
+                onDismissRequest = { periodMenuExpanded = false },
+            ) {
+                HistoryPeriod.entries.forEach { value ->
+                    DropdownMenuItem(
+                        text = { Text(value.label) },
+                        onClick = {
+                            periodMenuExpanded = false
+                            onPeriodChange(value)
+                        },
+                    )
+                }
             }
         }
-    }
-    if (expanded) {
-        Row(
-            modifier = Modifier.fillMaxWidth().testTag("history-platform-time-filters"),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-        ) {
-            Box(Modifier.weight(1f)) { platformGroup() }
-            Box(Modifier.weight(0.8f)) { periodGroup() }
-        }
-    } else {
-        Column(
-        modifier = Modifier.testTag("history-platform-time-filters"),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            platformGroup()
-            periodGroup()
-        }
+        Spacer(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp),
+        )
     }
 }
 

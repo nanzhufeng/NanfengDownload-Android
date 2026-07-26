@@ -195,16 +195,18 @@ adb -s <OPPO序列号> shell \
 当前 `v1.1.0` 哔哩哔哩与小红书扩展以最终 Release APK/AAB 为对象：
 
 - Python 解析测试：17 项，0 失败。
-- `:app:testDebugUnitTest`：140 项，0 失败、0 错误、0 跳过。
-- `:app:testReleaseUnitTest`：140 项，0 失败、0 错误、0 跳过。
+- `:app:testDebugUnitTest`：145 项，0 失败、0 错误、0 跳过。
+- `:app:testReleaseUnitTest`：145 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
-- 专用模拟器 `emulator-5554` 仪器测试：58 项，0 失败；外部 TikTok 条件按既有规则跳过。
+- 专用模拟器 `emulator-5554` 仪器测试：59 项，0 失败；外部 TikTok 条件按既有规则跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：91,327,503 B，SHA-256 `8f03cb499aa0db94394bcd8e23070cab163a80520343a1dbfa8062331b37f47a`。
-- Release AAB：38,262,440 B，SHA-256 `fafcd2f2f50cabed3241fecc5256e98434269c0b3c583884087fb6b7158aaea7`。
+- Release APK：91,343,887 B，SHA-256 `476b09c8975f9d890320689348eb754765606446eee6371427abce1ce4e3fa0f`。
+- Release AAB：38,268,075 B，SHA-256 `0321aa762384005846952c27a6339e78646b7b352bc6163f603586506e71cbb6`。
 - APK 为 `1.1.0 / 10100`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 在专用模拟器冷启动成功；从模拟器拉回的 `base.apk` 与本地 APK 哈希一致。
 - 哔哩哔哩与小红书均在模拟器及 OPPO 完成真实网络成品闭环；OPPO 上的系统媒体库文件、历史、吞吐报告、重复去重和重启持久性均已验证。
+- B 站 `b23.tv` 短链在 OPPO 当前 Clash/DNS 环境中已通过可信 DNS、严格 TLS 和官方跳转校验完成真实成品闭环；系统 DNS/代理返回证书不匹配节点时不再把原始 SSL 错误直接抛给用户。
+- 历史页平台与时间筛选固定同排并按需展开选项，外屏首屏空间优先留给时间线视频。
 
 已确认的最新里程碑证据来自 `PROJECT_HANDOFF.md`：
 

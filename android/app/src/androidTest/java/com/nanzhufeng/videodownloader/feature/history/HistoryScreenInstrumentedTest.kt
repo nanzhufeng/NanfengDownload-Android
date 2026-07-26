@@ -32,6 +32,13 @@ class HistoryScreenInstrumentedTest {
 
         composeRule.onNodeWithTag("history-platform-time-filters").assertIsDisplayed()
         composeRule.onNodeWithText("全部平台").assertIsDisplayed()
+        composeRule.onNodeWithText("全部时间").assertIsDisplayed()
+        val platformBounds = composeRule.onNodeWithTag("history-platform-filter").getBoundsInRoot()
+        val periodBounds = composeRule.onNodeWithTag("history-period-filter").getBoundsInRoot()
+        val platformCenter = (platformBounds.top.value + platformBounds.bottom.value) / 2f
+        val periodCenter = (periodBounds.top.value + periodBounds.bottom.value) / 2f
+        assertTrue("平台和时间筛选应保持在同一行", kotlin.math.abs(platformCenter - periodCenter) < 1f)
+        composeRule.onNodeWithTag("history-period-filter").performClick()
         composeRule.onNodeWithText("近 30 天").assertIsDisplayed()
         composeRule.onNodeWithText("只展示已完成的下载记录").assertDoesNotExist()
         composeRule.onNodeWithText("平台").assertDoesNotExist()

@@ -74,6 +74,16 @@ object UserFacingErrorPresenter {
                 "网络传输中断，服务器提前关闭了连接。" +
                     "解决办法：请保持 App 运行并点击重试，App 会重新探测地址并续传。"
 
+            hasAny(
+                lower,
+                "certificate_verify_failed",
+                "hostname mismatch",
+                "certificate is not valid for",
+                "sslpeerunverifiedexception",
+            ) ->
+                "安全连接证书与平台域名不匹配，DNS 或代理可能把请求导向了错误节点。" +
+                    "解决办法：请切换代理或 DNS 后重试；哔哩哔哩也可复制完整的 bilibili.com 视频地址。"
+
             hasAny(lower, "timed out", "timeout", "network is unreachable", "temporary failure", "urlopen error") ->
                 "网络连接超时或当前网络不可达。" +
                     "解决办法：请检查 Wi-Fi、移动网络和代理，恢复后 App 会继续任务。"
