@@ -17,6 +17,7 @@
 - Debug/Release JVM 各 147 项、Python 18 项、Release Lint、历史页模拟器测试 5/5 均通过。
 - 最终 APK 为 91,343,083 B，SHA-256 `65368bdb1087fba3e3c6c8291a25cd1d3816145a0bd689935bc6b58559d3a539`；AAB 为 38,270,811 B，SHA-256 `f6e3b30dfdad891de8b9dd7e58667e32d887058e28f42a70fe6a5bb369ac2fe1`。
 - OPPO `PKH120` 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`。真机历史列表已读取 `07:08 / 26.8 MB`、`02:14 / 9.8 MB` 等真实媒体信息。
+- 增量经验审计见 `docs/verification/2026-07-26-history-list-media-metadata-experience-audit.md`。
 
 ### Android v1.1.0 哔哩哔哩与小红书扩展（2026-07-26）
 
