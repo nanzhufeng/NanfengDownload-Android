@@ -45,6 +45,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -271,6 +272,26 @@ private fun HistoryItem(
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
     val report = reports.firstOrNull { it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED }
         ?: reports.firstOrNull()
+    val playable = item.fileExists && item.outputUri != null
+    val mediaMetadata by produceState<HistoryMediaMetadata?>(
+        initialValue = null,
+        key1 = item.taskId,
+        key2 = item.outputUri,
+        key3 = item.fileSize,
+    ) {
+        value = if (playable) {
+            readHistoryMediaMetadata(context, item)
+        } else {
+            HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
+        }
+    }
+    val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
+    val listDurationText = when {
+        playable && mediaMetadata == null -> "读取中…"
+        mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
+        playable -> "无法读取"
+        else -> "文件不可用"
+    }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -398,9 +419,11 @@ private fun HistoryItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                     Text(
-                    "${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
+                    "${item.resolution.label()}  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}",
                     style = if (expanded) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                     if (report != null) {
                         Text(
@@ -419,6 +442,7 @@ private fun HistoryItem(
     if (showDetails) {
         HistoryDetailsDialog(
             item = item,
+            mediaMetadata = mediaMetadata,
             hasThroughputReport = reports.isNotEmpty(),
             onDismiss = { showDetails = false },
             onPlay = {
@@ -536,6 +560,7 @@ private fun HistoryThumbnail(
 @Composable
 private fun HistoryDetailsDialog(
     item: DownloadHistory,
+    mediaMetadata: HistoryMediaMetadata?,
     hasThroughputReport: Boolean,
     onDismiss: () -> Unit,
     onPlay: () -> Unit,
@@ -544,6 +569,13 @@ private fun HistoryDetailsDialog(
     onShowReport: () -> Unit,
 ) {
     val playable = item.fileExists && item.outputUri != null
+    val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
+    val durationText = when {
+        playable && mediaMetadata == null -> "正在读取…"
+        mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
+        playable -> "无法读取，请确认文件仍可正常播放"
+        else -> "文件不可用"
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -554,8 +586,18 @@ private fun HistoryDetailsDialog(
                 Text(item.title, fontWeight = FontWeight.SemiBold)
                 Text(item.creator, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "${item.platform.label()}  ·  ${item.resolution.label()}  ·  ${formatBytes(item.fileSize)}",
+                    "${item.platform.label()}  ·  ${item.resolution.label()}",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "视频时长：$durationText",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "文件大小：${formatBytes(displayedSize)}（${formatExactBytes(displayedSize)} 字节）",
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (playable) {

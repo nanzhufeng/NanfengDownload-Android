@@ -139,8 +139,11 @@ class HistoryScreenInstrumentedTest {
         }
 
         composeRule.onNodeWithTag("history-thumbnail-interactive").assertIsDisplayed()
+        composeRule.onNodeWithText("时长", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("history-card-interactive").performClick()
         composeRule.onNodeWithText("视频详情").assertIsDisplayed()
+        composeRule.onNodeWithText("视频时长：", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("文件大小：1.0 KB（1,024 字节）").assertIsDisplayed()
         composeRule.onNodeWithText("默认播放器播放").assertIsDisplayed()
         composeRule.onNodeWithText("选择播放器").assertIsDisplayed()
     }
