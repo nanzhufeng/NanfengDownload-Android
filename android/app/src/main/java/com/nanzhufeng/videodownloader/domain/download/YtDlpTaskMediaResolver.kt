@@ -30,6 +30,7 @@ class YtDlpTaskMediaResolver(
             videoExtension = info.videoExt,
             audioExtension = info.audioExt,
             headers = info.headers,
+            audioFromVideoSource = info.audioFromVideoSource,
         )
     }
 }

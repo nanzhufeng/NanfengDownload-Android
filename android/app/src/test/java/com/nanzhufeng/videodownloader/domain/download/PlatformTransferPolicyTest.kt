@@ -7,12 +7,23 @@ import org.junit.Test
 
 class PlatformTransferPolicyTest {
     @Test
-    fun youtubeAudioKeepsTheReusableSixSegmentPlan() {
+    fun youtubeAudioUsesSequentialNativeRangeChunksToAvoidMultiConnectionStarvation() {
         val audio = PlatformTransferPolicy.forAudio(DownloadPlatform.YOUTUBE)
 
-        assertEquals(6, audio.maxConnections)
+        assertEquals(1, audio.maxConnections)
         assertEquals(8L * 1024L * 1024L, audio.segmentedThresholdBytes)
-        assertEquals(null, audio.chunkSizeBytes)
+        assertEquals(1L * 1024L * 1024L, audio.chunkSizeBytes)
+    }
+
+    @Test
+    fun youtubeVideoFallbackForAudioKeepsFastVideoSegmentPlan() {
+        val fallback = PlatformTransferPolicy.forAudioSource(
+            DownloadPlatform.YOUTUBE,
+            fromVideoSource = true,
+        )
+
+        assertEquals(6, fallback.maxConnections)
+        assertEquals(null, fallback.chunkSizeBytes)
     }
 
     @Test

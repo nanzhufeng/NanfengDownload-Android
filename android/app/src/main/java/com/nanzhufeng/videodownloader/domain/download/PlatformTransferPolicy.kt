@@ -35,9 +35,19 @@ object PlatformTransferPolicy {
     fun forAudio(platform: DownloadPlatform): TransferPolicy = when (platform) {
         DownloadPlatform.YOUTUBE -> TransferPolicy(
             platform = platform.name,
-            maxConnections = 6,
+            maxConnections = 1,
             segmentedThresholdBytes = 8L * 1024L * 1024L,
+            chunkSizeBytes = 1L * 1024L * 1024L,
         )
         else -> forPlatform(platform)
+    }
+
+    fun forAudioSource(
+        platform: DownloadPlatform,
+        fromVideoSource: Boolean,
+    ): TransferPolicy = if (fromVideoSource) {
+        forPlatform(platform)
+    } else {
+        forAudio(platform)
     }
 }

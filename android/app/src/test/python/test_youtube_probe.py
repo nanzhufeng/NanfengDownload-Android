@@ -43,6 +43,57 @@ class StreamSelectionTest(unittest.TestCase):
         self.assertEqual("audio", primary["format_id"])
         self.assertIsNone(secondary)
 
+    def test_audio_preset_uses_720p_progressive_when_audio_and_360p_are_missing(self):
+        formats = [
+            self._video("720-video-only", 1280, 720, 1200),
+            self._progressive("720-progressive", 1280, 720, 1450),
+            self._progressive("1080-progressive", 1920, 1080, 2600),
+        ]
+
+        primary, secondary = _select_streams(formats, "AUDIO_MP3")
+
+        self.assertEqual("720-progressive", primary["format_id"])
+        self.assertIsNone(secondary)
+
+    def test_audio_preset_never_uses_video_only_stream_as_conversion_source(self):
+        formats = [
+            self._video("360-video-only", 640, 360, 600),
+            self._video("720-video-only", 1280, 720, 1200),
+        ]
+
+        primary, secondary = _select_streams(formats, "AUDIO_MP3")
+
+        self.assertIsNone(primary)
+        self.assertIsNone(secondary)
+
+    def test_audio_preset_explains_when_resource_has_no_audio_track(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "只有纯视频画面.*请改为下载视频",
+        ):
+            _media_result(
+                {
+                    "id": "silent",
+                    "title": "Silent",
+                    "formats": [self._video("720-video-only", 1280, 720, 1200)],
+                },
+                resolution="AUDIO_MP3",
+            )
+
+    def test_media_result_marks_video_fallback_used_for_audio_conversion(self):
+        result = _media_result(
+            {
+                "id": "sample",
+                "title": "Sample",
+                "formats": [self._progressive("720-progressive", 1280, 720, 1450)],
+            },
+            resolution="AUDIO_MP3",
+        )
+
+        self.assertTrue(result["audio_from_video_source"])
+        self.assertEqual("https://media.test/720-progressive", result["video_url"])
+        self.assertEqual("", result["audio_url"])
+
     def test_media_result_keeps_selected_format_headers_for_googlevideo(self):
         self.formats[1]["http_headers"] = {
             "User-Agent": "yt-dlp-player-agent",
@@ -77,6 +128,19 @@ class StreamSelectionTest(unittest.TestCase):
             "height": height,
             "vcodec": "avc1",
             "acodec": "none",
+            "tbr": tbr,
+        }
+
+    @staticmethod
+    def _progressive(format_id, width, height, tbr):
+        return {
+            "format_id": format_id,
+            "url": f"https://media.test/{format_id}",
+            "ext": "mp4",
+            "width": width,
+            "height": height,
+            "vcodec": "avc1",
+            "acodec": "mp4a",
             "tbr": tbr,
         }
 

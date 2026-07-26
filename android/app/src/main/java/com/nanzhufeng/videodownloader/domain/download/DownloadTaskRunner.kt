@@ -25,6 +25,7 @@ data class ResolvedMedia(
     val videoExtension: String,
     val audioExtension: String?,
     val headers: Map<String, String>,
+    val audioFromVideoSource: Boolean = false,
     val reprobeCount: Int = 0,
 )
 

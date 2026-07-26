@@ -63,15 +63,53 @@ class QueuePresentationTest {
         )
     }
 
-    private fun task(speed: Long, updatedAt: Long) = DownloadTask(
+    @Test
+    fun audioTask_reportsVideoSourceDownloadBeforeConversion() {
+        assertEquals(
+            "正在下载音频转换源 40%",
+            audioTaskPhaseText(
+                task(
+                    speed = 2L * 1024L * 1024L,
+                    updatedAt = 100_000L,
+                    resolution = ResolutionPreset.AUDIO_MP3,
+                    downloadedBytes = 40L,
+                    totalBytes = 100L,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun audioTask_reportsMp3ExtractionAfterSourceDownloadCompletes() {
+        assertEquals(
+            "正在提取音频并生成 MP3",
+            audioTaskPhaseText(
+                task(
+                    speed = 0L,
+                    updatedAt = 100_000L,
+                    resolution = ResolutionPreset.AUDIO_MP3,
+                    downloadedBytes = 100L,
+                    totalBytes = 100L,
+                ),
+            ),
+        )
+    }
+
+    private fun task(
+        speed: Long,
+        updatedAt: Long,
+        resolution: ResolutionPreset = ResolutionPreset.UP_TO_720P,
+        downloadedBytes: Long = 10L,
+        totalBytes: Long = 100L,
+    ) = DownloadTask(
         taskId = "active",
         mediaKey = "youtube:active",
         selected = true,
         sortOrder = 0L,
-        resolution = ResolutionPreset.UP_TO_720P,
+        resolution = resolution,
         saveTreeUri = null,
-        downloadedBytes = 10L,
-        totalBytes = 100L,
+        downloadedBytes = downloadedBytes,
+        totalBytes = totalBytes,
         speedBytesPerSecond = speed,
         remainingSeconds = 20L,
         status = DownloadTaskStatus.DOWNLOADING,

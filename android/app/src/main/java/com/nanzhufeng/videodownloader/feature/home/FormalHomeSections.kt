@@ -798,8 +798,9 @@ private fun QueueLeadingControl(task: DownloadTask, onSelectionChanged: (Boolean
 @Composable
 private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
     val task = queued.task
+    val audioTranscoding = isAudioTranscoding(task)
     val healthController = remember(task.taskId) { TransferHealthNoticeController() }
-    val healthNotice = healthController.update(task, nowMillis)
+    val healthNotice = if (audioTranscoding) null else healthController.update(task, nowMillis)
     val animatedProgress by animateFloatAsState(
         targetValue = queued.progress(), animationSpec = quickFeedbackTween(), label = "queue-download-progress",
     )
@@ -813,11 +814,37 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
             color = Color(0xFFE97800), trackColor = Color(0xFFFFD99A),
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("速度 ${formatSpeed(queued.task.speedBytesPerSecond)}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(
+                if (audioTranscoding) "正在提取音频" else "速度 ${formatSpeed(queued.task.speedBytesPerSecond)}",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+            )
             Text("${(animatedProgress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB85C00))
         }
         Text("已下载 ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("剩余 ${formatDuration(queued.task.remainingSeconds)} · ${connectionLabel(task)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            if (audioTranscoding) {
+                "转换源已下载完成 · 正在生成真实 MP3"
+            } else {
+                "剩余 ${formatDuration(queued.task.remainingSeconds)} · ${connectionLabel(task)}"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (audioTranscoding) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().testTag("queue-audio-transcoding-${task.taskId}"),
+                color = Color(0xFFFFE7BD),
+                shape = RoundedCornerShape(8.dp),
+            ) {
+                Text(
+                    "转换源已下载完成，正在提取音轨并生成 MP3。请保持 App 运行，完成后会自动保存到音频目录。",
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                    color = Color(0xFF9B4B00),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
         healthNotice?.let { notice ->
             Surface(
                 modifier = Modifier.fillMaxWidth().testTag("queue-transfer-health-${task.taskId}"),
@@ -932,17 +959,48 @@ private fun queueStatusLabel(status: DownloadTaskStatus): String = when (status)
 private fun queueStatusText(queued: QueuedDownload): String = when (queued.task.status) {
     DownloadTaskStatus.WAITING -> "等待下载"
     DownloadTaskStatus.PARSING -> "正在解析下载地址"
-    DownloadTaskStatus.DOWNLOADING -> "下载中 ${(queued.progress() * 100).toInt()}%"
+    DownloadTaskStatus.DOWNLOADING -> audioTaskPhaseText(queued.task)
+        ?: "下载中 ${(queued.progress() * 100).toInt()}%"
     DownloadTaskStatus.PAUSED -> "已暂停"
     DownloadTaskStatus.WAITING_NETWORK ->
         "等待网络：${UserFacingErrorPresenter.message(queued.task.errorSummary, queued.media.platform)}"
-    DownloadTaskStatus.VALIDATING -> "正在校验文件"
+    DownloadTaskStatus.VALIDATING -> if (queued.task.resolution == ResolutionPreset.AUDIO_MP3) {
+        "正在校验 MP3 文件"
+    } else {
+        "正在校验文件"
+    }
     DownloadTaskStatus.COMPLETED -> "已完成"
     DownloadTaskStatus.SKIPPED -> "已跳过重复文件"
     DownloadTaskStatus.FAILED ->
         "失败：${UserFacingErrorPresenter.message(queued.task.errorSummary, queued.media.platform)}"
     DownloadTaskStatus.CANCELLED -> "已取消"
 }
+
+internal fun audioTaskPhaseText(task: DownloadTask): String? {
+    if (task.resolution != ResolutionPreset.AUDIO_MP3 ||
+        task.status != DownloadTaskStatus.DOWNLOADING
+    ) {
+        return null
+    }
+    return if (isAudioTranscoding(task)) {
+        "正在提取音频并生成 MP3"
+    } else {
+        val progress = if (task.totalBytes > 0L) {
+            ((task.downloadedBytes.toDouble() / task.totalBytes) * 100)
+                .toInt()
+                .coerceIn(0, 100)
+        } else {
+            0
+        }
+        "正在下载音频转换源 $progress%"
+    }
+}
+
+private fun isAudioTranscoding(task: DownloadTask): Boolean =
+    task.resolution == ResolutionPreset.AUDIO_MP3 &&
+        task.status == DownloadTaskStatus.DOWNLOADING &&
+        task.totalBytes > 0L &&
+        task.downloadedBytes >= task.totalBytes
 
 @Composable
 private fun ResolutionBadge(resolution: ResolutionPreset) {

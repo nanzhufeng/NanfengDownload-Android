@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Search
@@ -270,6 +271,7 @@ private fun HistoryItem(
     var showThroughputReport by rememberSaveable { mutableStateOf(false) }
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
+    var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
     val report = reports.firstOrNull { it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED }
         ?: reports.firstOrNull()
     val playable = item.fileExists && item.outputUri != null
@@ -286,6 +288,16 @@ private fun HistoryItem(
         }
     }
     val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
+    val playItem: () -> Unit = {
+        if (shouldUseInternalAudioPlayer(item)) {
+            showInternalAudioPlayer = true
+        } else {
+            openWithDefaultPlayer(context, item).onFailure {
+                Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
+            }
+        }
+        Unit
+    }
     val listDurationText = when {
         playable && mediaMetadata == null -> "读取中…"
         mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
@@ -325,11 +337,7 @@ private fun HistoryItem(
                 HistoryThumbnail(
                     item = item,
                     expanded = expanded,
-                    onPlay = {
-                        openWithDefaultPlayer(context, item).onFailure {
-                            Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
-                        }
-                    },
+                    onPlay = playItem,
                 )
                 Spacer(Modifier.width(if (expanded) 12.dp else 8.dp))
                 Column(
@@ -357,7 +365,15 @@ private fun HistoryItem(
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                             if (item.fileExists && item.outputUri != null) {
                                 DropdownMenuItem(
-                                    text = { Text("选择播放器") },
+                                    text = {
+                                        Text(
+                                            if (shouldUseInternalAudioPlayer(item)) {
+                                                "选择外部播放器"
+                                            } else {
+                                                "选择播放器"
+                                            },
+                                        )
+                                    },
                                     onClick = {
                                         menuExpanded = false
                                         showPlayerChooser = true
@@ -445,11 +461,7 @@ private fun HistoryItem(
             mediaMetadata = mediaMetadata,
             hasThroughputReport = reports.isNotEmpty(),
             onDismiss = { showDetails = false },
-            onPlay = {
-                openWithDefaultPlayer(context, item).onFailure {
-                    Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
-                }
-            },
+            onPlay = playItem,
             onChoosePlayer = {
                 showDetails = false
                 showPlayerChooser = true
@@ -462,6 +474,13 @@ private fun HistoryItem(
                 showDetails = false
                 showThroughputReport = true
             },
+        )
+    }
+
+    if (showInternalAudioPlayer) {
+        InternalAudioPlayerDialog(
+            item = item,
+            onDismiss = { showInternalAudioPlayer = false },
         )
     }
 
@@ -534,13 +553,21 @@ private fun HistoryThumbnail(
         if (item.thumbnailUrl.isNotBlank()) {
             AsyncImage(
                 model = item.thumbnailUrl,
-                contentDescription = "${item.title} 视频预览图",
+                contentDescription = if (shouldUseInternalAudioPlayer(item)) {
+                    "${item.title} 音频封面"
+                } else {
+                    "${item.title} 视频预览图"
+                },
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
             Icon(
-                Icons.Outlined.VideoLibrary,
+                if (shouldUseInternalAudioPlayer(item)) {
+                    Icons.Filled.MusicNote
+                } else {
+                    Icons.Outlined.VideoLibrary
+                },
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp),
@@ -549,7 +576,11 @@ private fun HistoryThumbnail(
         if (playable) {
             Icon(
                 Icons.Filled.PlayCircle,
-                contentDescription = "用默认播放器播放",
+                contentDescription = if (shouldUseInternalAudioPlayer(item)) {
+                    "用内置音频播放器播放"
+                } else {
+                    "用默认视频播放器播放"
+                },
                 tint = Color.White,
                 modifier = Modifier.size(28.dp),
             )
@@ -602,10 +633,22 @@ private fun HistoryDetailsDialog(
                 )
                 if (playable) {
                     TextButton(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
-                        Text("默认播放器播放")
+                        Text(
+                            if (shouldUseInternalAudioPlayer(item)) {
+                                "内置播放器播放"
+                            } else {
+                                "默认播放器播放"
+                            },
+                        )
                     }
                     TextButton(onClick = onChoosePlayer, modifier = Modifier.fillMaxWidth()) {
-                        Text("选择播放器")
+                        Text(
+                            if (shouldUseInternalAudioPlayer(item)) {
+                                "选择外部播放器"
+                            } else {
+                                "选择播放器"
+                            },
+                        )
                     }
                 }
                 TextButton(onClick = onCopyLink, modifier = Modifier.fillMaxWidth()) {

@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 当前分支包含 `v1.1.0` 哔哩哔哩与小红书扩展及 OPPO 验收证据；GitHub `v1.0.0` 仍是最新公开发布 |
-| Git 状态 | `v1.1.0` 双平台扩展按本文件与 verification 记录建立本地 checkpoint，不代表已推送 GitHub |
+| 当前代码 checkpoint | 当前分支包含 `v1.2.0` 音频来源回退、YouTube 音频提速和内置音频播放器 |
+| Git 状态 | `v1.2.0` 改动以本文件和 verification 记录为验收依据；发布状态以 GitHub Release 为准 |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.1.0` / `versionCode 10100` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.1.0.apk` 与同名 `.aab` |
-| 发布状态 | `v1.1.0` 已完成本地正式构建与 OPPO 验收；GitHub 最新公开正式版仍为 `v1.0.0` |
+| 当前版本 | `1.2.0` / `versionCode 10200` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.0.apk` 与同名 `.aab` |
+| 发布状态 | `v1.2.0` 已完成本地正式构建与 OPPO 验收 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/formal-release/南枫下载-Android-v1.1.0.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.0.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,18 +192,21 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-当前 `v1.1.0` 哔哩哔哩与小红书扩展以最终 Release APK/AAB 为对象：
+当前 `v1.2.0` 音频来源回退、YouTube 音频提速和内置音频播放以最终 Release APK/AAB 为对象：
 
-- Python 解析测试：18 项，0 失败。
-- `:app:testDebugUnitTest`：147 项，0 失败、0 错误、0 跳过。
-- `:app:testReleaseUnitTest`：147 项，0 失败、0 错误、0 跳过。
+- Python 解析测试：22 项，0 失败。
+- `:app:testDebugUnitTest`：151 项，0 失败、0 错误、0 跳过。
+- `:app:testReleaseUnitTest`：151 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
-- 专用模拟器 `emulator-5554` 仪器测试：59 项，0 失败；外部 TikTok 条件按既有规则跳过。
+- 专用模拟器 `emulator-5554` 仪器测试：61 项，0 失败；3 项外部 TikTok 条件按既有规则跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：91,343,083 B，SHA-256 `65368bdb1087fba3e3c6c8291a25cd1d3816145a0bd689935bc6b58559d3a539`。
-- Release AAB：38,270,811 B，SHA-256 `f6e3b30dfdad891de8b9dd7e58667e32d887058e28f42a70fe6a5bb369ac2fe1`。
-- APK 为 `1.1.0 / 10100`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
-- 正式 APK 在专用模拟器冷启动成功；从模拟器拉回的 `base.apk` 与本地 APK 哈希一致。
+- Release APK：91,376,491 B，SHA-256 `1516cfd5cae9b468de4e95a3664b8ce89319c4f47f8caab7dcb9fb4a74b5ac48`。
+- Release AAB：38,279,802 B，SHA-256 `3aafde735ba2774bbf83b75a751f99458ae109c40179d772d36f6f58d6655c5b`。
+- APK 为 `1.2.0 / 10200`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- 正式 APK 已在 OPPO 同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`，从手机拉回的 `base.apk` 与本地 APK 哈希一致。
+- 无独立音频流时优先使用最高不超过 720p 的含音轨视频作为 MP3 转换源；真实 Android 媒体夹具已走完“视频解码 → PCM → LAME MP3 → 内容校验”。
+- 同一 OPPO、同一 YouTube 音频任务在 `v1.1.0` 的六连接现场仅 2.4 KB/s；`v1.2.0` 单连接顺序 Range 实测 1.4–5.1 MB/s，并在约 50 秒内完成 119.2 MB 网络传输。
+- 历史音频左侧封面已在 OPPO 直接打开内置播放器；播放进度推进且显示暂停控件，未出现第三方播放器选择器。
 - 哔哩哔哩与小红书均在模拟器及 OPPO 完成真实网络成品闭环；OPPO 上的系统媒体库文件、历史、吞吐报告、重复去重和重启持久性均已验证。
 - B 站 `b23.tv` 短链在 OPPO 当前 Clash/DNS 环境中已通过可信 DNS、严格 TLS 和官方跳转校验完成真实成品闭环；系统 DNS/代理返回证书不匹配节点时不再把原始 SSL 错误直接抛给用户。
 - 小红书当前 `xhslink.cn` 分享链接已纳入分类、会话和短链解析；OPPO 实时分享的三条不同视频与三条不同哔哩哔哩视频共 6/6 完成，系统媒体文件和重启历史均已复核。
@@ -223,7 +226,7 @@ adb -s <OPPO序列号> shell \
 ## 8. 已知风险与下一步
 
 1. 正式签名密钥只保存在仓库外的本机安全目录，密码在 macOS 钥匙串；仍应建立用户控制的异地加密备份，密钥丢失将导致后续正式版无法覆盖升级。
-2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；2026-07-26 又以同一正式证书无损覆盖到 `v1.1.0`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
+2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；2026-07-26 又以同一正式证书依次无损覆盖到 `v1.1.0` 和 `v1.2.0`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
 3. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
 4. 哔哩哔哩 UP 主页批量接口当前返回 412，`v1.1.0` 只支持单视频；其他作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
 5. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮 Release 构建通过，后续仍应升级 AGP 或重新确认兼容矩阵。

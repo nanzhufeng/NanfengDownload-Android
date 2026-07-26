@@ -68,19 +68,56 @@ def _short_edge(item):
     return min(dimensions) if dimensions else 0
 
 
+def _select_audio_conversion_video(formats, max_short_edge=720):
+    def is_progressive(item):
+        return (
+            item.get("url")
+            and item.get("vcodec") not in {None, "none"}
+            and item.get("acodec") not in {None, "none"}
+        )
+
+    progressive = [item for item in formats if is_progressive(item)]
+    bounded = [
+        item
+        for item in progressive
+        if 0 < _short_edge(item) <= max_short_edge
+    ]
+    if bounded:
+        return max(
+            bounded,
+            key=lambda item: (
+                _short_edge(item),
+                item.get("abr") or 0,
+                item.get("tbr") or 0,
+            ),
+        )
+
+    unknown_dimensions = [item for item in progressive if _short_edge(item) == 0]
+    if unknown_dimensions:
+        return max(
+            unknown_dimensions,
+            key=lambda item: (item.get("abr") or 0, item.get("tbr") or 0),
+        )
+
+    # Some platforms expose only one progressive rendition above 720p. It is
+    # still a valid last-resort audio source, but choose the smallest one to
+    # avoid downloading unnecessary video data merely to extract its audio.
+    return min(
+        progressive,
+        key=lambda item: (
+            _short_edge(item),
+            -(item.get("abr") or 0),
+            item.get("tbr") or 0,
+        ),
+    ) if progressive else None
+
+
 def _select_streams(formats, resolution="UP_TO_720P"):
     audio = _select_audio(formats)
     if resolution == "AUDIO_MP3":
         if audio:
             return audio, None
-        progressive_audio_source = _best(
-            formats,
-            lambda item: item.get("url")
-            and item.get("vcodec") not in {None, "none"}
-            and item.get("acodec") not in {None, "none"},
-            lambda item: (item.get("abr") or item.get("tbr") or 0),
-        )
-        return progressive_audio_source, None
+        return _select_audio_conversion_video(formats), None
 
     max_short_edge = {
         "UP_TO_360P": 360,
@@ -425,7 +462,17 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
 
     chosen_video, audio = _select_streams(info.get("formats") or [], resolution)
     if not chosen_video:
+        if resolution == "AUDIO_MP3":
+            raise ValueError(
+                "没有找到可提取的音轨。该资源可能只有纯视频画面，无法转换为音频。"
+                "请改为下载视频，或选择包含声音的其他资源。"
+            )
         raise ValueError("没有找到可下载且具备音频的 MP4 视频流")
+    audio_from_video_source = (
+        resolution == "AUDIO_MP3"
+        and chosen_video.get("vcodec") not in {None, "none"}
+        and chosen_video.get("acodec") not in {None, "none"}
+    )
 
     # yt-dlp may attach the working player User-Agent and fetch headers to the
     # selected formats rather than to the top-level result. Dropping them can
@@ -450,6 +497,7 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
         "audio_url": (audio or {}).get("url", ""),
         "video_ext": chosen_video.get("ext") or "mp4",
         "audio_ext": (audio or {}).get("ext", ""),
+        "audio_from_video_source": audio_from_video_source,
         "headers": headers,
     }
 

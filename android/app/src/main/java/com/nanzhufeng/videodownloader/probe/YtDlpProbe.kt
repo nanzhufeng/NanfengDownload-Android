@@ -23,6 +23,7 @@ data class YtDlpMediaInfo(
     val videoExt: String,
     val audioExt: String?,
     val headers: Map<String, String>,
+    val audioFromVideoSource: Boolean = false,
 )
 
 data class ResolvedSource(
@@ -131,6 +132,7 @@ class YtDlpProbe {
             audioUrl = json.getString("audio_url").ifBlank { null },
             videoExt = json.getString("video_ext"),
             audioExt = json.getString("audio_ext").ifBlank { null },
+            audioFromVideoSource = json.optBoolean("audio_from_video_source", false),
             headers = headers,
         )
     }

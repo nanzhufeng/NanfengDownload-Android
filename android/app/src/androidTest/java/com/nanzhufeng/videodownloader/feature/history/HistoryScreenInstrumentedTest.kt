@@ -149,6 +149,27 @@ class HistoryScreenInstrumentedTest {
     }
 
     @Test
+    fun completedAudio_thumbnailOpensBuiltInPlayerWithoutExternalChooser() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(
+                    completedHistory("audio", "可播放的音频").copy(
+                        resolution = ResolutionPreset.AUDIO_MP3,
+                        outputUri = "content://media/external/audio/media/1",
+                        fileExists = true,
+                    ),
+                ),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithTag("history-thumbnail-audio").performClick()
+        composeRule.onNodeWithTag("internal-audio-player").assertIsDisplayed()
+        composeRule.onNodeWithText("正在播放音频").assertIsDisplayed()
+        composeRule.onNodeWithText("选择播放器").assertDoesNotExist()
+    }
+
+    @Test
     fun innerScreen_arrangesCompletedTimelineCardsInTwoColumns() {
         composeRule.setContent {
             Box(Modifier.requiredWidth(700.dp).height(800.dp)) {

@@ -22,6 +22,9 @@ internal fun openWithDefaultPlayer(context: Context, item: DownloadHistory): Res
     context.startActivity(mediaViewIntent(context, item))
 }
 
+internal fun shouldUseInternalAudioPlayer(item: DownloadHistory): Boolean =
+    item.resolution == ResolutionPreset.AUDIO_MP3
+
 internal fun openWithPlayer(
     context: Context,
     item: DownloadHistory,

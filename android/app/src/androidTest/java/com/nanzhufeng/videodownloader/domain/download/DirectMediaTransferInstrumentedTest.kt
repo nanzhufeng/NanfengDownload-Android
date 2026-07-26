@@ -58,6 +58,52 @@ class DirectMediaTransferInstrumentedTest {
         }
     }
 
+    @Test
+    fun audioModeExtractsTrueMp3FromCached720pVideoFallback() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val taskId = "direct-video-to-mp3-instrumented"
+        val directory = File(context.cacheDir, "downloads/$taskId")
+        directory.deleteRecursively()
+        directory.mkdirs()
+        val cachedSource = File(directory, "audio-source.mp4")
+        instrumentation.context.assets.open("audio/tone-2s-video-with-audio.mp4").use { input ->
+            cachedSource.outputStream().use { output ->
+                input.copyTo(output)
+                output.write(ByteArray(40 * 1_024))
+            }
+        }
+        var finalDownloaded = 0L
+        var finalTotal = 0L
+
+        try {
+            val prepared = DirectMediaTransfer(context).download(
+                task = queuedDownload(taskId),
+                source = ResolvedMedia(
+                    videoUrl = "http://unused.invalid/video.mp4",
+                    audioUrl = null,
+                    videoExtension = "mp4",
+                    audioExtension = null,
+                    headers = emptyMap(),
+                    audioFromVideoSource = true,
+                ),
+                onProgress = { downloaded, total, _, _ ->
+                    finalDownloaded = downloaded
+                    finalTotal = total
+                },
+            )
+
+            assertEquals("audio/mpeg", prepared.mimeType)
+            assertEquals("audio.mp3", prepared.file.name)
+            assertTrue(Mp3FileValidator.isValid(prepared.file))
+            assertFalse("Video source should be removed after conversion", cachedSource.exists())
+            assertTrue(finalTotal > 0L)
+            assertEquals(finalTotal, finalDownloaded)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     private fun queuedDownload(taskId: String) = QueuedDownload(
         task = DownloadTask(
             taskId = taskId,

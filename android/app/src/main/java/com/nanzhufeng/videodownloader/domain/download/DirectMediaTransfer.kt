@@ -81,6 +81,11 @@ class DirectMediaTransfer(
             ?.invokeOnCompletion { cancelled.set(true) }
         try {
             val isAudioOnly = task.task.resolution == ResolutionPreset.AUDIO_MP3
+            val audioStreamLabel = if (source.audioFromVideoSource) {
+                "视频转音频源"
+            } else {
+                "音频源"
+            }
             val primaryRequest = DirectDownloadRequest(
                 url = source.videoUrl,
                 headers = source.headers,
@@ -94,17 +99,21 @@ class DirectMediaTransfer(
                 ),
                 taskId = task.task.taskId,
                 platform = task.media.platform,
-                streamLabel = if (isAudioOnly) "音频源" else "视频流",
+                streamLabel = if (isAudioOnly) audioStreamLabel else "视频流",
                 transferPolicy = if (isAudioOnly) {
-                    PlatformTransferPolicy.forAudio(task.media.platform)
+                    PlatformTransferPolicy.forAudioSource(
+                        task.media.platform,
+                        source.audioFromVideoSource,
+                    )
                 } else {
                     PlatformTransferPolicy.forPlatform(task.media.platform)
                 },
                 reprobeCount = source.reprobeCount,
-                onModeResolved = modeObserver(if (isAudioOnly) "音频源" else "视频流"),
+                onModeResolved = modeObserver(if (isAudioOnly) audioStreamLabel else "视频流"),
             )
             if (isAudioOnly) {
                 val primary = downloadStreams(task, listOf(primaryRequest), cancelled, onProgress).single()
+                onProgress(primary.length(), primary.length(), 0L, null)
                 val prepared = measureDownloadStage(
                     taskId = task.task.taskId,
                     stage = "audio_transcode",
