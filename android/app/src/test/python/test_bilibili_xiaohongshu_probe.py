@@ -5,6 +5,8 @@ from unittest.mock import patch
 from nanzhufeng_probe.youtube_probe import (
     _bilibili_fallback_info,
     _media_result,
+    _request_headers,
+    _resolve_known_short_link,
     _xiaohongshu_info,
     _xiaohongshu_note_state,
 )
@@ -79,6 +81,28 @@ class BilibiliFallbackTest(unittest.TestCase):
 
 
 class XiaohongshuStateTest(unittest.TestCase):
+    def test_current_xhslink_cn_short_link_uses_xiaohongshu_session_and_official_redirect(self):
+        self.assertEqual(
+            "https://www.xiaohongshu.com/",
+            _request_headers("https://xhslink.cn/o/7i6agytmp2s")["Referer"],
+        )
+        with patch(
+            "nanzhufeng_probe.youtube_probe._fetch",
+            return_value=(
+                "",
+                "https://www.xiaohongshu.com/explore/current-note?xsec_token=fresh",
+            ),
+        ):
+            resolved = _resolve_known_short_link(
+                "https://xhslink.cn/o/7i6agytmp2s",
+                "web_session=account",
+            )
+
+        self.assertEqual(
+            "https://www.xiaohongshu.com/explore/current-note?xsec_token=fresh",
+            resolved,
+        )
+
     def test_current_rednote_note_data_is_parsed_as_progressive_video(self):
         note = {
             "type": "video",

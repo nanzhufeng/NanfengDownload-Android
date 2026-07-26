@@ -70,6 +70,7 @@ enum class SessionSite(
             "https://edith.xiaohongshu.com/",
             "https://www.rednote.com/",
             "https://xhslink.com/",
+            "https://xhslink.cn/",
         ),
         setOf("web_session"),
     ),
@@ -85,7 +86,8 @@ enum class SessionSite(
                 host.matchesDomain("bilibili.com") || host.matchesDomain("b23.tv") -> BILIBILI
                 host.matchesDomain("xiaohongshu.com") ||
                     host.matchesDomain("rednote.com") ||
-                    host.matchesDomain("xhslink.com") -> XIAOHONGSHU
+                    host.matchesDomain("xhslink.com") ||
+                    host.matchesDomain("xhslink.cn") -> XIAOHONGSHU
                 else -> null
             }
         }

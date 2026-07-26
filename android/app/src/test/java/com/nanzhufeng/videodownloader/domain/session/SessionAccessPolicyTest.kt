@@ -36,6 +36,10 @@ class SessionAccessPolicyTest {
             "web_session=xiaohongshu-session",
             policy.accessFor("https://www.rednote.com/explore/69ce30d3000000002100791c").cookieHeader,
         )
+        assertEquals(
+            "web_session=xiaohongshu-session",
+            policy.accessFor("https://xhslink.cn/o/7i6agytmp2s").cookieHeader,
+        )
         assertNull(policy.accessFor("https://www.douyin.com/video/1").cookieFilePath)
     }
 

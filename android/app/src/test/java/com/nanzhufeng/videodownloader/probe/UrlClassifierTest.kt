@@ -107,10 +107,13 @@ class UrlClassifierTest {
 
     @Test
     fun xiaohongshuShortLinkDefersNetworkClassification() {
-        val source = UrlClassifier.extractAndClassify("https://xhslink.com/a/AbCd123")
+        val legacy = UrlClassifier.extractAndClassify("https://xhslink.com/a/AbCd123")
+        val current = UrlClassifier.extractAndClassify("https://xhslink.cn/o/7i6agytmp2s")
 
-        assertEquals(Platform.XIAOHONGSHU, source.platform)
-        assertEquals(SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, source.kind)
+        assertEquals(Platform.XIAOHONGSHU, legacy.platform)
+        assertEquals(SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, legacy.kind)
+        assertEquals(Platform.XIAOHONGSHU, current.platform)
+        assertEquals(SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, current.kind)
     }
 
     @Test

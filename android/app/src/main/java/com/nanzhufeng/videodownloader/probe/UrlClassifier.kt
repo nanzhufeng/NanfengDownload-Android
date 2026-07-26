@@ -65,7 +65,7 @@ object UrlClassifier {
                 (path.startsWith("/explore/") || path.startsWith("/discovery/item/")) ->
                 ClassifiedSource(Platform.XIAOHONGSHU, SourceKind.SINGLE_VIDEO, raw)
 
-            host.matchesDomain("xhslink.com") ->
+            (host.matchesDomain("xhslink.com") || host.matchesDomain("xhslink.cn")) ->
                 ClassifiedSource(Platform.XIAOHONGSHU, SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, raw)
 
             else -> throw IllegalArgumentException(

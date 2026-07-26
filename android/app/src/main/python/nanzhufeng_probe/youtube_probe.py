@@ -137,6 +137,7 @@ def _request_headers(url, cookie_header=""):
         _host_matches(host, "xiaohongshu.com")
         or _host_matches(host, "rednote.com")
         or _host_matches(host, "xhslink.com")
+        or _host_matches(host, "xhslink.cn")
     ):
         headers["Referer"] = "https://www.xiaohongshu.com/"
     if cookie_header:
@@ -156,7 +157,13 @@ def _fetch(url, cookie_header="", max_bytes=12 * 1024 * 1024):
 
 def _resolve_known_short_link(url, cookie_header=""):
     host = urlsplit(url).netloc.lower().split(":", 1)[0]
-    if host not in {"b23.tv", "xhslink.com", "www.xhslink.com"}:
+    if host not in {
+        "b23.tv",
+        "xhslink.com",
+        "www.xhslink.com",
+        "xhslink.cn",
+        "www.xhslink.cn",
+    }:
         return url
     _, final_url = _fetch(url, cookie_header, max_bytes=2 * 1024 * 1024)
     final_host = urlsplit(final_url).netloc.lower().split(":", 1)[0]
