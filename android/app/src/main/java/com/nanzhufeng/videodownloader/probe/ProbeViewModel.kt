@@ -281,7 +281,10 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun platformLabel(platform: String): String = when (platform.lowercase()) {
         "youtube" -> "YouTube"
+        "bilibili" -> "哔哩哔哩"
         "tiktok" -> "TikTok"
+        "douyin" -> "抖音"
+        "xiaohongshu", "rednote" -> "小红书"
         else -> platform.ifBlank { "未知平台" }
     }
 }

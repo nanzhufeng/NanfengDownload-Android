@@ -60,4 +60,45 @@ class UserFacingErrorPresenterTest {
         assertTrue(message.contains("原始错误"))
         assertFalse(message.contains("opaque upstream failure"))
     }
+
+    @Test
+    fun bilibili412ExplainsSessionOrRequestRejectionInChinese() {
+        val message = UserFacingErrorPresenter.message(
+            "HTTP Error 412: Precondition Failed",
+            DownloadPlatform.BILIBILI,
+        )
+
+        assertTrue(message.contains("哔哩哔哩"))
+        assertTrue(message.contains("登录"))
+        assertTrue(message.contains("重新复制"))
+        assertFalse(message.contains("Precondition"))
+    }
+
+    @Test
+    fun bilibiliCreatorBoundaryHasDirectAlternative() {
+        val message = UserFacingErrorPresenter.message(
+            "bilibili creator batch is not supported",
+            DownloadPlatform.BILIBILI,
+        )
+
+        assertTrue(message.contains("只支持单个视频"))
+        assertTrue(message.contains("具体视频"))
+        assertTrue(message.contains("智能读取"))
+    }
+
+    @Test
+    fun xiaohongshuImageNoteAndExpiredTokenAreActionable() {
+        val imageOnly = UserFacingErrorPresenter.message(
+            "Xiaohongshu image-only note: no video formats",
+            DownloadPlatform.XIAOHONGSHU,
+        )
+        val expired = UserFacingErrorPresenter.message(
+            "Xiaohongshu xsec_token expired",
+            DownloadPlatform.XIAOHONGSHU,
+        )
+
+        assertTrue(imageOnly.contains("图文笔记"))
+        assertTrue(expired.contains("重新复制"))
+        assertFalse(expired.contains("xsec_token"))
+    }
 }

@@ -12,6 +12,8 @@ class SessionAccessPolicyTest {
         val cookies = mapOf(
             SessionSite.DOUYIN to "sessionid=douyin-session",
             SessionSite.TIKTOK to "sessionid=tiktok-session",
+            SessionSite.BILIBILI to "SESSDATA=bilibili-session",
+            SessionSite.XIAOHONGSHU to "web_session=xiaohongshu-session",
         )
         val policy = SessionAccessPolicy(
             cookieLookup = { site, _ -> cookies[site].orEmpty() },
@@ -25,6 +27,14 @@ class SessionAccessPolicyTest {
         assertEquals(
             "sessionid=tiktok-session",
             policy.accessFor("https://www.tiktok.com/@creator/video/2").cookieHeader,
+        )
+        assertEquals(
+            "SESSDATA=bilibili-session",
+            policy.accessFor("https://www.bilibili.com/video/BV1bK411W797").cookieHeader,
+        )
+        assertEquals(
+            "web_session=xiaohongshu-session",
+            policy.accessFor("https://www.rednote.com/explore/69ce30d3000000002100791c").cookieHeader,
         )
         assertNull(policy.accessFor("https://www.douyin.com/video/1").cookieFilePath)
     }
@@ -69,6 +79,10 @@ class SessionAccessPolicyTest {
             ),
         )
         assertTrue(classifyAuthenticatedSession(SessionSite.TIKTOK, "sessionid_ss=account-session"))
+        assertTrue(classifyAuthenticatedSession(SessionSite.BILIBILI, "SESSDATA=account-session"))
+        assertTrue(classifyAuthenticatedSession(SessionSite.XIAOHONGSHU, "web_session=account-session"))
+        assertFalse(classifyAuthenticatedSession(SessionSite.BILIBILI, "buvid3=anonymous"))
+        assertFalse(classifyAuthenticatedSession(SessionSite.XIAOHONGSHU, "a1=anonymous"))
     }
 
     @Test

@@ -74,6 +74,18 @@ class OutputFilePolicyTest {
         )
     }
 
+    @Test
+    fun newPlatformsUseDistinctReadableDirectories() {
+        assertEquals(
+            "Movies/南烛枫视频下载器/哔哩哔哩/作者/2026-07-16 标题.mp4",
+            policy.relativePath(media(DownloadPlatform.BILIBILI), ResolutionPreset.UP_TO_720P),
+        )
+        assertEquals(
+            "Movies/南烛枫视频下载器/小红书/作者/2026-07-16 标题.mp4",
+            policy.relativePath(media(DownloadPlatform.XIAOHONGSHU), ResolutionPreset.UP_TO_720P),
+        )
+    }
+
     private fun media(
         platform: DownloadPlatform,
         creator: String = "作者",

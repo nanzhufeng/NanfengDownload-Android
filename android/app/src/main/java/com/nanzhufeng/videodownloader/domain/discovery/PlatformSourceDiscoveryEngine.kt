@@ -47,6 +47,8 @@ class PlatformSourceDiscoveryEngine(
                 SourceKind.CHANNEL_OR_PLAYLIST -> resolved.readCollection(page)
                 SourceKind.UNKNOWN_DOUYIN_SHARE,
                 SourceKind.UNKNOWN_TIKTOK_SHARE,
+                SourceKind.UNKNOWN_BILIBILI_SHARE,
+                SourceKind.UNKNOWN_XIAOHONGSHU_SHARE,
                 -> error("链接未能解析为单视频或作品列表")
             }
     } catch (error: Exception) {
@@ -54,7 +56,14 @@ class PlatformSourceDiscoveryEngine(
     }
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {
-        if (kind !in setOf(SourceKind.UNKNOWN_DOUYIN_SHARE, SourceKind.UNKNOWN_TIKTOK_SHARE)) {
+        if (
+            kind !in setOf(
+                SourceKind.UNKNOWN_DOUYIN_SHARE,
+                SourceKind.UNKNOWN_TIKTOK_SHARE,
+                SourceKind.UNKNOWN_BILIBILI_SHARE,
+                SourceKind.UNKNOWN_XIAOHONGSHU_SHARE,
+            )
+        ) {
             return this
         }
         val resolved = gateway.resolve(url)
@@ -104,15 +113,19 @@ class PlatformSourceDiscoveryEngine(
 
     private fun String.toDownloadPlatform(): DownloadPlatform = when (lowercase()) {
         "youtube" -> DownloadPlatform.YOUTUBE
+        "bilibili" -> DownloadPlatform.BILIBILI
         "douyin" -> DownloadPlatform.DOUYIN
         "tiktok" -> DownloadPlatform.TIKTOK
+        "xiaohongshu", "rednote" -> DownloadPlatform.XIAOHONGSHU
         else -> error("不支持的平台：$this")
     }
 
     private fun Platform.toDownloadPlatform(): DownloadPlatform = when (this) {
         Platform.YOUTUBE -> DownloadPlatform.YOUTUBE
+        Platform.BILIBILI -> DownloadPlatform.BILIBILI
         Platform.DOUYIN -> DownloadPlatform.DOUYIN
         Platform.TIKTOK -> DownloadPlatform.TIKTOK
+        Platform.XIAOHONGSHU -> DownloadPlatform.XIAOHONGSHU
     }
 
     private companion object {
@@ -140,6 +153,9 @@ internal object DiscoveryFailurePresenter {
             evidence.contains("Douyin", ignoreCase = true) -> DownloadPlatform.DOUYIN
             evidence.contains("TikTok", ignoreCase = true) -> DownloadPlatform.TIKTOK
             evidence.contains("YouTube", ignoreCase = true) -> DownloadPlatform.YOUTUBE
+            evidence.contains("Bilibili", ignoreCase = true) -> DownloadPlatform.BILIBILI
+            evidence.contains("Xiaohongshu", ignoreCase = true) ||
+                evidence.contains("Rednote", ignoreCase = true) -> DownloadPlatform.XIAOHONGSHU
             else -> null
         }
         return UserFacingErrorPresenter.message(

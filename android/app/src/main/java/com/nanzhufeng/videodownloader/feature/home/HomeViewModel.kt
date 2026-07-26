@@ -54,7 +54,7 @@ class HomeViewModel(
     suspend fun smartRead() {
         val input = uiState.value.input.trim()
         if (input.isBlank()) {
-            mutableUiState.update { it.copy(notice = "请先粘贴抖音、YouTube 或 TikTok 链接") }
+            mutableUiState.update { it.copy(notice = "请先粘贴支持平台的视频链接或分享文本") }
             return
         }
         read(input = input, page = 1, append = false)

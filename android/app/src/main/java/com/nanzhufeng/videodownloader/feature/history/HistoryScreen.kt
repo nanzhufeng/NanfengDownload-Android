@@ -626,6 +626,8 @@ private fun DownloadPlatform.label(): String = when (this) {
     DownloadPlatform.YOUTUBE -> "YouTube"
     DownloadPlatform.DOUYIN -> "抖音"
     DownloadPlatform.TIKTOK -> "TikTok"
+    DownloadPlatform.BILIBILI -> "哔哩哔哩"
+    DownloadPlatform.XIAOHONGSHU -> "小红书"
 }
 
 private fun com.nanzhufeng.videodownloader.core.model.ResolutionPreset.label(): String = when (this) {

@@ -16,6 +16,25 @@ object UserFacingErrorPresenter {
             lower.contains("fresh cookies") && resolvedPlatform == DownloadPlatform.DOUYIN ->
                 "抖音需要新的网页会话。请到“设置 → 账号与权限 → 抖音”重新登录，返回后重试。"
 
+            resolvedPlatform == DownloadPlatform.BILIBILI && hasHttpStatus(lower, 412) ->
+                "哔哩哔哩拒绝了当前解析请求（412），分享链接、网页会话或网络出口可能已失效。" +
+                    "解决办法：请重新复制官方分享链接；仍失败请到“设置 → 账号与权限 → 哔哩哔哩”登录后重试。"
+
+            resolvedPlatform == DownloadPlatform.BILIBILI &&
+                hasAny(lower, "creator batch is not supported", "space.bilibili.com") ->
+                "哔哩哔哩当前只支持单个视频，暂不支持从 UP 主页批量读取。" +
+                    "解决办法：请打开具体视频后复制分享链接，再使用“智能读取”。"
+
+            resolvedPlatform == DownloadPlatform.XIAOHONGSHU &&
+                hasAny(lower, "image-only note", "image only note") ->
+                "这是小红书图文笔记，没有可下载的视频。" +
+                    "解决办法：请选择带视频播放内容的笔记，再复制最新分享链接。"
+
+            resolvedPlatform == DownloadPlatform.XIAOHONGSHU &&
+                hasAny(lower, "xsec_token", "initial state", "note data") ->
+                "小红书分享链接的访问凭证已失效或页面未返回视频数据。" +
+                    "解决办法：请在小红书 App 中重新复制该视频的最新分享链接；仍失败请登录后重试。"
+
             hasAny(lower, "login required", "sign in to confirm", "confirm you're not a bot", "cookies are no longer valid") ->
                 "平台要求验证登录信息。解决办法：${loginAction(resolvedPlatform)}"
 
@@ -89,6 +108,10 @@ object UserFacingErrorPresenter {
             "请到“设置 → 账号与权限 → 抖音”重新登录，再重新智能读取并重试。"
         DownloadPlatform.TIKTOK ->
             "请到“设置 → 账号与权限 → TikTok”重新登录，再重新智能读取并重试。"
+        DownloadPlatform.BILIBILI ->
+            "请到“设置 → 账号与权限 → 哔哩哔哩”重新登录，再重新智能读取并重试。"
+        DownloadPlatform.XIAOHONGSHU ->
+            "请到“设置 → 账号与权限 → 小红书”重新登录，再重新智能读取并重试。"
         null ->
             "请到“设置 → 账号与权限”更新对应平台的登录信息，再重新智能读取并重试。"
     }
@@ -97,6 +120,8 @@ object UserFacingErrorPresenter {
         lower.contains("youtube") -> DownloadPlatform.YOUTUBE
         lower.contains("douyin") -> DownloadPlatform.DOUYIN
         lower.contains("tiktok") -> DownloadPlatform.TIKTOK
+        lower.contains("bilibili") -> DownloadPlatform.BILIBILI
+        lower.contains("xiaohongshu") || lower.contains("rednote") -> DownloadPlatform.XIAOHONGSHU
         else -> null
     }
 

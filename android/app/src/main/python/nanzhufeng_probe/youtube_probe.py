@@ -1,10 +1,22 @@
 import json
 import re
 import sys
-from urllib.parse import parse_qs, urlsplit, urlunsplit
+from datetime import datetime, timezone
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+from urllib.request import Request, urlopen
 
 import yt_dlp
 from yt_dlp import YoutubeDL
+
+
+_MOBILE_USER_AGENT = (
+    "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
+)
+_DESKTOP_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
 
 
 def runtime_info() -> str:
@@ -59,7 +71,16 @@ def _short_edge(item):
 def _select_streams(formats, resolution="UP_TO_720P"):
     audio = _select_audio(formats)
     if resolution == "AUDIO_MP3":
-        return audio, None
+        if audio:
+            return audio, None
+        progressive_audio_source = _best(
+            formats,
+            lambda item: item.get("url")
+            and item.get("vcodec") not in {None, "none"}
+            and item.get("acodec") not in {None, "none"},
+            lambda item: (item.get("abr") or item.get("tbr") or 0),
+        )
+        return progressive_audio_source, None
 
     max_short_edge = {
         "UP_TO_360P": 360,
@@ -98,12 +119,296 @@ def _select_streams(formats, resolution="UP_TO_720P"):
     return None, None
 
 
+def _host_matches(host, domain):
+    host = str(host or "").lower().split(":", 1)[0]
+    return host == domain or host.endswith(f".{domain}")
+
+
+def _request_headers(url, cookie_header=""):
+    host = urlsplit(url).netloc.lower()
+    headers = {
+        "User-Agent": _MOBILE_USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.5",
+    }
+    if _host_matches(host, "bilibili.com") or _host_matches(host, "b23.tv"):
+        headers["Referer"] = "https://www.bilibili.com/"
+    elif (
+        _host_matches(host, "xiaohongshu.com")
+        or _host_matches(host, "rednote.com")
+        or _host_matches(host, "xhslink.com")
+    ):
+        headers["Referer"] = "https://www.xiaohongshu.com/"
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+    return headers
+
+
+def _fetch(url, cookie_header="", max_bytes=12 * 1024 * 1024):
+    request = Request(url, headers=_request_headers(url, cookie_header))
+    with urlopen(request, timeout=20) as response:
+        payload = response.read(max_bytes + 1)
+        if len(payload) > max_bytes:
+            raise ValueError("平台页面数据过大，已中止读取")
+        charset = response.headers.get_content_charset() or "utf-8"
+        return payload.decode(charset, errors="replace"), response.geturl()
+
+
+def _resolve_known_short_link(url, cookie_header=""):
+    host = urlsplit(url).netloc.lower().split(":", 1)[0]
+    if host not in {"b23.tv", "xhslink.com", "www.xhslink.com"}:
+        return url
+    _, final_url = _fetch(url, cookie_header, max_bytes=2 * 1024 * 1024)
+    final_host = urlsplit(final_url).netloc.lower().split(":", 1)[0]
+    if host == "b23.tv" and not _host_matches(final_host, "bilibili.com"):
+        raise ValueError("哔哩哔哩短链接跳转到了非官方域名，已拒绝读取")
+    if host != "b23.tv" and not (
+        _host_matches(final_host, "xiaohongshu.com")
+        or _host_matches(final_host, "rednote.com")
+    ):
+        raise ValueError("小红书短链接跳转到了非官方域名，已拒绝读取")
+    return final_url
+
+
+def _initial_state(html, marker, replace_undefined=False):
+    marker_index = html.find(marker)
+    if marker_index < 0:
+        raise ValueError("平台页面没有返回可识别的初始数据")
+    payload = html[marker_index + len(marker):]
+    if replace_undefined:
+        payload = re.sub(r"\bundefined\b", "null", payload)
+    try:
+        return json.JSONDecoder().raw_decode(payload)[0]
+    except (json.JSONDecodeError, TypeError) as error:
+        raise ValueError("平台页面初始数据格式已更新") from error
+
+
+def _upload_date(epoch_value):
+    try:
+        numeric = float(epoch_value or 0)
+    except (TypeError, ValueError):
+        return ""
+    if numeric > 10_000_000_000:
+        numeric /= 1000
+    if numeric <= 0:
+        return ""
+    return datetime.fromtimestamp(numeric, tz=timezone.utc).strftime("%Y%m%d")
+
+
+def _bilibili_page_state(html, page_number=1):
+    state = _initial_state(html, "__INITIAL_STATE__=")
+    video_root = state.get("video") or {}
+    view = state.get("videoData") or video_root.get("viewInfo") or {}
+    pages = list(view.get("pages") or [])
+    if not view or not pages:
+        raise ValueError("Bilibili page state missing video metadata")
+    page_number = max(1, int(page_number or 1))
+    page = next(
+        (item for item in pages if int(item.get("page") or 0) == page_number),
+        pages[0],
+    )
+    owner = view.get("owner") or {}
+    return {
+        "bvid": str(view.get("bvid") or video_root.get("bvid") or ""),
+        "aid": str(view.get("aid") or video_root.get("avid") or ""),
+        "cid": str(page.get("cid") or ""),
+        "page": int(page.get("page") or 1),
+        "page_count": len(pages),
+        "part": str(page.get("part") or ""),
+        "title": str(view.get("title") or "未知标题"),
+        "thumbnail": str(view.get("pic") or ""),
+        "creator": str(owner.get("name") or "未知作者"),
+        "creator_id": str(owner.get("mid") or ""),
+        "upload_date": _upload_date(view.get("pubdate")),
+    }
+
+
+def _bilibili_fallback_info(url, cookie_header=""):
+    html, final_url = _fetch(url, cookie_header)
+    page_number = int((parse_qs(urlsplit(final_url).query).get("p") or ["1"])[0])
+    page = _bilibili_page_state(html, page_number)
+    if not page["bvid"] or not page["cid"]:
+        raise ValueError("Bilibili page state missing bvid or cid")
+
+    query = urlencode(
+        {
+            "bvid": page["bvid"],
+            "cid": page["cid"],
+            "qn": 80,
+            "fnval": 16,
+            "fourk": 1,
+        }
+    )
+    api_url = f"https://api.bilibili.com/x/player/playurl?{query}"
+    body, _ = _fetch(api_url, cookie_header, max_bytes=4 * 1024 * 1024)
+    response = json.loads(body)
+    if response.get("code") not in {0, None}:
+        raise ValueError(
+            f"Bilibili API rejected request: {response.get('code')} {response.get('message', '')}"
+        )
+    data = response.get("data") or {}
+    dash = data.get("dash") or {}
+    # Bilibili's current public CDN URLs reject the Android mobile UA used to
+    # fetch the page, even when the URL itself is valid. A normal desktop
+    # browser identity is accepted for the media Range requests.
+    headers = {
+        "User-Agent": _DESKTOP_USER_AGENT,
+        "Referer": final_url,
+        "Accept": "*/*",
+    }
+    if cookie_header:
+        headers["Cookie"] = cookie_header
+    formats = []
+    for item in dash.get("video") or []:
+        media_url = item.get("baseUrl") or item.get("base_url")
+        if not media_url:
+            continue
+        formats.append(
+            {
+                "format_id": f"bili-video-{item.get('id', '')}",
+                "url": media_url,
+                "ext": "mp4",
+                "width": item.get("width"),
+                "height": item.get("height"),
+                "tbr": (item.get("bandwidth") or 0) / 1000,
+                "vcodec": item.get("codecs") or "avc1",
+                "acodec": "none",
+                "http_headers": headers,
+            }
+        )
+    for item in dash.get("audio") or []:
+        media_url = item.get("baseUrl") or item.get("base_url")
+        if not media_url:
+            continue
+        formats.append(
+            {
+                "format_id": f"bili-audio-{item.get('id', '')}",
+                "url": media_url,
+                "ext": "m4a",
+                "abr": (item.get("bandwidth") or 0) / 1000,
+                "vcodec": "none",
+                "acodec": item.get("codecs") or "mp4a",
+                "http_headers": headers,
+            }
+        )
+    for item in data.get("durl") or []:
+        media_url = item.get("url")
+        if not media_url:
+            continue
+        formats.append(
+            {
+                "format_id": f"bili-progressive-{data.get('quality', '')}",
+                "url": media_url,
+                "ext": "mp4",
+                "height": data.get("quality"),
+                "vcodec": "avc1",
+                "acodec": "mp4a",
+                "http_headers": headers,
+            }
+        )
+    if not formats:
+        raise ValueError("Bilibili API returned no downloadable media formats")
+
+    title = page["title"]
+    if page["page_count"] > 1 and page["part"]:
+        title = f"{title} - P{page['page']} {page['part']}"
+    content_id = page["bvid"]
+    if page["page_count"] > 1:
+        content_id = f"{content_id}_p{page['page']}"
+    return {
+        "extractor_key": "Bilibili",
+        "id": content_id,
+        "title": title,
+        "channel": page["creator"],
+        "channel_id": page["creator_id"],
+        "webpage_url": final_url,
+        "upload_date": page["upload_date"],
+        "thumbnail": page["thumbnail"],
+        "http_headers": headers,
+        "formats": formats,
+    }
+
+
+def _xiaohongshu_note_state(html):
+    state = _initial_state(
+        html,
+        "window.__INITIAL_STATE__=",
+        replace_undefined=True,
+    )
+    current = ((state.get("noteData") or {}).get("data") or {}).get("noteData")
+    if current:
+        return current
+    detail_map = (state.get("note") or {}).get("noteDetailMap") or {}
+    for value in detail_map.values():
+        note = (value or {}).get("note") or value
+        if isinstance(note, dict) and note:
+            return note
+    raise ValueError("Xiaohongshu initial state missing note data")
+
+
+def _xiaohongshu_info(url, cookie_header=""):
+    html, final_url = _fetch(url, cookie_header)
+    note = _xiaohongshu_note_state(html)
+    stream_root = (((note.get("video") or {}).get("media") or {}).get("stream") or {})
+    streams = list(stream_root.get("h264") or [])
+    if not streams:
+        streams = list(stream_root.get("h265") or [])
+    if str(note.get("type") or "").lower() not in {"video", "normal"} or not streams:
+        raise ValueError("Xiaohongshu image-only note: no video formats")
+
+    headers = _request_headers(final_url, cookie_header)
+    formats = []
+    for index, item in enumerate(streams):
+        media_url = item.get("masterUrl") or item.get("master_url")
+        if not media_url:
+            continue
+        if media_url.startswith("http://"):
+            media_url = "https://" + media_url[len("http://"):]
+        average_bitrate = item.get("avgBitrate") or item.get("videoBitrate") or 0
+        formats.append(
+            {
+                "format_id": f"xhs-{item.get('qualityType') or index}",
+                "url": media_url,
+                "ext": "mp4",
+                "width": item.get("width"),
+                "height": item.get("height"),
+                "tbr": average_bitrate / 1000 if average_bitrate > 10_000 else average_bitrate,
+                "vcodec": item.get("videoCodec") or "avc1",
+                "acodec": item.get("audioCodec") or "mp4a",
+                "filesize": item.get("size"),
+                "http_headers": headers,
+            }
+        )
+    if not formats:
+        raise ValueError("Xiaohongshu note data contains no downloadable video URL")
+
+    user = note.get("user") or {}
+    image_list = note.get("imageList") or note.get("image_list") or []
+    thumbnail = str((image_list[0] if image_list else {}).get("url") or "")
+    return {
+        "extractor_key": "Xiaohongshu",
+        "id": str(note.get("noteId") or note.get("note_id") or ""),
+        "title": str(note.get("title") or note.get("desc") or "未知标题"),
+        "uploader": str(user.get("nickName") or user.get("nickname") or "未知作者"),
+        "uploader_id": str(user.get("userId") or user.get("user_id") or ""),
+        "webpage_url": final_url,
+        "upload_date": _upload_date(note.get("time")),
+        "thumbnail": thumbnail,
+        "http_headers": headers,
+        "formats": formats,
+    }
+
+
 def _platform_name(info):
     extractor = str(info.get("extractor_key") or info.get("extractor") or "").lower()
     if "tiktok" in extractor:
         return "tiktok"
     if "youtube" in extractor:
         return "youtube"
+    if "bilibili" in extractor:
+        return "bilibili"
+    if "xiaohongshu" in extractor or "rednote" in extractor:
+        return "xiaohongshu"
     return extractor or "unknown"
 
 
@@ -153,6 +458,16 @@ def _source_result(info):
 
 
 def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> str:
+    url = _resolve_known_short_link(url, cookie_header)
+    host = urlsplit(url).netloc.lower().split(":", 1)[0]
+    if (
+        _host_matches(host, "bilibili.com")
+        or _host_matches(host, "xiaohongshu.com")
+        or _host_matches(host, "rednote.com")
+    ):
+        if host == "space.bilibili.com":
+            raise ValueError("bilibili creator batch is not supported")
+        return json.dumps({"kind": "single", "url": url}, ensure_ascii=False)
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -180,6 +495,8 @@ def _expected_creator_hint(url):
         return _normalized_handle(playlist_id)
 
     parts = [part for part in parsed.path.split("/") if part]
+    if parsed.netloc.lower().endswith("space.bilibili.com") and parts and parts[0].isdigit():
+        return _normalized_handle(parts[0])
     for marker in ("channel", "user", "c"):
         if marker in parts:
             index = parts.index(marker)
@@ -372,17 +689,17 @@ def extract_creator(
         raise ValueError("作者、频道或播放列表没有返回可读取作品")
     info = dict(info)
     info["_collection_url"] = normalized_url
-    return json.dumps(
-        _creator_page_result(
-            info,
-            expected_handle,
-            start,
-            page_size,
-            strict_owner=strict_owner,
-            allow_inherited_owner=allow_inherited_owner,
-        ),
-        ensure_ascii=False,
+    result = _creator_page_result(
+        info,
+        expected_handle,
+        start,
+        page_size,
+        strict_owner=strict_owner,
+        allow_inherited_owner=allow_inherited_owner,
     )
+    if start == 1 and not result["entries"]:
+        raise ValueError("作者、频道或播放列表没有返回可验证的作品")
+    return json.dumps(result, ensure_ascii=False)
 
 
 def extract_single(
@@ -391,6 +708,21 @@ def extract_single(
     cookie_header: str = "",
     cookie_file: str = "",
 ) -> str:
+    url = _resolve_known_short_link(url, cookie_header)
+    host = urlsplit(url).netloc.lower().split(":", 1)[0]
+    if _host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"):
+        info = _xiaohongshu_info(url, cookie_header)
+        return json.dumps(
+            _media_result(info, cookie_header=cookie_header, resolution=resolution),
+            ensure_ascii=False,
+        )
+    if _host_matches(host, "bilibili.com") and urlsplit(url).path.lower().startswith("/video/"):
+        info = _bilibili_fallback_info(url, cookie_header)
+        return json.dumps(
+            _media_result(info, cookie_header=cookie_header, resolution=resolution),
+            ensure_ascii=False,
+        )
+
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -400,20 +732,28 @@ def extract_single(
         "retries": 1,
     }
     options = _with_session_access(options, cookie_header, cookie_file)
-    with YoutubeDL(options) as ydl:
-        info = ydl.extract_info(url, download=False)
-        chosen_video, _ = _select_streams(info.get("formats") or [], resolution)
-        extracted_cookie_header = (
-            ydl.cookiejar.get_cookie_header(chosen_video["url"])
-            if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
-            else ""
-        )
-
-    return json.dumps(
-        _media_result(
+    try:
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=False)
+            chosen_video, _ = _select_streams(info.get("formats") or [], resolution)
+            extracted_cookie_header = (
+                ydl.cookiejar.get_cookie_header(chosen_video["url"])
+                if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
+                else ""
+            )
+        result = _media_result(
             info,
             cookie_header=extracted_cookie_header or cookie_header,
             resolution=resolution,
-        ),
-        ensure_ascii=False,
-    )
+        )
+    except Exception:
+        if not _host_matches(host, "bilibili.com"):
+            raise
+        info = _bilibili_fallback_info(url, cookie_header)
+        result = _media_result(
+            info,
+            cookie_header=cookie_header,
+            resolution=resolution,
+        )
+
+    return json.dumps(result, ensure_ascii=False)

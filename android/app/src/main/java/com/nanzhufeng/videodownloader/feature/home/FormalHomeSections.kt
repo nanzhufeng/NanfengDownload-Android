@@ -1122,7 +1122,7 @@ private fun ReadEntryCard(
                         style = MaterialTheme.typography.labelSmall,
                     )
                 },
-                placeholder = { Text("支持抖音、YouTube、TikTok 链接或分享文本") },
+                placeholder = { Text("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本") },
             )
             Row(
                 modifier = Modifier

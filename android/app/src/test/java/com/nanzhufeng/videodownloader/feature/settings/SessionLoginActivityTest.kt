@@ -61,4 +61,38 @@ class SessionLoginActivityTest {
         assertTrue(SessionSite.DOUYIN.loginUrl.contains("service=https%3A%2F%2Fwww.douyin.com%2F"))
         assertFalse(SessionSite.DOUYIN.loginUrl.contains("www.douyin.com%2Flogin"))
     }
+
+    @Test
+    fun bilibiliFinishesOnlyAfterAuthenticatedCookieLeavesPassportPage() {
+        assertFalse(
+            shouldFinishLoginAfterNavigation(
+                site = SessionSite.BILIBILI,
+                currentUrl = "https://passport.bilibili.com/h5-app/passport/login",
+                cookieHeaders = listOf("SESSDATA=account"),
+                hadAuthenticatedSessionAtStart = false,
+            ),
+        )
+        assertTrue(
+            shouldFinishLoginAfterNavigation(
+                site = SessionSite.BILIBILI,
+                currentUrl = "https://www.bilibili.com/",
+                cookieHeaders = listOf("SESSDATA=account"),
+                hadAuthenticatedSessionAtStart = false,
+            ),
+        )
+    }
+
+    @Test
+    fun xiaohongshuAnonymousCookieDoesNotReportLoginSuccess() {
+        assertTrue(SessionSite.XIAOHONGSHU.loginUrl.endsWith("/explore"))
+        assertFalse(SessionSite.XIAOHONGSHU.loginUrl.endsWith("/login"))
+        assertFalse(
+            shouldFinishLoginAfterNavigation(
+                site = SessionSite.XIAOHONGSHU,
+                currentUrl = "https://www.xiaohongshu.com/explore",
+                cookieHeaders = listOf("a1=anonymous"),
+                hadAuthenticatedSessionAtStart = false,
+            ),
+        )
+    }
 }

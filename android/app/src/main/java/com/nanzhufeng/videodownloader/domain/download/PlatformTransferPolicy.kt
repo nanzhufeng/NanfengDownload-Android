@@ -20,6 +20,16 @@ object PlatformTransferPolicy {
             maxConnections = 3,
             segmentedThresholdBytes = 16L * 1024L * 1024L,
         )
+        DownloadPlatform.BILIBILI -> TransferPolicy(
+            platform = platform.name,
+            maxConnections = 4,
+            segmentedThresholdBytes = 8L * 1024L * 1024L,
+        )
+        DownloadPlatform.XIAOHONGSHU -> TransferPolicy(
+            platform = platform.name,
+            maxConnections = 3,
+            segmentedThresholdBytes = 8L * 1024L * 1024L,
+        )
     }
 
     fun forAudio(platform: DownloadPlatform): TransferPolicy = when (platform) {

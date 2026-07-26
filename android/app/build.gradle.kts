@@ -42,8 +42,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10000
-        versionName = "1.0.0"
+        versionCode = 10100
+        versionName = "1.1.0"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -107,7 +107,7 @@ android.applicationVariants.all {
     outputs.all {
         if (buildType.name == "release") {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName =
-                "南枫下载-Android-v1.0.0.apk"
+                "南枫下载-Android-v1.1.0.apk"
         } else {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
         }
@@ -133,9 +133,9 @@ tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.con
 
 tasks.register<Copy>("stageFormalReleaseArtifacts") {
     dependsOn("assembleRelease", "bundleRelease")
-    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.0.0.apk"))
+    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.1.0.apk"))
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab")) {
-        rename { "南枫下载-Android-v1.0.0.aab" }
+        rename { "南枫下载-Android-v1.1.0.aab" }
     }
     into(layout.buildDirectory.dir("outputs/formal-release"))
 }

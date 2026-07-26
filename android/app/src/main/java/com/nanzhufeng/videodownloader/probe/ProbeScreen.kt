@@ -62,7 +62,7 @@ fun ProbeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("probe-input"),
-                label = { Text("抖音、YouTube 或 TikTok 分享文本") },
+                label = { Text("五个平台的视频链接或分享文本") },
                 minLines = 3,
                 maxLines = 6,
             )

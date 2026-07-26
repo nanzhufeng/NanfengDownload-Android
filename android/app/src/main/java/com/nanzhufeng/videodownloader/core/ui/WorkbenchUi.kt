@@ -116,6 +116,18 @@ fun PlatformIcon(
             contentDescription = contentDescription,
             modifier = modifier,
         )
+        PlatformIconTreatment.BILIBILI_BLUE -> PlatformImage(
+            resource = R.drawable.platform_bilibili,
+            tint = Color(0xFF00AEEC),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
+        PlatformIconTreatment.XIAOHONGSHU_RED -> PlatformImage(
+            resource = R.drawable.platform_xiaohongshu,
+            tint = Color(0xFFFF2442),
+            contentDescription = contentDescription,
+            modifier = modifier,
+        )
     }
 }
 
@@ -123,12 +135,16 @@ internal enum class PlatformIconTreatment {
     YOUTUBE_RED,
     DOUYIN_LAYERED,
     TIKTOK_MONOCHROME,
+    BILIBILI_BLUE,
+    XIAOHONGSHU_RED,
 }
 
 internal fun DownloadPlatform.iconTreatment(): PlatformIconTreatment = when (this) {
     DownloadPlatform.YOUTUBE -> PlatformIconTreatment.YOUTUBE_RED
     DownloadPlatform.DOUYIN -> PlatformIconTreatment.DOUYIN_LAYERED
     DownloadPlatform.TIKTOK -> PlatformIconTreatment.TIKTOK_MONOCHROME
+    DownloadPlatform.BILIBILI -> PlatformIconTreatment.BILIBILI_BLUE
+    DownloadPlatform.XIAOHONGSHU -> PlatformIconTreatment.XIAOHONGSHU_RED
 }
 
 @Composable

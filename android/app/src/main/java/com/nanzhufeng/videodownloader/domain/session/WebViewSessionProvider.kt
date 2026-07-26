@@ -68,6 +68,8 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
                 listOf(
                     SessionSite.DOUYIN to ".douyin.com",
                     SessionSite.TIKTOK to ".tiktok.com",
+                    SessionSite.BILIBILI to ".bilibili.com",
+                    SessionSite.XIAOHONGSHU to ".xiaohongshu.com",
                 ).forEach { (site, domain) ->
                     cookieManager.getCookie(site.cookieProbeUrl)
                         .orEmpty()
@@ -134,6 +136,7 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
                 site == SessionSite.YOUTUBE && saved -> "cookies.txt 已导入"
                 authenticated -> "已检测到登录 Cookie，使用时仍会验证"
                 saved -> "已保存网页会话，尚未确认登录"
+                site == SessionSite.XIAOHONGSHU -> "公开单视频无需登录"
                 else -> "未保存登录会话"
             },
             isAuthenticated = authenticated,

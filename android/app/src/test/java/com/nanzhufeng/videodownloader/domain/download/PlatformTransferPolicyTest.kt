@@ -26,4 +26,15 @@ class PlatformTransferPolicyTest {
         assertEquals(3, douyin.maxConnections)
         assertTrue(douyin.segmentedThresholdBytes > youtube.segmentedThresholdBytes)
     }
+
+    @Test
+    fun bilibiliAndXiaohongshuUsePlatformAwareRangePlans() {
+        val bilibili = PlatformTransferPolicy.forPlatform(DownloadPlatform.BILIBILI)
+        val xiaohongshu = PlatformTransferPolicy.forPlatform(DownloadPlatform.XIAOHONGSHU)
+
+        assertEquals(4, bilibili.maxConnections)
+        assertEquals(3, xiaohongshu.maxConnections)
+        assertEquals(8L * 1024L * 1024L, bilibili.segmentedThresholdBytes)
+        assertEquals(8L * 1024L * 1024L, xiaohongshu.segmentedThresholdBytes)
+    }
 }

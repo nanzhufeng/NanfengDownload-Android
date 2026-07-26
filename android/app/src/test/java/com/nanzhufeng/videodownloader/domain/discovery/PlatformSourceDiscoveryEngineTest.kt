@@ -48,6 +48,17 @@ class PlatformSourceDiscoveryEngineTest {
     }
 
     @Test
+    fun bilibiliAndXiaohongshuSingleVideosMapToDistinctPlatforms() = runBlocking {
+        val bilibili = PlatformSourceDiscoveryEngine(FakeGateway())
+            .read("https://www.bilibili.com/video/BV1bK411W797") as DiscoveryResult.Single
+        val xiaohongshu = PlatformSourceDiscoveryEngine(FakeGateway())
+            .read("https://www.rednote.com/explore/69ce30d3000000002100791c") as DiscoveryResult.Single
+
+        assertEquals(DownloadPlatform.BILIBILI, bilibili.item.platform)
+        assertEquals(DownloadPlatform.XIAOHONGSHU, xiaohongshu.item.platform)
+    }
+
+    @Test
     fun cancellationInterruptsBlockingGateway() = runBlocking {
         val startedAt = System.nanoTime()
 
@@ -133,6 +144,9 @@ private class FakeGateway : ProbeDiscoveryGateway {
     override fun classify(input: String): ClassifiedSource = when {
         "tiktok.com" in input -> ClassifiedSource(Platform.TIKTOK, SourceKind.CHANNEL_OR_PLAYLIST, input)
         "douyin.com" in input -> ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, input)
+        "bilibili.com" in input -> ClassifiedSource(Platform.BILIBILI, SourceKind.SINGLE_VIDEO, input)
+        "rednote.com" in input || "xiaohongshu.com" in input ->
+            ClassifiedSource(Platform.XIAOHONGSHU, SourceKind.SINGLE_VIDEO, input)
         else -> ClassifiedSource(Platform.YOUTUBE, SourceKind.SINGLE_VIDEO, input)
     }
 
@@ -140,7 +154,12 @@ private class FakeGateway : ProbeDiscoveryGateway {
         ResolvedSource(SourceKind.SINGLE_VIDEO, "https://www.douyin.com/video/one")
 
     override fun extractSingle(url: String): YtDlpMediaInfo = YtDlpMediaInfo(
-        platform = if ("douyin" in url) "douyin" else "youtube",
+        platform = when {
+            "douyin" in url -> "douyin"
+            "bilibili" in url -> "bilibili"
+            "rednote" in url || "xiaohongshu" in url -> "xiaohongshu"
+            else -> "youtube"
+        },
         id = "one",
         title = "Single title",
         creator = "creator",

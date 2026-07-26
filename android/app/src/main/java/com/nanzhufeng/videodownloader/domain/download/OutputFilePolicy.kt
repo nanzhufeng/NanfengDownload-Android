@@ -16,6 +16,8 @@ class OutputFilePolicy {
             DownloadPlatform.DOUYIN -> "抖音"
             DownloadPlatform.YOUTUBE -> "YouTube"
             DownloadPlatform.TIKTOK -> "TikTok"
+            DownloadPlatform.BILIBILI -> "哔哩哔哩"
+            DownloadPlatform.XIAOHONGSHU -> "小红书"
         }
         val creator = sanitize(media.creator.ifBlank { "未知作者" })
         val title = sanitize(media.title.ifBlank { "未知标题" })

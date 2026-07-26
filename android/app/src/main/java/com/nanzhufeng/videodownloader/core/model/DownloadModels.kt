@@ -4,8 +4,10 @@ import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 
 enum class DownloadPlatform {
     YOUTUBE,
+    BILIBILI,
     DOUYIN,
     TIKTOK,
+    XIAOHONGSHU,
 }
 
 enum class DownloadSourceKind {

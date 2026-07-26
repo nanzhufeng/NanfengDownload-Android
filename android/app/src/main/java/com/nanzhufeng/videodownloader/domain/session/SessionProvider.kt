@@ -34,6 +34,20 @@ enum class SessionSite(
         listOf("https://www.youtube.com/"),
         emptySet(),
     ),
+    BILIBILI(
+        "哔哩哔哩",
+        "https://passport.bilibili.com/h5-app/passport/login",
+        "https://www.bilibili.com/",
+        ".bilibili.com",
+        listOf(
+            "https://www.bilibili.com/",
+            "https://api.bilibili.com/",
+            "https://passport.bilibili.com/",
+            "https://space.bilibili.com/",
+            "https://b23.tv/",
+        ),
+        setOf("sessdata"),
+    ),
     TIKTOK(
         "TikTok",
         "https://www.tiktok.com/login",
@@ -46,6 +60,19 @@ enum class SessionSite(
         ),
         setOf("sessionid", "sessionid_ss", "sid_guard", "sid_tt", "uid_tt", "uid_tt_ss"),
     ),
+    XIAOHONGSHU(
+        "小红书",
+        "https://www.xiaohongshu.com/explore",
+        "https://www.xiaohongshu.com/explore",
+        ".xiaohongshu.com",
+        listOf(
+            "https://www.xiaohongshu.com/",
+            "https://edith.xiaohongshu.com/",
+            "https://www.rednote.com/",
+            "https://xhslink.com/",
+        ),
+        setOf("web_session"),
+    ),
     ;
 
     companion object {
@@ -55,6 +82,10 @@ enum class SessionSite(
                 host.matchesDomain("douyin.com") -> DOUYIN
                 host.matchesDomain("youtube.com") || host.matchesDomain("youtu.be") -> YOUTUBE
                 host.matchesDomain("tiktok.com") -> TIKTOK
+                host.matchesDomain("bilibili.com") || host.matchesDomain("b23.tv") -> BILIBILI
+                host.matchesDomain("xiaohongshu.com") ||
+                    host.matchesDomain("rednote.com") ||
+                    host.matchesDomain("xhslink.com") -> XIAOHONGSHU
                 else -> null
             }
         }
@@ -134,6 +165,8 @@ class SessionAccessPolicy(
     fun accessFor(url: String): SessionAccess = when (SessionSite.fromUrl(url)) {
         SessionSite.DOUYIN -> SessionAccess(cookieHeader = cookieLookup(SessionSite.DOUYIN, url))
         SessionSite.TIKTOK -> SessionAccess(cookieHeader = cookieLookup(SessionSite.TIKTOK, url))
+        SessionSite.BILIBILI -> SessionAccess(cookieHeader = cookieLookup(SessionSite.BILIBILI, url))
+        SessionSite.XIAOHONGSHU -> SessionAccess(cookieHeader = cookieLookup(SessionSite.XIAOHONGSHU, url))
         SessionSite.YOUTUBE -> SessionAccess(cookieFilePath = youtubeCookieFile())
         null -> SessionAccess()
     }

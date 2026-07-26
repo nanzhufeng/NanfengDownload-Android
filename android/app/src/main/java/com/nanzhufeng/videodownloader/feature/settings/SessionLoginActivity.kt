@@ -184,6 +184,10 @@ internal fun shouldFinishLoginAfterNavigation(
     return when (site) {
         SessionSite.DOUYIN -> !currentUrl.contains("/login_page")
         SessionSite.TIKTOK -> !currentUrl.contains("/login")
+        SessionSite.BILIBILI ->
+            !currentUrl.contains("passport.bilibili.com") &&
+                !currentUrl.contains("/login")
+        SessionSite.XIAOHONGSHU -> !currentUrl.contains("/login")
         SessionSite.YOUTUBE -> false
     }
 }

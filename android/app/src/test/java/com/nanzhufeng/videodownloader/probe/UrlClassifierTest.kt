@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.probe
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UrlClassifierTest {
@@ -67,6 +68,58 @@ class UrlClassifierTest {
 
         assertEquals(Platform.TIKTOK, source.platform)
         assertEquals(SourceKind.UNKNOWN_TIKTOK_SHARE, source.kind)
+    }
+
+    @Test
+    fun bilibiliVideoIsClassifiedAndCreatorHasHonestBoundary() {
+        val video = UrlClassifier.extractAndClassify("https://www.bilibili.com/video/BV1bK411W797")
+
+        assertEquals(Platform.BILIBILI, video.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, video.kind)
+        val error = assertThrows(IllegalArgumentException::class.java) {
+            UrlClassifier.extractAndClassify("https://space.bilibili.com/12345/video")
+        }
+        assertTrue(error.message.orEmpty().contains("暂不支持从 UP 主页批量读取"))
+    }
+
+    @Test
+    fun bilibiliShortLinkDefersNetworkClassification() {
+        val source = UrlClassifier.extractAndClassify("https://b23.tv/AbCd123")
+
+        assertEquals(Platform.BILIBILI, source.platform)
+        assertEquals(SourceKind.UNKNOWN_BILIBILI_SHARE, source.kind)
+    }
+
+    @Test
+    fun xiaohongshuAndRednoteVideoRoutesAreClassified() {
+        val xiaohongshu = UrlClassifier.extractAndClassify(
+            "https://www.xiaohongshu.com/explore/69ce30d3000000002100791c?xsec_token=fresh",
+        )
+        val rednote = UrlClassifier.extractAndClassify(
+            "https://www.rednote.com/explore/69ce30d3000000002100791c?xsec_token=fresh",
+        )
+
+        assertEquals(Platform.XIAOHONGSHU, xiaohongshu.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, xiaohongshu.kind)
+        assertEquals(Platform.XIAOHONGSHU, rednote.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, rednote.kind)
+    }
+
+    @Test
+    fun xiaohongshuShortLinkDefersNetworkClassification() {
+        val source = UrlClassifier.extractAndClassify("https://xhslink.com/a/AbCd123")
+
+        assertEquals(Platform.XIAOHONGSHU, source.platform)
+        assertEquals(SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, source.kind)
+    }
+
+    @Test
+    fun platformNameInForeignHostDoesNotBypassHostValidation() {
+        assertThrows(IllegalArgumentException::class.java) {
+            UrlClassifier.extractAndClassify(
+                "https://example.test/redirect?next=https://www.bilibili.com/video/BV1bK411W797",
+            )
+        }
     }
 
     @Test

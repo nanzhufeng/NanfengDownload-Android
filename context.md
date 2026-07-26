@@ -1,6 +1,6 @@
 # 南枫下载 Android 项目 Context
 
-更新时间：2026-07-21（Asia/Shanghai）
+更新时间：2026-07-26（Asia/Shanghai）
 
 > 本文件是当前 Android 项目的快速事实入口，供开发者和后续 Codex 任务使用。当前代码与最新真实验证证据高于本文；详细里程碑与真机记录见 `PROJECT_HANDOFF.md`。
 
@@ -13,26 +13,26 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 以 GitHub 标签 `v1.0.0` 指向的提交为正式版本事实 |
-| Git 状态 | 正式发布改动只涉及 Android 版本、最低系统、签名构建、产物命名、契约测试和发布文档 |
+| 当前代码 checkpoint | 当前分支包含 `v1.1.0` 哔哩哔哩与小红书扩展及 OPPO 验收证据；GitHub `v1.0.0` 仍是最新公开发布 |
+| Git 状态 | `v1.1.0` 双平台扩展按本文件与 verification 记录建立本地 checkpoint，不代表已推送 GitHub |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.0.0` / `versionCode 10000` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.0.0.apk` 与同名 `.aab` |
-| 发布状态 | GitHub 正式 Release；独立长期签名，APK/AAB 与 SHA-256 校验文件齐全 |
+| 当前版本 | `1.1.0` / `versionCode 10100` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.1.0.apk` 与同名 `.aab` |
+| 发布状态 | `v1.1.0` 已完成本地正式构建与 OPPO 验收；GitHub 最新公开正式版仍为 `v1.0.0` |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
 
 ## 2. 产品核心、边界与数据安全
 
-第一用户任务：用户粘贴或分享 YouTube、抖音、TikTok 的公开单视频/直播回放链接，App 完成读取、去重、入队、下载、必要的音视频合并或 MP3 转码、系统媒体库发布，并在下载列表与历史中提供真实状态、中文错误和吞吐报告。
+第一用户任务：用户粘贴或分享 YouTube、抖音、TikTok、哔哩哔哩和小红书的公开单视频/直播回放链接，App 完成读取、去重、入队、下载、必要的音视频合并或 MP3 转码、系统媒体库发布，并在下载列表与历史中提供真实状态、中文错误和吞吐报告。
 
 核心成功标准：
 
 1. 公开单视频尽量无需登录即可读取和下载；受限、批量或平台要求时再使用 WebView 会话/Cookie。
 2. 等待、下载、失败、取消、重复跳过和完成状态不能互相伪装；未完成任务必须留在下载列表中。
 3. 视频写入系统 `Movies`，MP3 写入系统 `Music`，历史记录和吞吐报告可在 App 重启后继续读取。
-4. YouTube、抖音、TikTok 必须以真实公开内容走完“读取 → 入队 → 下载 → MediaStore 成品 → 历史”链路；只打开页面或解析成功不算完成。
+4. 每个声明支持的平台必须以真实公开内容走完“读取 → 入队 → 下载 → MediaStore 成品 → 历史”链路；只打开页面或解析成功不算完成。
 5. 不绕过会员、付费、DRM 或私密内容；不在项目中保存账号密码、Cookie、Token 或签名密钥。
 
 ## 3. 技术栈
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/apk/debug/南枫下载.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.1.0.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,18 +192,19 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-`v1.0.0` 正式回归以最终 Release APK/AAB 为对象，设备验证只使用专用模拟器 `emulator-5580`，未替换 OPPO 上不同签名的 Debug 版：
+当前 `v1.1.0` 哔哩哔哩与小红书扩展以最终 Release APK/AAB 为对象：
 
-- `:app:testDebugUnitTest`：127 项，0 失败、0 错误、0 跳过。
-- `:app:testReleaseUnitTest`：127 项，0 失败、0 错误、0 跳过。
+- Python 解析测试：17 项，0 失败。
+- `:app:testDebugUnitTest`：140 项，0 失败、0 错误、0 跳过。
+- `:app:testReleaseUnitTest`：140 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
-- 正式门禁共 117 个任务全部实际执行，`BUILD SUCCESSFUL in 2m 31s`。
+- 专用模拟器 `emulator-5554` 仪器测试：58 项，0 失败；外部 TikTok 条件按既有规则跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：91,291,547 B，SHA-256 `460a310aa8bfa50ae5cbc4683682c858b0dbc040659bc9300925874a8b88cbca`。
-- Release AAB：38,245,189 B，SHA-256 `70f62007511626186330856765edebb30d269a1d5b0e1578234ad90613b4bab3`；Google bundletool 1.16.0 验证通过。
-- APK 为 `1.0.0 / 10000`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，APK 与 AAB 均使用同一正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- Release APK：91,327,503 B，SHA-256 `8f03cb499aa0db94394bcd8e23070cab163a80520343a1dbfa8062331b37f47a`。
+- Release AAB：38,262,440 B，SHA-256 `fafcd2f2f50cabed3241fecc5256e98434269c0b3c583884087fb6b7158aaea7`。
+- APK 为 `1.1.0 / 10100`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 在专用模拟器冷启动成功；从模拟器拉回的 `base.apk` 与本地 APK 哈希一致。
-- 本轮没有重跑 YouTube、抖音、TikTok 真实网络下载；三平台成品、MediaStore 读回和吞吐报告仍引用 `PROJECT_HANDOFF.md` 既有 OPPO 里程碑，不冒充正式签名版新证据。
+- 哔哩哔哩与小红书均在模拟器及 OPPO 完成真实网络成品闭环；OPPO 上的系统媒体库文件、历史、吞吐报告、重复去重和重启持久性均已验证。
 
 已确认的最新里程碑证据来自 `PROJECT_HANDOFF.md`：
 
@@ -218,9 +219,9 @@ adb -s <OPPO序列号> shell \
 ## 8. 已知风险与下一步
 
 1. 正式签名密钥只保存在仓库外的本机安全目录，密码在 macOS 钥匙串；仍应建立用户控制的异地加密备份，密钥丢失将导致后续正式版无法覆盖升级。
-2. OPPO 当前安装的是旧 Debug 签名版，不能无损覆盖为 `v1.0.0`；本轮未卸载、未清数据。正式版 OPPO 全链路需在用户明确接受数据迁移方案后另行验收。
+2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；2026-07-26 又以同一正式证书无损覆盖到 `v1.1.0`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
 3. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
-4. 作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
+4. 哔哩哔哩 UP 主页批量接口当前返回 412，`v1.1.0` 只支持单视频；其他作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
 5. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮 Release 构建通过，后续仍应升级 AGP 或重新确认兼容矩阵。
 6. CMake 配置阶段提示 Android SDK XML v4 与当前原生工具只理解到 v3；本轮双 ABI Release 构建成功，但 SDK command-line tools 与 Android Studio/NDK 版本仍需对齐。
 7. 正式 APK/AAB 本轮只冻结一次最终哈希；任何重新打包都会使当前校验值失效，必须重新验证并更新 Release。
@@ -233,6 +234,7 @@ adb -s <OPPO序列号> shell \
 4. 对应 `docs/superpowers/specs/`：仅在相关功能或 UI 任务中读取已确认规格。
 5. `design-qa.md`：仅在视觉回归、折叠屏或截图验收时读取。
 6. `docs/verification/2026-07-21-android-v1.0.0-release.md`：正式签名、Release APK/AAB、哈希和模拟器安装证据。
+7. `docs/verification/2026-07-26-android-v1.1.0-bilibili-xiaohongshu.md`：两个新增平台的边界、模拟器与 OPPO 真实网络闭环、正式产物及持久化证据。
 
 禁止把旧桌面 README、早期设计拼图、历史计划或单次构建输出当成当前 Android 项目的唯一真相源。
 

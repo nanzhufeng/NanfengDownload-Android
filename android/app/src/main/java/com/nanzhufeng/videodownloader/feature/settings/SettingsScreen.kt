@@ -173,8 +173,10 @@ fun SettingsScreen(
             ?: SiteSessionState(site, false, "未保存登录会话")
     }
     val youtube = stateFor(SessionSite.YOUTUBE)
+    val bilibili = stateFor(SessionSite.BILIBILI)
     val douyin = stateFor(SessionSite.DOUYIN)
     val tiktok = stateFor(SessionSite.TIKTOK)
+    val xiaohongshu = stateFor(SessionSite.XIAOHONGSHU)
     val settingsContent = listOf(
         SettingsContent(key = "account") {
             SettingsCard(
@@ -190,12 +192,22 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 HorizontalDivider()
-                SessionRow(
-                    state = youtube,
-                    modifier = Modifier.testTag("settings-youtube"),
-                    onOpen = { cookiePicker.launch(arrayOf("text/plain", "application/octet-stream")) },
-                    onClear = { onClearSession(SessionSite.YOUTUBE) },
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("长视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    SessionRow(
+                        state = youtube,
+                        modifier = Modifier.testTag("settings-youtube"),
+                        onOpen = { cookiePicker.launch(arrayOf("text/plain", "application/octet-stream")) },
+                        onClear = { onClearSession(SessionSite.YOUTUBE) },
+                    )
+                    HorizontalDivider()
+                    SessionRow(
+                        state = bilibili,
+                        modifier = Modifier.testTag("settings-bilibili"),
+                        onOpen = { onOpenLogin(SessionSite.BILIBILI) },
+                        onClear = { onClearSession(SessionSite.BILIBILI) },
+                    )
+                }
                 HorizontalDivider()
                 Column(
                     modifier = Modifier.testTag("settings-short-video-platforms"),
@@ -214,6 +226,13 @@ fun SettingsScreen(
                         modifier = Modifier.testTag("settings-tiktok"),
                         onOpen = { onOpenLogin(SessionSite.TIKTOK) },
                         onClear = { onClearSession(SessionSite.TIKTOK) },
+                    )
+                    HorizontalDivider()
+                    SessionRow(
+                        state = xiaohongshu,
+                        modifier = Modifier.testTag("settings-xiaohongshu"),
+                        onOpen = { onOpenLogin(SessionSite.XIAOHONGSHU) },
+                        onClear = { onClearSession(SessionSite.XIAOHONGSHU) },
                     )
                 }
             }
@@ -446,12 +465,14 @@ private fun SessionRow(
         }
         Button(
             onClick = onOpen,
+            enabled = state.site != SessionSite.XIAOHONGSHU,
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
             modifier = Modifier.width(78.dp).height(34.dp),
         ) {
             Text(
                 when (state.site) {
                     SessionSite.YOUTUBE -> if (state.hasSavedSession) "重新导入" else "导入"
+                    SessionSite.XIAOHONGSHU -> "无需登录"
                     else -> when {
                         !state.hasSavedSession -> "登录"
                         state.isAuthenticated -> "重新登录"
@@ -468,6 +489,8 @@ private fun SessionSite.platform(): DownloadPlatform = when (this) {
     SessionSite.YOUTUBE -> DownloadPlatform.YOUTUBE
     SessionSite.DOUYIN -> DownloadPlatform.DOUYIN
     SessionSite.TIKTOK -> DownloadPlatform.TIKTOK
+    SessionSite.BILIBILI -> DownloadPlatform.BILIBILI
+    SessionSite.XIAOHONGSHU -> DownloadPlatform.XIAOHONGSHU
 }
 
 @Composable

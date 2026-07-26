@@ -77,7 +77,7 @@ class HomeLayoutResourceTest {
             .substringBefore("private fun Thumbnail(")
 
         assertTrue(readEntry.contains("placeholder ="))
-        assertTrue(readEntry.contains("支持抖音、YouTube、TikTok 链接或分享文本"))
+        assertTrue(readEntry.contains("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本"))
         assertTrue(readEntry.contains("!notice.startsWith(\"已加入\")"))
         assertTrue("字符数必须放在输入框内部", readEntry.contains("trailingIcon ="))
         assertTrue(readEntry.contains("input.length"))

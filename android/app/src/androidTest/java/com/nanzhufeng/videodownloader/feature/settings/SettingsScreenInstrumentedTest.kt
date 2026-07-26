@@ -20,20 +20,24 @@ class SettingsScreenInstrumentedTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun accounts_putYoutubeBeforeGroupedShortVideoPlatforms() {
+    fun accounts_groupLongAndShortVideoPlatformsInStableOrder() {
         composeRule.setContent {
             SettingsScreen(settings(), sessions(), {}, {}, {}, {}, {}, expanded = false)
         }
 
         val youtube = composeRule.onNodeWithTag("settings-youtube").assertIsDisplayed()
+        val bilibili = composeRule.onNodeWithTag("settings-bilibili").assertIsDisplayed()
         val shortVideoPlatforms = composeRule.onNodeWithTag("settings-short-video-platforms").assertIsDisplayed()
         composeRule.onNodeWithTag("settings-douyin").assertIsDisplayed()
         composeRule.onNodeWithTag("settings-tiktok").assertIsDisplayed()
+        composeRule.onNodeWithTag("settings-xiaohongshu").assertIsDisplayed()
+        composeRule.onNodeWithText("无需登录").assertIsDisplayed()
         composeRule.onNodeWithText("默认规则用于之后新加入的任务，登录会话保存在本机。").assertDoesNotExist()
 
         assertTrue(
-            "YouTube must appear before the grouped short-video platforms",
-            youtube.getBoundsInRoot().top < shortVideoPlatforms.getBoundsInRoot().top,
+            "Long-video platforms must appear before the grouped short-video platforms",
+            youtube.getBoundsInRoot().top < bilibili.getBoundsInRoot().top &&
+                bilibili.getBoundsInRoot().top < shortVideoPlatforms.getBoundsInRoot().top,
         )
     }
 
@@ -73,13 +77,13 @@ class SettingsScreenInstrumentedTest {
         val screenHeight = screenBounds.run { bottom - top }
         val accountCardHeight = accountCardBounds.run { bottom - top }
         assertTrue(
-            "The account card must not occupy more than 29% of the outer screen " +
+            "The five-platform account card must not occupy more than 42% of the outer screen " +
                 "(account=$accountCardHeight, screen=$screenHeight, ratio=${accountCardHeight / screenHeight})",
-            accountCardHeight <= screenHeight * 0.29f,
+            accountCardHeight <= screenHeight * 0.42f,
         )
         assertTrue(
-            "The compact quality card must begin in the first 45% of the outer screen",
-            qualityCardBounds.top <= (screenBounds.bottom - screenBounds.top) * 0.45f,
+            "The compact quality card must remain reachable in the first 58% of the outer screen",
+            qualityCardBounds.top <= (screenBounds.bottom - screenBounds.top) * 0.58f,
         )
         val qualityCardHeight = qualityCardBounds.run { bottom - top }
         assertTrue(
