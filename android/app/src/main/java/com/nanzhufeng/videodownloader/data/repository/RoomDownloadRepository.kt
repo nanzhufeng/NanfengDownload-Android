@@ -115,32 +115,22 @@ class RoomDownloadRepository(
     }
 
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) {
-        database.withTransaction {
-            val now = clock()
-            check(taskDao.updateResolution(taskId, resolution.name, now) == 1) {
-                "找不到下载任务：$taskId"
-            }
-            if (resolution != ResolutionPreset.AUDIO_MP3) {
-                check(taskDao.updateAudioSegmentCount(taskId, 1, now) == 1) {
-                    "重置音频分段数量失败：$taskId"
-                }
-            }
+        val now = clock()
+        check(taskDao.updateResolution(taskId, resolution.name, now) == 1) {
+            "找不到下载任务：$taskId"
         }
     }
 
     override suspend fun setAudioSegmentCount(taskId: String, segmentCount: Int) {
         require(segmentCount in 1..MAX_AUDIO_SEGMENTS) {
-            "音频分段数量必须在 1 到 $MAX_AUDIO_SEGMENTS 之间"
+            "媒体分段数量必须在 1 到 $MAX_AUDIO_SEGMENTS 之间"
         }
         val task = requireNotNull(taskDao.getById(taskId)) { "找不到下载任务：$taskId" }
         require(DownloadTaskStatus.valueOf(task.status) == DownloadTaskStatus.WAITING) {
-            "只有等待中的任务可以修改音频分段数量"
-        }
-        require(ResolutionPreset.valueOf(task.resolution) == ResolutionPreset.AUDIO_MP3) {
-            "只有 MP3 音频任务可以设置分段数量"
+            "只有等待中的任务可以修改分段数量"
         }
         check(taskDao.updateAudioSegmentCount(taskId, segmentCount, clock()) == 1) {
-            "更新音频分段数量失败：$taskId"
+            "更新媒体分段数量失败：$taskId"
         }
     }
 
@@ -341,11 +331,7 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
             DownloadProcessingStage.valueOf(task.processingStage)
         }.getOrDefault(DownloadProcessingStage.NONE),
         processingProgressPercent = task.processingProgressPercent.coerceIn(0, 100),
-        audioSegmentCount = if (task.resolution == ResolutionPreset.AUDIO_MP3.name) {
-            task.audioSegmentCount.coerceIn(1, 20)
-        } else {
-            1
-        },
+        audioSegmentCount = task.audioSegmentCount.coerceIn(1, 20),
     ),
     media = MediaItem(
         mediaKey = media.mediaKey,
@@ -377,11 +363,7 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     failureType = failureType?.name,
     errorSummary = errorSummary,
     outputUrisJson = JSONArray(outputUris).toString(),
-    audioSegmentCount = if (resolution == ResolutionPreset.AUDIO_MP3) {
-        audioSegmentCount.coerceIn(1, 20)
-    } else {
-        1
-    },
+    audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
 )
 
 private fun QueuedDownload.toHistory(
@@ -400,11 +382,7 @@ private fun QueuedDownload.toHistory(
     fileSize = 0L,
     fileExists = false,
     completedAt = completedAt,
-    audioSegmentCount = if (task.resolution == ResolutionPreset.AUDIO_MP3) {
-        task.audioSegmentCount.coerceIn(1, 20)
-    } else {
-        1
-    },
+    audioSegmentCount = task.audioSegmentCount.coerceIn(1, 20),
 )
 
 private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
@@ -423,11 +401,7 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     failureType = failureType?.let(DownloadFailureType::valueOf),
     errorSummary = errorSummary,
     outputUris = decodeOutputUris(outputUrisJson, outputUri),
-    audioSegmentCount = if (resolution == ResolutionPreset.AUDIO_MP3.name) {
-        audioSegmentCount.coerceIn(1, 20)
-    } else {
-        1
-    },
+    audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
 )
 
 private fun DownloadHistoryWithThumbnail.toDomain() = history.toDomain().copy(

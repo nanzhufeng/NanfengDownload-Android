@@ -41,10 +41,29 @@ class DownloadNotificationStateTest {
             ),
         )
 
-        assertEquals("正在下载 2 项 · 50%", state.content)
+        assertEquals("正在处理 2 项 · 22%", state.content)
         assertEquals(100, state.max)
-        assertEquals(50, state.value)
+        assertEquals(22, state.value)
         assertFalse(state.indeterminate)
+    }
+
+    @Test
+    fun completedNetworkBytesNeverMakeAnUnfinishedNotificationShowOneHundredPercent() {
+        val downloading = queued(
+            "video",
+            DownloadTaskStatus.DOWNLOADING,
+            downloaded = 100L,
+            total = 100L,
+        )
+        val segmenting = downloading.copy(
+            task = downloading.task.copy(
+                processingStage = com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.VIDEO_SEGMENTING,
+                processingProgressPercent = 100,
+            ),
+        )
+
+        assertEquals(80, DownloadNotificationState.from(listOf(downloading)).value)
+        assertEquals(95, DownloadNotificationState.from(listOf(segmenting)).value)
     }
 
     @Test

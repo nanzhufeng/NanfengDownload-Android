@@ -99,6 +99,22 @@ class QueuePresentationTest {
         )
     }
 
+    @Test
+    fun videoTask_reportsStableLocalSegmentingProgress() {
+        assertEquals(
+            "正在无损生成 4 段视频 63%",
+            mediaTaskPhaseText(
+                task(
+                    speed = 0L,
+                    updatedAt = 100_000L,
+                    processingStage = DownloadProcessingStage.VIDEO_SEGMENTING,
+                    processingProgressPercent = 63,
+                    segmentCount = 4,
+                ),
+            ),
+        )
+    }
+
     private fun task(
         speed: Long,
         updatedAt: Long,
@@ -107,6 +123,7 @@ class QueuePresentationTest {
         totalBytes: Long = 100L,
         processingStage: DownloadProcessingStage = DownloadProcessingStage.NETWORK_MEDIA,
         processingProgressPercent: Int = 0,
+        segmentCount: Int = 1,
     ) = DownloadTask(
         taskId = "active",
         mediaKey = "youtube:active",
@@ -125,5 +142,6 @@ class QueuePresentationTest {
         updatedAt = updatedAt,
         processingStage = processingStage,
         processingProgressPercent = processingProgressPercent,
+        audioSegmentCount = segmentCount,
     )
 }

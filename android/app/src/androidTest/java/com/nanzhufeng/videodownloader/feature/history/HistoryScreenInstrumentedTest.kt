@@ -198,6 +198,33 @@ class HistoryScreenInstrumentedTest {
     }
 
     @Test
+    fun segmentedVideo_staysOneHistoryCardAndLetsUserChooseEachPlayablePart() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(
+                    completedHistory("segmented-video", "分段长视频").copy(
+                        outputUri = "content://media/external/video/media/1",
+                        outputUris = listOf(
+                            "content://media/external/video/media/1",
+                            "content://media/external/video/media/2",
+                            "content://media/external/video/media/3",
+                        ),
+                        audioSegmentCount = 3,
+                        fileExists = true,
+                    ),
+                ),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithText("共 3 段", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("history-thumbnail-segmented-video").performClick()
+        composeRule.onNodeWithText("选择视频分段").assertIsDisplayed()
+        composeRule.onNodeWithTag("video-segment-play-1").assertIsDisplayed()
+        composeRule.onNodeWithTag("video-segment-play-3").assertIsDisplayed()
+    }
+
+    @Test
     fun innerScreen_arrangesCompletedTimelineCardsInTwoColumns() {
         composeRule.setContent {
             Box(Modifier.requiredWidth(700.dp).height(800.dp)) {

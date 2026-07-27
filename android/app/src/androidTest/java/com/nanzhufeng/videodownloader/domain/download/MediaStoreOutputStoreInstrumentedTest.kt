@@ -112,6 +112,60 @@ class MediaStoreOutputStoreInstrumentedTest {
         }
     }
 
+    @Test
+    fun publishesSegmentedVideoFilesAsOneStoredMediaResult() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val sources = (1..2).map { index ->
+            File(context.cacheDir, "media-store-video-segment-$index.mp4").also { destination ->
+                instrumentation.context.assets.open("video/segment-source-6s.mp4").use { input ->
+                    destination.outputStream().use(input::copyTo)
+                }
+            }
+        }
+        val expectedBytes = sources.sumOf(File::length)
+        val publishedUris = mutableListOf<Uri>()
+
+        try {
+            val stored = MediaStoreOutputStore(context).publish(
+                media = media().copy(
+                    contentId = "media-store-segmented-video-test",
+                    title = "MediaStore 分段视频测试",
+                ),
+                resolution = ResolutionPreset.UP_TO_720P,
+                prepared = PreparedMedia(
+                    file = sources.first(),
+                    mimeType = "video/mp4",
+                    additionalFiles = sources.drop(1),
+                ),
+                saveTreeUri = null,
+                fileNameRule = FileNameRule.DATE_AND_TITLE,
+                audioSegmentCount = 2,
+            )
+            publishedUris += stored.uris.map(Uri::parse)
+
+            assertEquals(2, stored.uris.size)
+            assertEquals(expectedBytes, stored.fileSize)
+            val displayNames = publishedUris.map { uri ->
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )!!.use { cursor ->
+                    assertTrue(cursor.moveToFirst())
+                    cursor.getString(0)
+                }
+            }
+            assertTrue(displayNames[0].contains("第01段，共2段"))
+            assertTrue(displayNames[1].contains("第02段，共2段"))
+        } finally {
+            publishedUris.forEach { context.contentResolver.delete(it, null, null) }
+            sources.forEach(File::delete)
+        }
+    }
+
     private fun encodeFourSecondsOfSilence(destination: File) {
         val sampleRate = 44_100
         val channelCount = 2

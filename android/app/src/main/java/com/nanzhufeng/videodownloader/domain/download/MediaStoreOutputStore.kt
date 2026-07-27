@@ -90,7 +90,7 @@ class MediaStoreOutputStore(
         val files = prepared.files
         val paths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
         require(files.size == paths.size) {
-            "待保存音频分段数量与任务设置不一致：${files.size}/${paths.size}"
+            "待保存媒体分段数量与任务设置不一致：${files.size}/${paths.size}"
         }
         if (saveTreeUri != null) {
             return@withContext publishToTree(
@@ -147,7 +147,7 @@ class MediaStoreOutputStore(
         prepared: PreparedMedia,
     ): StoredMedia {
         val files = prepared.files
-        require(files.size == relativePaths.size) { "自定义目录的音频分段数量不一致" }
+        require(files.size == relativePaths.size) { "自定义目录的媒体分段数量不一致" }
         require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
         val createdDocuments = mutableListOf<Uri>()
         val stored = mutableListOf<StoredMedia>()
@@ -305,11 +305,7 @@ class MediaStoreOutputStore(
         requestedSegmentCount: Int,
     ): List<String> {
         val base = policy.relativePath(media, resolution, fileNameRule)
-        val segmentCount = if (resolution == ResolutionPreset.AUDIO_MP3) {
-            requestedSegmentCount.coerceIn(1, MAX_AUDIO_SEGMENTS)
-        } else {
-            1
-        }
+        val segmentCount = requestedSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
         if (segmentCount == 1) return listOf(base)
         val extension = base.substringAfterLast('.', "")
         val withoutExtension = if (extension.isBlank()) base else base.removeSuffix(".$extension")
@@ -335,6 +331,6 @@ class MediaStoreOutputStore(
     private companion object {
         const val MIN_MP3_BYTES = 1024L
         const val MIN_CONTAINER_BYTES = 64 * 1024L
-        const val MAX_AUDIO_SEGMENTS = 20
+        const val MAX_MEDIA_SEGMENTS = 20
     }
 }

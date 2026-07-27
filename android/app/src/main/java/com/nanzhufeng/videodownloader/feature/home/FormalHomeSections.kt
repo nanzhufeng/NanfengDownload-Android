@@ -111,7 +111,9 @@ import com.nanzhufeng.videodownloader.core.ui.SuccessGreen
 import com.nanzhufeng.videodownloader.core.ui.WaitingYellow
 import com.nanzhufeng.videodownloader.core.ui.WarmOrange
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
+import com.nanzhufeng.videodownloader.domain.download.DownloadOverallProgress
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 internal fun CompactHome(
@@ -328,9 +330,7 @@ private fun RunStatusCard(
             DownloadTaskStatus.WAITING_NETWORK,
         )
     }
-    val total = queue.sumOf { it.task.totalBytes.coerceAtLeast(0L) }
-    val downloaded = queue.sumOf { it.task.downloadedBytes.coerceAtLeast(0L) }
-    val progress = if (total > 0L) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val progress = DownloadOverallProgress.queueFraction(queue)
 
     WorkbenchCard(
         tone = AppCardTone.NEUTRAL,
@@ -351,7 +351,7 @@ private fun RunStatusCard(
             if (expanded) {
                 StatusMetric(Icons.Filled.CheckCircle, "已完成", completedCount.toString(), SuccessGreen, true)
             }
-            StatusMetric(Icons.Filled.Downloading, "总进度", "${(progress * 100).toInt()}%", SuccessGreen, expanded)
+            StatusMetric(Icons.Filled.Downloading, "总进度", "${(progress * 100).roundToInt()}%", SuccessGreen, expanded)
         }
     }
 }
@@ -382,7 +382,7 @@ private fun ActiveDownloadCard(
     onPause: () -> Unit,
     onStop: (String) -> Unit,
 ) {
-    val progress = queued.progress()
+    val progress = DownloadOverallProgress.fraction(queued.task)
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
         animationSpec = quickFeedbackTween(),
@@ -429,7 +429,7 @@ private fun ActiveDownloadCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        "${(animatedProgress * 100).toInt()}% · 剩余 ${formatDuration(queued.task.remainingSeconds)} · ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}",
+                        "${(animatedProgress * 100).roundToInt()}% · 剩余 ${formatDuration(queued.task.remainingSeconds)} · ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -719,21 +719,16 @@ private fun QueueRow(
                         } else {
                             ResolutionBadge(task.resolution)
                         }
-                        if (
-                            task.resolution == ResolutionPreset.AUDIO_MP3 &&
-                            task.status == DownloadTaskStatus.WAITING
-                        ) {
-                            AudioSegmentCountMenu(
+                        if (task.status == DownloadTaskStatus.WAITING) {
+                            SegmentCountMenu(
                                 segmentCount = task.audioSegmentCount,
+                                resolution = task.resolution,
                                 onSelected = { onAudioSegmentCountChanged(task.taskId, it) },
                             )
-                        } else if (
-                            task.resolution == ResolutionPreset.AUDIO_MP3 &&
-                            task.audioSegmentCount > 1
-                        ) {
+                        } else if (task.audioSegmentCount > 1) {
                             Text(
                                 "${task.audioSegmentCount} 段",
-                                color = WarmOrange,
+                                color = segmentAccent(task.resolution),
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                             )
@@ -825,15 +820,16 @@ private fun QueueLeadingControl(task: DownloadTask, onSelectionChanged: (Boolean
 @Composable
 private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
     val task = queued.task
-    val audioTranscoding = isAudioTranscoding(task)
+    val localProcessing = isLocalProcessing(task)
+    val phaseText = if (task.processingStage == DownloadProcessingStage.NONE) {
+        null
+    } else {
+        mediaTaskPhaseText(task)
+    }
     val healthController = remember(task.taskId) { TransferHealthNoticeController() }
-    val healthNotice = if (audioTranscoding) null else healthController.update(task, nowMillis)
+    val healthNotice = if (localProcessing) null else healthController.update(task, nowMillis)
     val animatedProgress by animateFloatAsState(
-        targetValue = if (audioTranscoding) {
-            task.processingProgressPercent.coerceIn(0, 100) / 100f
-        } else {
-            queued.progress()
-        },
+        targetValue = DownloadOverallProgress.fraction(task),
         animationSpec = quickFeedbackTween(),
         label = "queue-download-progress",
     )
@@ -848,27 +844,28 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                if (audioTranscoding) {
-                    "正在提取音频 ${task.processingProgressPercent.coerceIn(0, 100)}%"
-                } else {
-                    "速度 ${formatSpeed(queued.task.speedBytesPerSecond)}"
-                },
+                phaseText ?: "速度 ${formatSpeed(queued.task.speedBytesPerSecond)}",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
             )
-            Text("${(animatedProgress * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB85C00))
+            Text(
+                "${(animatedProgress * 100).roundToInt()}%",
+                modifier = Modifier.testTag("queue-overall-progress-${task.taskId}"),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFFB85C00),
+            )
         }
         Text("已下载 ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
-            if (audioTranscoding) {
-                "转换源已下载完成 · 正在生成真实 MP3"
+            if (localProcessing) {
+                "网络传输已完成 · 正在本机处理成品"
             } else {
                 "剩余 ${formatDuration(queued.task.remainingSeconds)} · ${connectionLabel(task)}"
             },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (audioTranscoding) {
+        if (isAudioTranscoding(task)) {
             Surface(
                 modifier = Modifier.fillMaxWidth().testTag("queue-audio-transcoding-${task.taskId}"),
                 color = Color(0xFFFFE7BD),
@@ -996,8 +993,8 @@ private fun queueStatusLabel(status: DownloadTaskStatus): String = when (status)
 private fun queueStatusText(queued: QueuedDownload): String = when (queued.task.status) {
     DownloadTaskStatus.WAITING -> "等待下载"
     DownloadTaskStatus.PARSING -> "正在解析下载地址"
-    DownloadTaskStatus.DOWNLOADING -> audioTaskPhaseText(queued.task)
-        ?: "下载中 ${(queued.progress() * 100).toInt()}%"
+    DownloadTaskStatus.DOWNLOADING -> mediaTaskPhaseText(queued.task)
+        ?: "下载中 ${DownloadOverallProgress.percent(queued.task)}%"
     DownloadTaskStatus.PAUSED -> "已暂停"
     DownloadTaskStatus.WAITING_NETWORK ->
         "等待网络：${UserFacingErrorPresenter.message(queued.task.errorSummary, queued.media.platform)}"
@@ -1029,16 +1026,54 @@ internal fun audioTaskPhaseText(task: DownloadTask): String? {
     return when (task.processingStage) {
         DownloadProcessingStage.TRANSCODING ->
             "正在提取音频并生成 MP3 ${task.processingProgressPercent.coerceIn(0, 100)}%"
-        DownloadProcessingStage.NETWORK_VIDEO_TO_AUDIO -> "正在下载视频转换源 $progress%"
-        DownloadProcessingStage.NETWORK_AUDIO -> "正在下载音频 $progress%"
+        DownloadProcessingStage.NETWORK_VIDEO_TO_AUDIO -> if (progress >= 100) {
+            "转换源已下载完成，正在准备提取音频"
+        } else {
+            "正在下载视频转换源 $progress%"
+        }
+        DownloadProcessingStage.NETWORK_AUDIO -> if (progress >= 100) {
+            "音频已下载完成，正在准备成品"
+        } else {
+            "正在下载音频 $progress%"
+        }
         else -> "正在准备音频任务"
     }
+}
+
+internal fun mediaTaskPhaseText(task: DownloadTask): String? {
+    if (
+        task.status == DownloadTaskStatus.DOWNLOADING &&
+        task.processingStage == DownloadProcessingStage.VIDEO_SEGMENTING
+    ) {
+        return "正在无损生成 ${task.audioSegmentCount.coerceIn(2, 20)} 段视频 " +
+            "${task.processingProgressPercent.coerceIn(0, 100)}%"
+    }
+    if (
+        task.status == DownloadTaskStatus.DOWNLOADING &&
+        task.resolution != ResolutionPreset.AUDIO_MP3 &&
+        task.processingStage == DownloadProcessingStage.NETWORK_MEDIA &&
+        task.totalBytes > 0L &&
+        task.downloadedBytes >= task.totalBytes
+    ) {
+        return "媒体已下载完成，正在合并或准备成品"
+    }
+    return audioTaskPhaseText(task)
 }
 
 private fun isAudioTranscoding(task: DownloadTask): Boolean =
     task.resolution == ResolutionPreset.AUDIO_MP3 &&
         task.status == DownloadTaskStatus.DOWNLOADING &&
         task.processingStage == DownloadProcessingStage.TRANSCODING
+
+private fun isLocalProcessing(task: DownloadTask): Boolean =
+    task.status == DownloadTaskStatus.DOWNLOADING &&
+        (
+            task.processingStage in setOf(
+                DownloadProcessingStage.TRANSCODING,
+                DownloadProcessingStage.VIDEO_SEGMENTING,
+            ) ||
+                (task.totalBytes > 0L && task.downloadedBytes >= task.totalBytes)
+            )
 
 @Composable
 private fun ResolutionBadge(resolution: ResolutionPreset) {
@@ -1109,11 +1144,13 @@ private fun ResolutionMenu(
 }
 
 @Composable
-private fun AudioSegmentCountMenu(
+private fun SegmentCountMenu(
     segmentCount: Int,
+    resolution: ResolutionPreset,
     onSelected: (Int) -> Unit,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    val accent = segmentAccent(resolution)
     Box {
         OutlinedButton(
             onClick = { expanded = true },
@@ -1121,10 +1158,10 @@ private fun AudioSegmentCountMenu(
             modifier = Modifier
                 .height(26.dp)
                 .widthIn(min = 52.dp)
-                .testTag("audio-segment-count"),
+                .testTag("media-segment-count"),
             shape = RoundedCornerShape(13.dp),
-            border = BorderStroke(1.dp, WarmOrange.copy(alpha = 0.58f)),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarmOrange),
+            border = BorderStroke(1.dp, accent.copy(alpha = 0.58f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = accent),
         ) {
             Text(
                 if (segmentCount <= 1) "不分段" else "$segmentCount 段",
@@ -1150,13 +1187,14 @@ private fun AudioSegmentCountMenu(
     }
 }
 
+private fun segmentAccent(resolution: ResolutionPreset): Color =
+    if (resolution == ResolutionPreset.AUDIO_MP3) WarmOrange else SuccessGreen
+
 @Composable
 private fun TotalProgressCard(queue: List<QueuedDownload>, completedCount: Int = 0) {
     val downloading = queue.count { it.task.status == DownloadTaskStatus.DOWNLOADING }
     val waiting = queue.count { it.task.status in setOf(DownloadTaskStatus.WAITING, DownloadTaskStatus.PARSING, DownloadTaskStatus.VALIDATING) }
-    val downloaded = queue.sumOf { it.task.downloadedBytes.coerceAtLeast(0L) }
-    val total = queue.sumOf { it.task.totalBytes.coerceAtLeast(0L) }
-    val progress = if (total > 0L) (downloaded.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val progress = DownloadOverallProgress.queueFraction(queue)
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
         animationSpec = quickFeedbackTween(),
@@ -1172,7 +1210,7 @@ private fun TotalProgressCard(queue: List<QueuedDownload>, completedCount: Int =
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxSize(), strokeWidth = 8.dp)
-                Text("${(animatedProgress * 100).toInt()}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("${(animatedProgress * 100).roundToInt()}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.width(18.dp))
             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -1319,12 +1357,6 @@ private fun Thumbnail(queued: QueuedDownload, modifier: Modifier) {
 @Composable
 private fun StatusMarker(status: DownloadTaskStatus) {
     Box(modifier = Modifier.size(10.dp).background(statusColor(status), CircleShape))
-}
-
-private fun QueuedDownload.progress(): Float = if (task.totalBytes > 0L) {
-    (task.downloadedBytes.toFloat() / task.totalBytes).coerceIn(0f, 1f)
-} else {
-    0f
 }
 
 @Composable

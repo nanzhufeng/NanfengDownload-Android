@@ -10,6 +10,8 @@ import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import com.nanzhufeng.videodownloader.domain.download.audio.AudioTranscoder
 import com.nanzhufeng.videodownloader.domain.download.audio.AudioSourceFileValidator
 import com.nanzhufeng.videodownloader.domain.download.audio.Mp3AudioTranscoder
+import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4VideoSegmenter
+import com.nanzhufeng.videodownloader.domain.download.video.VideoSegmenter
 import com.nanzhufeng.videodownloader.probe.DirectDownloadRequest
 import com.nanzhufeng.videodownloader.probe.FileDownloader
 import com.nanzhufeng.videodownloader.probe.HttpFileDownloader
@@ -59,6 +61,7 @@ class DirectMediaTransfer(
     context: Context,
     downloader: FileDownloader = HttpFileDownloader(),
     audioTranscoder: AudioTranscoder = Mp3AudioTranscoder(),
+    private val videoSegmenter: VideoSegmenter = AndroidMp4VideoSegmenter(),
     private val performanceReporter: DownloadPerformanceReporter = DownloadPerformanceReporter.NONE,
     private val transferModeSink: DownloadTransferModeSink = DownloadTransferModeSink.NONE,
     private val throughputReportSink: DownloadThroughputReportSink = DownloadThroughputReportSink.NONE,
@@ -287,7 +290,7 @@ class DirectMediaTransfer(
             if (audioUrl.isNullOrBlank()) {
                 val primary = downloadStreams(task, listOf(primaryRequest), cancelled, onProgress).single()
                 require(MediaFileValidator.isLikelyMedia(primary)) { "下载结果不是有效媒体文件" }
-                return@withContext PreparedMedia(primary, "video/mp4")
+                return@withContext prepareVideoSegments(task, source, primary, directory, cancelled)
             }
 
             val audioRequest = DirectDownloadRequest(
@@ -319,9 +322,115 @@ class DirectMediaTransfer(
             require(MediaFileValidator.isLikelyMedia(merged)) { "合并结果不是有效媒体文件" }
             primary.delete()
             audio.delete()
-            PreparedMedia(merged, "video/mp4")
+            prepareVideoSegments(task, source, merged, directory, cancelled)
         } finally {
             completionHandle?.dispose()
+        }
+    }
+
+    private suspend fun prepareVideoSegments(
+        task: QueuedDownload,
+        source: ResolvedMedia,
+        video: File,
+        directory: File,
+        cancelled: AtomicBoolean,
+    ): PreparedMedia {
+        val segmentCount = task.task.audioSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
+        if (segmentCount == 1) return PreparedMedia(video, "video/mp4")
+
+        processingSink.update(
+            task.task.taskId,
+            DownloadProcessingStage.VIDEO_SEGMENTING,
+            0,
+        )
+        val destinations = (1..segmentCount).map { index ->
+            File(
+                directory,
+                "video-segment-${index.toString().padStart(2, '0')}-of-$segmentCount.mp4",
+            )
+        }
+        val inputBytes = video.length()
+        val startedAt = wallClockMillis()
+        val startedNanos = monotonicNanos()
+        var outcome = TransferReportOutcome.FAILED
+        var errorSummary: String? = null
+        var committedBytes = 0L
+        val progressUpdates = Channel<Int>(Channel.CONFLATED)
+        val progressScope = CoroutineScope(currentCoroutineContext())
+        val progressJob = progressScope.launch {
+            for (progress in progressUpdates) {
+                processingSink.update(
+                    task.task.taskId,
+                    DownloadProcessingStage.VIDEO_SEGMENTING,
+                    progress.coerceIn(0, 100),
+                )
+            }
+        }
+        try {
+            val files = measureDownloadStage(
+                taskId = task.task.taskId,
+                stage = "video_segment",
+                reporter = performanceReporter,
+                nowNanos = monotonicNanos,
+            ) {
+                videoSegmenter.split(
+                    source = video,
+                    destinations = destinations,
+                    cancelled = cancelled,
+                    onProgress = progressUpdates::trySend,
+                )
+            }
+            require(files.size == segmentCount && files.all(MediaFileValidator::isLikelyMedia)) {
+                "视频分段结果不完整，请减少分段数量后重试"
+            }
+            committedBytes = files.sumOf(File::length)
+            outcome = TransferReportOutcome.COMPLETED
+            progressUpdates.trySend(100)
+            video.delete()
+            return PreparedMedia(
+                file = files.first(),
+                mimeType = "video/mp4",
+                additionalFiles = files.drop(1),
+            )
+        } catch (error: Throwable) {
+            errorSummary = error.message?.take(400)
+            outcome = if (error is java.util.concurrent.CancellationException) {
+                TransferReportOutcome.CANCELLED
+            } else {
+                TransferReportOutcome.FAILED
+            }
+            throw error
+        } finally {
+            progressUpdates.close()
+            progressJob.join()
+            val elapsedMillis =
+                ((monotonicNanos() - startedNanos).coerceAtLeast(0L) / 1_000_000L)
+            withContext(NonCancellable) {
+                throughputReportSink.record(
+                    DownloadThroughputReport(
+                        reportId = UUID.randomUUID().toString(),
+                        taskId = task.task.taskId,
+                        platform = task.media.platform,
+                        streamLabel = VIDEO_SEGMENT_STREAM_LABEL,
+                        outcome = outcome,
+                        connectionMode = DownloadConnectionMode.UNKNOWN,
+                        connectionCount = 0,
+                        rangeSupported = false,
+                        expectedBytes = inputBytes,
+                        committedBytes = committedBytes,
+                        networkBytes = 0L,
+                        startedAt = startedAt,
+                        finishedAt = startedAt + elapsedMillis,
+                        elapsedMillis = elapsedMillis,
+                        averageBytesPerSecond = 0L,
+                        peakBytesPerSecond = 0L,
+                        retryCount = 0,
+                        reprobeCount = source.reprobeCount,
+                        fallbackReason = "按关键帧无损转封装为 $segmentCount 段 MP4",
+                        errorSummary = errorSummary,
+                    ),
+                )
+            }
         }
     }
 
@@ -437,6 +546,8 @@ class DirectMediaTransfer(
         const val AUDIO_SOURCE_IDENTITY_FILE = "audio-source.media-key"
         const val MP3_TRANSCODE_STREAM_LABEL = "MP3 转码"
         const val MAX_AUDIO_SEGMENTS = 20
+        const val MAX_MEDIA_SEGMENTS = 20
+        const val VIDEO_SEGMENT_STREAM_LABEL = "视频本机分段"
     }
 }
 

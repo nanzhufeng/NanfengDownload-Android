@@ -73,19 +73,17 @@ class RoomDownloadRepositoryInstrumentedTest {
     }
 
     @Test
-    fun audioSegmentCountPersistsOnlyForWaitingMp3TasksAndResetsForVideo() = runBlocking {
+    fun segmentCountPersistsForWaitingAudioAndVideoTasks() = runBlocking {
         repository.enqueue(listOf(media()), ResolutionPreset.AUDIO_MP3)
 
         repository.setAudioSegmentCount("task-1", 6)
         assertEquals(6, repository.activeTasks.first().single().task.audioSegmentCount)
 
         repository.setResolution("task-1", ResolutionPreset.UP_TO_720P)
+        repository.setAudioSegmentCount("task-1", 3)
         val videoTask = repository.activeTasks.first().single().task
         assertEquals(ResolutionPreset.UP_TO_720P, videoTask.resolution)
-        assertEquals(1, videoTask.audioSegmentCount)
-        assertThrows(IllegalArgumentException::class.java) {
-            runBlocking { repository.setAudioSegmentCount("task-1", 3) }
-        }
+        assertEquals(3, videoTask.audioSegmentCount)
         Unit
     }
 

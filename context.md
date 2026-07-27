@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 当前分支包含 `v1.2.2` 长音频自定义分段、单次解码多段 MP3、音轨兼容选择与内置分段播放器 |
-| Git 状态 | `v1.2.2` 改动以本文件和 verification 记录为验收依据；本轮只建立本地 checkpoint，暂不上传 GitHub |
+| 当前代码 checkpoint | 当前分支包含 `v1.2.3` 音频/视频自定义分段、完整任务进度、单次处理多成品和分段播放 |
+| Git 状态 | `v1.2.3` 改动以本文件和 verification 记录为验收依据；本轮只建立本地 checkpoint，暂不上传 GitHub |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.2.2` / `versionCode 10202` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.2.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.2` 已完成本地正式构建与 OPPO 验收；尚未上传 GitHub |
+| 当前版本 | `1.2.3` / `versionCode 10203` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.3.apk` 与同名 `.aab` |
+| 发布状态 | `v1.2.3` 已完成本地正式构建与 OPPO 验收；尚未上传 GitHub |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.2.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.3.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,18 +192,23 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-当前 `v1.2.2` 长音频自定义分段以最终 Release APK/AAB 和 OPPO 真实成品为对象：
+当前 `v1.2.3` 音频/视频自定义分段以最终 Release APK/AAB 和 OPPO 真实成品为对象：
 
 - Python 解析测试：23 项，0 失败。
-- `:app:testDebugUnitTest`：156 项，0 失败、0 错误、0 跳过。
-- `:app:testReleaseUnitTest`：156 项，0 失败、0 错误、0 跳过。
+- `:app:testDebugUnitTest`：164 项，0 失败、0 错误、0 跳过。
+- `:app:testReleaseUnitTest`：164 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
-- 专用模拟器 `emulator-5554` 仪器测试：69 项，0 失败；3 项外部 TikTok 条件按既有规则跳过。
+- 专用模拟器 `emulator-5580` 仪器测试：75 项，0 失败；3 项外部 TikTok 条件按既有规则跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：91,475,431 B，SHA-256 `f6cd3fd7900f28806e97e87dcc107eff49103d972bc9188b44d91948d76d1e93`。
-- Release AAB：38,314,189 B，SHA-256 `455c75db92ea7154f4f3c55b782f434f31b41c9c5c98849807dcba734217258e`。
-- APK 为 `1.2.2 / 10202`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- Release APK：91,506,895 B，SHA-256 `5e67ad5af75aa9363813b8d4ae9a00cc4fd7390a96d9d9b7f491d7c35582b1c6`。
+- Release AAB：38,327,036 B，SHA-256 `97cd4de078c7c6a782e6f6ac50a3ef2c3c7b662c3eee9b62f282a3fdf565ad63`。
+- APK 为 `1.2.3 / 10203`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 已在 OPPO 同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`，从手机拉回的 `base.apk` 与本地 APK 哈希一致。
+- 等待中的视频和 MP3 任务均可选择不分段或 2–20 段。视频只下载、合并一次，再由 `MediaExtractor + MediaMuxer` 按最近安全关键帧无损转封装；不会为每段重新下载或重新压制。
+- 完整任务进度不再等同于网络字节：解析约 2%，网络最多 80%，本机转码/视频分段推进到 95%，校验 96%，发布 98%，只有全部 MediaStore 成品发布且任务状态为 `COMPLETED` 才显示 100%。
+- OPPO 真实 `Sintel - Open Movie by Blender Foundation` 以“720p、3 段”完成。现场进度为 2% → 5% → 70% → 80%（网络完成与合并）→ 82%/89%（无损分段）→ 97%/98%（校验与发布），完成前未出现 100%。
+- Sintel 三段分别为 21,367,418 B / 297.333333 秒、22,205,111 B / 296.419320 秒、17,319,212 B / 294.385283 秒；均为 H.264 1280×546 + AAC，首视频帧为关键帧，可独立播放。历史聚合显示“共 3 段 · 时长 14:48 · 58.1 MB”。
+- 历史视频点击预览可选择第 01–03 段；OPPO 已验证第 01 段直接进入系统视频播放器。
 - 等待中的“仅音频 MP3”任务可选择不分段或均分 2–20 段；源媒体只下载一次、解码一次，按时间轴切换 LAME 会话生成多段，不重复下载或重复完整解码。
 - OPPO 真实样本 `Big Buck Bunny 60fps 4K` 以“仅音频、2 段”完成：两段分别为 7,617,305 B / 317.387708 秒和 7,616,678 B / 317.361583 秒，均为 44.1 kHz、双声道、192 kbps MP3；历史聚合显示“共 2 段 · 时长 10:34 · 14.5 MB”。
 - 内置播放器已在 OPPO 从第 1/2 段切换到第 2/2 段；历史只保留一条聚合记录，支持上一段、下一段和自动续播。
@@ -230,7 +235,7 @@ adb -s <OPPO序列号> shell \
 ## 8. 已知风险与下一步
 
 1. 正式签名密钥只保存在仓库外的本机安全目录，密码在 macOS 钥匙串；仍应建立用户控制的异地加密备份，密钥丢失将导致后续正式版无法覆盖升级。
-2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；随后以同一正式证书依次无损覆盖到 `v1.1.0`、`v1.2.0` 和 `v1.2.2`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
+2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；随后以同一正式证书依次无损覆盖到 `v1.1.0`、`v1.2.0`、`v1.2.2` 和 `v1.2.3`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
 3. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
 4. 哔哩哔哩 UP 主页批量接口当前返回 412，`v1.1.0` 只支持单视频；其他作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
 5. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮 Release 构建通过，后续仍应升级 AGP 或重新确认兼容矩阵。
@@ -246,6 +251,7 @@ adb -s <OPPO序列号> shell \
 5. `design-qa.md`：仅在视觉回归、折叠屏或截图验收时读取。
 6. `docs/verification/2026-07-21-android-v1.0.0-release.md`：正式签名、Release APK/AAB、哈希和模拟器安装证据。
 7. `docs/verification/2026-07-26-android-v1.1.0-bilibili-xiaohongshu.md`：两个新增平台的边界、模拟器与 OPPO 真实网络闭环、正式产物及持久化证据。
+8. `docs/verification/2026-07-27-android-v1.2.3-video-segmentation.md`：视频自定义分段、完整任务进度、OPPO 真实三段成品与正式产物证据。
 
 禁止把旧桌面 README、早期设计拼图、历史计划或单次构建输出当成当前 Android 项目的唯一真相源。
 

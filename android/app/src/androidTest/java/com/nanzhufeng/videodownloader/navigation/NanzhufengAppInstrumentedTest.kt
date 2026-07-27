@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasStateDescription
@@ -317,11 +318,46 @@ class NanzhufengAppInstrumentedTest {
             }
         }
 
-        composeRule.onNodeWithTag("audio-segment-count").assertIsDisplayed().performClick()
+        composeRule.onNodeWithTag("media-segment-count").assertIsDisplayed().performClick()
         composeRule.onNodeWithText("均分为 4 段").assertIsDisplayed().performClick()
         composeRule.runOnIdle {
             assertEquals("queue-reference", selectedTaskId)
             assertEquals(4, selectedSegmentCount)
+        }
+    }
+
+    @Test
+    fun waitingVideoTaskLetsUserChooseExactSegmentCountInline() {
+        var selectedTaskId: String? = null
+        var selectedSegmentCount: Int? = null
+        composeRule.setContent {
+            NanzhufengTheme {
+                Box(Modifier.requiredWidth(360.dp).height(800.dp)) {
+                    HomeScreen(
+                        queue = listOf(
+                            referenceQueueItem().copy(
+                                task = referenceQueueItem().task.copy(
+                                    resolution = ResolutionPreset.UP_TO_720P,
+                                ),
+                            ),
+                        ),
+                        input = "",
+                        onInputChange = {},
+                        onSmartRead = {},
+                        onAudioSegmentCountChanged = { taskId, segmentCount ->
+                            selectedTaskId = taskId
+                            selectedSegmentCount = segmentCount
+                        },
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("media-segment-count").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("均分为 3 段").assertIsDisplayed().performClick()
+        composeRule.runOnIdle {
+            assertEquals("queue-reference", selectedTaskId)
+            assertEquals(3, selectedSegmentCount)
         }
     }
 
@@ -395,6 +431,38 @@ class NanzhufengAppInstrumentedTest {
         composeRule.onNodeWithText("速度 2.0 MB/s").assertIsDisplayed()
         composeRule.onNodeWithText("已下载 52.0 MB / 100.0 MB").assertIsDisplayed()
         composeRule.onNodeWithText("剩余 00:24 · 多连接 ×6").assertIsDisplayed()
+    }
+
+    @Test
+    fun finishedNetworkBytesStayBelowOneHundredWhileVideoSegmentsAreStillBeingCreated() {
+        val active = referenceQueueItem().copy(
+            task = referenceQueueItem().task.copy(
+                taskId = "segmenting-row",
+                resolution = ResolutionPreset.UP_TO_720P,
+                audioSegmentCount = 3,
+                status = DownloadTaskStatus.DOWNLOADING,
+                downloadedBytes = 100L * 1024L * 1024L,
+                totalBytes = 100L * 1024L * 1024L,
+                processingStage = com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.VIDEO_SEGMENTING,
+                processingProgressPercent = 100,
+                updatedAt = System.currentTimeMillis(),
+            ),
+        )
+
+        composeRule.setContent {
+            NanzhufengTheme {
+                Box(Modifier.requiredWidth(360.dp).height(800.dp)) {
+                    HomeScreen(queue = listOf(active), input = "", onInputChange = {}, onSmartRead = {})
+                }
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.mainClock.advanceTimeBy(300)
+        composeRule.onNodeWithText("正在无损生成 3 段视频 100%").assertIsDisplayed()
+        composeRule.onNodeWithTag("queue-overall-progress-segmenting-row", useUnmergedTree = true)
+            .assertTextEquals("95%")
+        composeRule.onNodeWithText("100%").assertDoesNotExist()
     }
 
     @Test

@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.domain.download
 
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
+import kotlin.math.roundToInt
 
 data class DownloadNotificationState(
     val content: String,
@@ -20,8 +21,16 @@ data class DownloadNotificationState(
             }
             if (active.isEmpty()) return preparing()
 
-            val sized = active.filter { it.task.totalBytes > 0L }
-            if (sized.isEmpty()) {
+            val measurable = active.any {
+                it.task.totalBytes > 0L ||
+                    it.task.processingStage !in setOf(
+                        com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.NONE,
+                        com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.NETWORK_MEDIA,
+                        com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.NETWORK_AUDIO,
+                        com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage.NETWORK_VIDEO_TO_AUDIO,
+                    )
+            }
+            if (!measurable) {
                 return DownloadNotificationState(
                     content = "正在下载 ${active.size} 项",
                     max = 0,
@@ -30,11 +39,12 @@ data class DownloadNotificationState(
                 )
             }
 
-            val total = sized.sumOf { it.task.totalBytes }
-            val downloaded = sized.sumOf { it.task.downloadedBytes.coerceIn(0L, it.task.totalBytes) }
-            val progress = ((downloaded * 100L) / total).toInt().coerceIn(0, 100)
+            val progress = (
+                active.map { DownloadOverallProgress.fraction(it.task).toDouble() }
+                    .average() * 100.0
+                ).roundToInt().coerceIn(0, 99)
             return DownloadNotificationState(
-                content = "正在下载 ${active.size} 项 · ${progress}%",
+                content = "正在处理 ${active.size} 项 · ${progress}%",
                 max = 100,
                 value = progress,
                 indeterminate = false,

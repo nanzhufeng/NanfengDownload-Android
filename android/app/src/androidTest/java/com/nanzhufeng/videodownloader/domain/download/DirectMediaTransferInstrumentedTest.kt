@@ -12,6 +12,7 @@ import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.domain.download.audio.Mp3FileValidator
+import com.nanzhufeng.videodownloader.probe.FileDownloader
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.runBlocking
@@ -175,13 +176,72 @@ class DirectMediaTransferInstrumentedTest {
         }
     }
 
-    private fun queuedDownload(taskId: String, audioSegmentCount: Int = 1) = QueuedDownload(
+    @Test
+    fun videoModeDownloadsOnceAndCreatesRequestedIndependentMp4Segments() = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val taskId = "direct-segmented-video-instrumented"
+        val directory = File(context.cacheDir, "downloads/$taskId")
+        directory.deleteRecursively()
+        val reports = CopyOnWriteArrayList<DownloadThroughputReport>()
+        val processing = CopyOnWriteArrayList<Pair<DownloadProcessingStage, Int>>()
+        var downloadCalls = 0
+        val downloader = FileDownloader { request, _, onProgress ->
+            downloadCalls += 1
+            request.target.parentFile?.mkdirs()
+            instrumentation.context.assets.open("video/segment-source-6s.mp4").use { input ->
+                request.target.outputStream().use(input::copyTo)
+            }
+            onProgress(request.target.length(), request.target.length())
+            request.target
+        }
+
+        try {
+            val prepared = DirectMediaTransfer(
+                context = context,
+                downloader = downloader,
+                throughputReportSink = { reports += it },
+                processingSink = { _, stage, progress -> processing += stage to progress },
+            ).download(
+                task = queuedDownload(
+                    taskId = taskId,
+                    audioSegmentCount = 3,
+                    resolution = ResolutionPreset.UP_TO_720P,
+                ),
+                source = ResolvedMedia(
+                    videoUrl = "https://example.invalid/video.mp4",
+                    audioUrl = null,
+                    videoExtension = "mp4",
+                    audioExtension = null,
+                    headers = emptyMap(),
+                ),
+                onProgress = { _, _, _, _ -> },
+            )
+
+            assertEquals(1, downloadCalls)
+            assertEquals(3, prepared.files.size)
+            assertTrue(prepared.files.all { file -> file.extension == "mp4" && file.length() > 32 * 1_024L })
+            assertTrue(processing.any { it.first == DownloadProcessingStage.VIDEO_SEGMENTING })
+            assertEquals(DownloadProcessingStage.VIDEO_SEGMENTING to 100, processing.last())
+            val report = reports.single { it.streamLabel == "视频本机分段" }
+            assertEquals(0L, report.networkBytes)
+            assertTrue(report.fallbackReason.orEmpty().contains("3 段"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    private fun queuedDownload(
+        taskId: String,
+        audioSegmentCount: Int = 1,
+        resolution: ResolutionPreset = ResolutionPreset.AUDIO_MP3,
+    ) = QueuedDownload(
         task = DownloadTask(
             taskId = taskId,
             mediaKey = "youtube:test",
             selected = true,
             sortOrder = 0L,
-            resolution = ResolutionPreset.AUDIO_MP3,
+            resolution = resolution,
             saveTreeUri = null,
             downloadedBytes = 0L,
             totalBytes = 0L,

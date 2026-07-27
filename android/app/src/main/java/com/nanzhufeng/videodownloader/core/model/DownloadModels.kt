@@ -58,6 +58,7 @@ enum class DownloadProcessingStage {
     NETWORK_AUDIO,
     NETWORK_VIDEO_TO_AUDIO,
     TRANSCODING,
+    VIDEO_SEGMENTING,
     VALIDATING,
     PUBLISHING,
 }
@@ -133,6 +134,10 @@ data class DownloadTask(
     val connectionCount: Int = 0,
     val processingStage: DownloadProcessingStage = DownloadProcessingStage.NONE,
     val processingProgressPercent: Int = 0,
+    /**
+     * Historical field name kept for Room/API compatibility.
+     * It is the requested output segment count for both MP3 and video tasks.
+     */
     val audioSegmentCount: Int = 1,
 )
 
@@ -158,5 +163,6 @@ data class DownloadHistory(
     val errorSummary: String? = null,
     val thumbnailUrl: String = "",
     val outputUris: List<String> = outputUri?.let(::listOf).orEmpty(),
+    /** Requested output segment count; the stored column keeps its legacy name. */
     val audioSegmentCount: Int = 1,
 )

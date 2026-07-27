@@ -272,6 +272,7 @@ private fun HistoryItem(
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
     var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
+    var showVideoSegments by rememberSaveable { mutableStateOf(false) }
     val report = reports.firstOrNull {
         it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED &&
             it.networkBytes > 0L
@@ -294,6 +295,8 @@ private fun HistoryItem(
     val playItem: () -> Unit = {
         if (shouldUseInternalAudioPlayer(item)) {
             showInternalAudioPlayer = true
+        } else if (item.outputUris.size > 1) {
+            showVideoSegments = true
         } else {
             openWithDefaultPlayer(context, item).onFailure {
                 Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
@@ -491,6 +494,24 @@ private fun HistoryItem(
         )
     }
 
+    if (showVideoSegments) {
+        VideoSegmentPlayerDialog(
+            item = item,
+            onDismiss = { showVideoSegments = false },
+            onPlay = { index, uri ->
+                openWithDefaultPlayer(
+                    context,
+                    item.copy(
+                        outputUri = uri,
+                        outputUris = listOf(uri),
+                    ),
+                ).onFailure {
+                    Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
+                }
+            },
+        )
+    }
+
     if (showPlayerChooser) {
         PlayerChooserDialog(
             item = item,
@@ -528,7 +549,10 @@ private fun HistoryItem(
                                 Text("网络耗时：${formatElapsed(entry.elapsedMillis)}")
                                 Text("连接内重试：${entry.retryCount} 次 · 重新探测：${entry.reprobeCount} 次")
                             } else {
-                                Text("输入源：${formatBytes(entry.expectedBytes)} · MP3 成品：${formatBytes(entry.committedBytes)}")
+                                Text(
+                                    "输入源：${formatBytes(entry.expectedBytes)} · " +
+                                        "本机成品：${formatBytes(entry.committedBytes)}",
+                                )
                                 Text("本机处理耗时：${formatElapsed(entry.elapsedMillis)}")
                             }
                             entry.fallbackReason?.let { Text("策略说明：$it") }
@@ -544,6 +568,44 @@ private fun HistoryItem(
             },
         )
     }
+}
+
+@Composable
+private fun VideoSegmentPlayerDialog(
+    item: DownloadHistory,
+    onDismiss: () -> Unit,
+    onPlay: (Int, String) -> Unit,
+) {
+    val uris = item.outputUris.ifEmpty { item.outputUri?.let(::listOf).orEmpty() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择视频分段") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    "共 ${uris.size} 段，每段都是可独立播放的 MP4。",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                uris.forEachIndexed { index, uri ->
+                    TextButton(
+                        onClick = { onPlay(index, uri) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("video-segment-play-${index + 1}"),
+                    ) {
+                        Text("播放第 ${(index + 1).toString().padStart(2, '0')} 段")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
 }
 
 @Composable
