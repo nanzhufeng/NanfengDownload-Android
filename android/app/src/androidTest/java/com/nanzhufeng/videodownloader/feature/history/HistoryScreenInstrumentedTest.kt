@@ -83,6 +83,35 @@ class HistoryScreenInstrumentedTest {
     }
 
     @Test
+    fun batchDelete_selectAllConfirmsVisibleHistoryRecords() {
+        var deletedIds = emptyList<String>()
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(
+                    completedHistory("history-1", "第一条历史"),
+                    completedHistory("history-2", "第二条历史"),
+                ),
+                onDeleteRecord = {},
+                onDeleteRecords = { deletedIds = it },
+            )
+        }
+
+        composeRule.onNodeWithTag("history-bulk-delete").performClick()
+        composeRule.onNodeWithTag("history-bulk-toolbar").assertIsDisplayed()
+        composeRule.onNodeWithTag("history-select-all").performClick()
+        composeRule.onNodeWithText("已选 2 项").assertIsDisplayed()
+        composeRule.onNodeWithTag("history-delete-selected").performClick()
+        composeRule.onNodeWithText("将删除选中的 2 条历史记录，不会删除已经保存的媒体文件。")
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("history-confirm-bulk-delete").performClick()
+
+        composeRule.runOnIdle {
+            assertTrue(deletedIds.toSet() == setOf("history-1", "history-2"))
+        }
+        composeRule.onNodeWithTag("history-bulk-toolbar").assertDoesNotExist()
+    }
+
+    @Test
     fun completedRecordShowsExplicitConnectionModeAndPermanentReportDetails() {
         composeRule.setContent {
             HistoryScreen(

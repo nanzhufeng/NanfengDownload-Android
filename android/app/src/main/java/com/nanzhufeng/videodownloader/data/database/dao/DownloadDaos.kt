@@ -322,6 +322,9 @@ interface DownloadHistoryDao {
     @Query("DELETE FROM download_history WHERE taskId = :taskId")
     suspend fun deleteById(taskId: String): Int
 
+    @Query("DELETE FROM download_history WHERE taskId IN (:taskIds)")
+    suspend fun deleteByIds(taskIds: List<String>): Int
+
     @Query(
         """
         SELECT * FROM download_history

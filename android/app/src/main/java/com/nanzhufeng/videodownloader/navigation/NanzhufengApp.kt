@@ -316,6 +316,9 @@ fun NanzhufengApp(
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
                         },
+                        onDeleteHistories = { taskIds ->
+                            scope.launch { downloads.deleteHistoryRecords(taskIds) }
+                        },
                         expanded = true,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.weight(1f),
@@ -452,6 +455,9 @@ fun NanzhufengApp(
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
                         },
+                        onDeleteHistories = { taskIds ->
+                            scope.launch { downloads.deleteHistoryRecords(taskIds) }
+                        },
                         expanded = false,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.padding(padding),
@@ -497,6 +503,7 @@ private fun AppNavHost(
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onDeleteHistory: (String) -> Unit,
+    onDeleteHistories: (List<String>) -> Unit,
     expanded: Boolean,
     networkAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -542,6 +549,7 @@ private fun AppNavHost(
                 history = history,
                 throughputReports = throughputReports,
                 onDeleteRecord = onDeleteHistory,
+                onDeleteRecords = onDeleteHistories,
             )
         }
         composable(AppDestination.SETTINGS.route) {

@@ -176,6 +176,12 @@ class RoomDownloadRepository(
     override suspend fun deleteHistoryRecord(taskId: String): Boolean =
         historyDao.deleteById(taskId) == 1
 
+    override suspend fun deleteHistoryRecords(taskIds: List<String>): Int {
+        val uniqueIds = taskIds.distinct()
+        if (uniqueIds.isEmpty()) return 0
+        return historyDao.deleteByIds(uniqueIds)
+    }
+
     override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverQueueAfterProcessDeath(clock())
 
     override suspend fun updateTransfer(

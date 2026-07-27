@@ -216,6 +216,20 @@ class RoomDownloadRepositoryInstrumentedTest {
         assertTrue(repository.history.first().isEmpty())
     }
 
+    @Test
+    fun batchDeleteHistoryRecordsDeletesDistinctSelectionInOneOperation() = runBlocking {
+        repository.archiveTerminal(history().copy(taskId = "history-1", contentId = "content-1"))
+        repository.archiveTerminal(history().copy(taskId = "history-2", contentId = "content-2"))
+        repository.archiveTerminal(history().copy(taskId = "history-3", contentId = "content-3"))
+
+        assertEquals(
+            2,
+            repository.deleteHistoryRecords(listOf("history-1", "history-2", "history-2")),
+        )
+
+        assertEquals(listOf("history-3"), repository.history.first().map { it.taskId })
+    }
+
     private fun media() = MediaItem(
         mediaKey = "ignored",
         platform = DownloadPlatform.TIKTOK,

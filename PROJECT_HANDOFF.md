@@ -9,6 +9,18 @@
 
 ## 已完成阶段
 
+### Android v1.2.4 历史批量删除（2026-07-27）
+
+- 历史页标题右侧新增“批量删除”；常态不新增工具栏，不挤占时间线视频空间。
+- 进入选择态后支持逐条勾选、全选当前筛选结果、取消和删除；选择数量与操作保持同一行。
+- 删除前必须二次确认，文案明确“只删除历史记录，不删除已经保存的媒体文件”；分段音视频仍按一条聚合历史记录删除。
+- 批量删除由 `DownloadRepository.deleteHistoryRecords()` 统一拥有，Room 使用单次 `DELETE ... IN (...)` 删除去重后的 ID；页面不循环直写 DAO。
+- Debug/Release JVM 各 164 项、Release Lint、专用模拟器 77 项仪器测试全部通过；3 项外部 TikTok 条件测试按预期跳过。
+- OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.4 / 10204`；`firstInstallTime` 保持 `2026-07-18 13:44:10`，手机回读 APK 与本地产物哈希一致。
+- OPPO 真机只执行“进入批量删除 → 勾选一条 → 已选1项 → 取消”，没有删除真实历史；实际确认删除链路由模拟器与 Room 仪器测试覆盖。
+- 最终 APK 为 91,539,663 B，SHA-256 `d4fad54eb998a4a83ebc7ec5dfd3e47860c63c3985e5194e5989d2b6172f467d`；AAB 为 38,337,663 B，SHA-256 `63c571f012879eecf2f4efbc05b9d612be81d02a1cc34c45f08f57a45be05bd2`。
+- 本轮暂不上传 GitHub。完整证据见 `docs/verification/2026-07-27-android-v1.2.4-history-bulk-delete.md`。
+
 ### Android v1.2.3 视频自定义分段与完整任务进度（2026-07-27）
 
 - 等待中的视频任务与 MP3 任务统一支持 1–20 段；默认不分段。兼容复用 Room v6 的历史字段 `audioSegmentCount` 作为通用媒体段数，避免破坏性数据库迁移。

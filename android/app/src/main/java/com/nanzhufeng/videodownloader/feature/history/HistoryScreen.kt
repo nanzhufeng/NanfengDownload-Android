@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -80,13 +81,21 @@ fun HistoryScreen(
     history: List<DownloadHistory>,
     throughputReports: List<DownloadThroughputReport> = emptyList(),
     onDeleteRecord: (String) -> Unit,
+    onDeleteRecords: (List<String>) -> Unit = { taskIds ->
+        taskIds.forEach(onDeleteRecord)
+    },
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var platform by rememberSaveable { mutableStateOf<DownloadPlatform?>(null) }
     var period by rememberSaveable { mutableStateOf(HistoryPeriod.ALL) }
     var pendingDeleteId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectionMode by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    var pendingBulkDelete by rememberSaveable { mutableStateOf(false) }
     val filtered = filterCompletedHistory(history, query, platform, period)
     val grouped = filtered.groupBy { formatHistoryDay(it.completedAt) }
+    val visibleIds = filtered.map(DownloadHistory::taskId)
+    val selectedIdSet = selectedIds.toSet()
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag("history-screen")) {
         val expanded = maxWidth >= 600.dp
@@ -101,19 +110,32 @@ fun HistoryScreen(
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            "历史",
-                            style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
+                    Text(
+                        "历史",
+                        modifier = Modifier.weight(1f),
+                        style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (!selectionMode && filtered.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                selectedIds = emptyList()
+                                selectionMode = true
+                            },
+                            modifier = Modifier.testTag("history-bulk-delete"),
+                        ) {
+                            Text("批量删除")
+                        }
                     }
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 OutlinedTextField(
                     value = query,
-                    onValueChange = { query = it },
+                    onValueChange = {
+                        query = it
+                        selectedIds = emptyList()
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
@@ -129,9 +151,72 @@ fun HistoryScreen(
                 HistoryFilters(
                     platform = platform,
                     period = period,
-                    onPlatformChange = { platform = it },
-                    onPeriodChange = { period = it },
+                    onPlatformChange = {
+                        platform = it
+                        selectedIds = emptyList()
+                    },
+                    onPeriodChange = {
+                        period = it
+                        selectedIds = emptyList()
+                    },
                 )
+            }
+            if (selectionMode) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("history-bulk-toolbar"),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            "已选 ${selectedIds.size} 项",
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        TextButton(
+                            onClick = {
+                                selectedIds = if (
+                                    visibleIds.isNotEmpty() && visibleIds.all(selectedIdSet::contains)
+                                ) {
+                                    emptyList()
+                                } else {
+                                    visibleIds
+                                }
+                            },
+                            enabled = visibleIds.isNotEmpty(),
+                            modifier = Modifier.testTag("history-select-all"),
+                        ) {
+                            Text(
+                                if (
+                                    visibleIds.isNotEmpty() && visibleIds.all(selectedIdSet::contains)
+                                ) {
+                                    "取消全选"
+                                } else {
+                                    "全选"
+                                },
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                selectedIds = emptyList()
+                                selectionMode = false
+                            },
+                            modifier = Modifier.testTag("history-bulk-cancel"),
+                        ) {
+                            Text("取消")
+                        }
+                        Button(
+                            onClick = { pendingBulkDelete = true },
+                            enabled = selectedIds.isNotEmpty(),
+                            modifier = Modifier.testTag("history-delete-selected"),
+                        ) {
+                            Text("删除")
+                        }
+                    }
+                }
             }
             if (grouped.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -147,6 +232,15 @@ fun HistoryScreen(
                             item = item,
                             reports = throughputReports.filter { it.taskId == item.taskId },
                             expanded = expanded,
+                            selectionMode = selectionMode,
+                            selected = item.taskId in selectedIdSet,
+                            onSelectionChange = {
+                                selectedIds = if (item.taskId in selectedIdSet) {
+                                    selectedIds - item.taskId
+                                } else {
+                                    selectedIds + item.taskId
+                                }
+                            },
                             onDelete = { pendingDeleteId = item.taskId },
                         )
                     }
@@ -168,6 +262,33 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDeleteId = null }) { Text("取消") }
+            },
+        )
+    }
+
+    if (pendingBulkDelete) {
+        AlertDialog(
+            onDismissRequest = { pendingBulkDelete = false },
+            title = { Text("批量删除历史记录？") },
+            text = {
+                Text("将删除选中的 ${selectedIds.size} 条历史记录，不会删除已经保存的媒体文件。")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val idsToDelete = selectedIds
+                        pendingBulkDelete = false
+                        selectedIds = emptyList()
+                        selectionMode = false
+                        onDeleteRecords(idsToDelete)
+                    },
+                    modifier = Modifier.testTag("history-confirm-bulk-delete"),
+                ) {
+                    Text("删除 ${selectedIds.size} 条记录")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingBulkDelete = false }) { Text("取消") }
             },
         )
     }
@@ -263,6 +384,9 @@ private fun HistoryItem(
     item: DownloadHistory,
     reports: List<DownloadThroughputReport>,
     expanded: Boolean,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onSelectionChange: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -335,7 +459,9 @@ private fun HistoryItem(
             tone = AppCardTone.MINT,
             modifier = Modifier
                 .weight(1f)
-                .clickable { showDetails = true }
+                .clickable {
+                    if (selectionMode) onSelectionChange() else showDetails = true
+                }
                 .testTag("history-card-${item.taskId}"),
             contentPadding = PaddingValues(if (expanded) 16.dp else 8.dp),
         ) {
@@ -343,7 +469,9 @@ private fun HistoryItem(
                 HistoryThumbnail(
                     item = item,
                     expanded = expanded,
-                    onPlay = playItem,
+                    onPlay = {
+                        if (selectionMode) onSelectionChange() else playItem()
+                    },
                 )
                 Spacer(Modifier.width(if (expanded) 12.dp else 8.dp))
                 Column(
@@ -351,7 +479,17 @@ private fun HistoryItem(
                     verticalArrangement = Arrangement.spacedBy(if (expanded) 6.dp else 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                    PlatformIcon(
+                        if (selectionMode) {
+                            Checkbox(
+                                checked = selected,
+                                onCheckedChange = { onSelectionChange() },
+                                modifier = Modifier
+                                    .size(if (expanded) 36.dp else 30.dp)
+                                    .testTag("history-select-${item.taskId}"),
+                            )
+                            Spacer(Modifier.width(4.dp))
+                        }
+                        PlatformIcon(
                         item.platform,
                         contentDescription = "${item.platform.label()} 图标",
                         modifier = Modifier.size(if (expanded) 20.dp else 18.dp),
@@ -359,7 +497,8 @@ private fun HistoryItem(
                     Spacer(Modifier.width(8.dp))
                     Text(item.platform.label(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
-                    Box {
+                    if (!selectionMode) {
+                        Box {
                         IconButton(
                             onClick = { menuExpanded = true },
                             modifier = Modifier
@@ -425,6 +564,7 @@ private fun HistoryItem(
                                     onDelete()
                                 },
                             )
+                        }
                         }
                     }
                 }

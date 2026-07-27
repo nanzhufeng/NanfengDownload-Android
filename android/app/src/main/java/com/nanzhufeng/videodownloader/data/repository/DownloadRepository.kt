@@ -56,6 +56,14 @@ interface DownloadRepository {
 
     suspend fun deleteHistoryRecord(taskId: String): Boolean = false
 
+    suspend fun deleteHistoryRecords(taskIds: List<String>): Int {
+        var deletedCount = 0
+        taskIds.distinct().forEach { taskId ->
+            if (deleteHistoryRecord(taskId)) deletedCount += 1
+        }
+        return deletedCount
+    }
+
     suspend fun recoverInterruptedTasks(): Int = 0
 
     suspend fun updateTransfer(
