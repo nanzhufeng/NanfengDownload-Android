@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 当前分支包含 `v1.2.4` 历史批量删除，以及 `v1.2.3` 音频/视频自定义分段、完整任务进度、单次处理多成品和分段播放 |
-| Git 状态 | `v1.2.4` 改动以本文件和 verification 记录为验收依据；本轮只建立本地 checkpoint，暂不上传 GitHub |
+| 当前代码 checkpoint | 当前分支包含 `v1.2.5` 历史批量选择布局，以及 `v1.2.4` 历史批量删除和 `v1.2.3` 音频/视频自定义分段、完整任务进度、单次处理多成品与分段播放 |
+| Git 状态 | `v1.2.5` 改动以本文件和 verification 记录为验收依据；本轮只建立本地 checkpoint，暂不上传 GitHub |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.2.4` / `versionCode 10204` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.4.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.4` 已完成本地正式构建与 OPPO 验收；尚未上传 GitHub |
+| 当前版本 | `1.2.5` / `versionCode 10205` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.5.apk` 与同名 `.aab` |
+| 发布状态 | `v1.2.5` 已完成本地正式构建与 OPPO 验收；尚未上传 GitHub |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.3.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.5.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,18 +192,19 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-当前 `v1.2.4` 在不改变既有媒体成品的前提下，为历史页增加批量删除记录：
+当前 `v1.2.5` 在不改变批量删除的数据语义和既有媒体成品的前提下，重排历史页选择交互：
 
 - `:app:testDebugUnitTest`：164 项，0 失败、0 错误、0 跳过。
 - `:app:testReleaseUnitTest`：164 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
 - 专用模拟器 `emulator-5580` 仪器测试：77 项，0 失败；3 项外部 TikTok 条件按既有规则跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：91,539,663 B，SHA-256 `d4fad54eb998a4a83ebc7ec5dfd3e47860c63c3985e5194e5989d2b6172f467d`。
-- Release AAB：38,337,663 B，SHA-256 `63c571f012879eecf2f4efbc05b9d612be81d02a1cc34c45f08f57a45be05bd2`。
-- APK 为 `1.2.4 / 10204`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- Release APK：91,539,663 B，SHA-256 `b2da131229d82d2cf39751a309241f13e0a97ee4902a077000a497f22a568e61`。
+- Release AAB：38,337,478 B，SHA-256 `7b444e71226ba14a8fbbe2847628fe8550aa72f365d3bb1329e7723ff54dd93a`。
+- APK 为 `1.2.5 / 10205`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 已在 OPPO 同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`，从手机拉回的 `base.apk` 与本地 APK 哈希一致。
-- 历史页常态只在标题右侧显示“批量删除”；选择态提供逐条勾选、当前筛选结果全选、取消和删除，确认框明确显示数量并说明只删除历史记录、不删除 MediaStore 成品。
+- “批量删除”与“全部平台 / 全部时间”固定同排；选择框从卡片内部移除，改为时间线左侧的独立圆形选择控件，并与对应卡片垂直居中。选中后同一控件变为绿色勾号。
+- 选择态继续提供当前筛选结果全选、取消和删除，确认框明确显示数量并说明只删除历史记录、不删除 MediaStore 成品。
 - Room 通过单次 `DELETE ... IN (...)` 删除去重后的任务 ID；空集合不进入 DAO。模拟器已验证两条历史一次删除，OPPO 只验证“进入选择 → 勾选一条 → 取消”，没有破坏真实历史数据。
 
 `v1.2.3` 音频/视频自定义分段继续保留以下真实回归证据：
@@ -240,7 +241,7 @@ adb -s <OPPO序列号> shell \
 ## 8. 已知风险与下一步
 
 1. 正式签名密钥只保存在仓库外的本机安全目录，密码在 macOS 钥匙串；仍应建立用户控制的异地加密备份，密钥丢失将导致后续正式版无法覆盖升级。
-2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；随后以同一正式证书依次无损覆盖到 `v1.1.0`、`v1.2.0`、`v1.2.2`、`v1.2.3` 和 `v1.2.4`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
+2. OPPO 已在 2026-07-21 通过 Android v3 证书谱系从旧 Debug 版无损升级到正式签名 `v1.0.0`；随后以同一正式证书依次无损覆盖到 `v1.1.0`、`v1.2.0`、`v1.2.2`、`v1.2.3`、`v1.2.4` 和 `v1.2.5`。首次安装时间、旧历史和输入草稿均保留，后续仍不得卸载或清数据。
 3. 抖音等平台的受限内容可能要求 fresh cookies；会话存在不等于登录真实有效，必须用受保护动作验证。
 4. 哔哩哔哩 UP 主页批量接口当前返回 412，`v1.1.0` 只支持单视频；其他作者/频道/播放列表的大批量分页、过滤和取消选择仍需要更长的公开内容回归。
 5. 当前 AGP 8.5.2 官方测试范围只到 compileSdk 34，但项目使用 compileSdk 35；本轮 Release 构建通过，后续仍应升级 AGP 或重新确认兼容矩阵。
@@ -257,7 +258,8 @@ adb -s <OPPO序列号> shell \
 6. `docs/verification/2026-07-21-android-v1.0.0-release.md`：正式签名、Release APK/AAB、哈希和模拟器安装证据。
 7. `docs/verification/2026-07-26-android-v1.1.0-bilibili-xiaohongshu.md`：两个新增平台的边界、模拟器与 OPPO 真实网络闭环、正式产物及持久化证据。
 8. `docs/verification/2026-07-27-android-v1.2.3-video-segmentation.md`：视频自定义分段、完整任务进度、OPPO 真实三段成品与正式产物证据。
-9. `docs/verification/2026-07-27-android-v1.2.4-history-bulk-delete.md`：历史批量删除、模拟器破坏性链路和 OPPO 非破坏性真机验收证据。
+9. `docs/verification/2026-07-27-android-v1.2.4-history-bulk-delete.md`：历史批量删除的数据链路、模拟器破坏性验证和 OPPO 非破坏性验收基线。
+10. `docs/verification/2026-07-27-android-v1.2.5-history-bulk-delete-ui.md`：批量入口同排、左侧时间线选择控件、对齐测量和 OPPO 真机证据。
 
 禁止把旧桌面 README、早期设计拼图、历史计划或单次构建输出当成当前 Android 项目的唯一真相源。
 

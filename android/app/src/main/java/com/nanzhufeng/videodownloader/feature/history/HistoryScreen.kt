@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -30,11 +31,11 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -116,17 +117,6 @@ fun HistoryScreen(
                         style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                     )
-                    if (!selectionMode && filtered.isNotEmpty()) {
-                        TextButton(
-                            onClick = {
-                                selectedIds = emptyList()
-                                selectionMode = true
-                            },
-                            modifier = Modifier.testTag("history-bulk-delete"),
-                        ) {
-                            Text("批量删除")
-                        }
-                    }
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -158,6 +148,11 @@ fun HistoryScreen(
                     onPeriodChange = {
                         period = it
                         selectedIds = emptyList()
+                    },
+                    showBulkDelete = !selectionMode && filtered.isNotEmpty(),
+                    onBulkDelete = {
+                        selectedIds = emptyList()
+                        selectionMode = true
                     },
                 )
             }
@@ -314,6 +309,8 @@ private fun HistoryFilters(
     period: HistoryPeriod,
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
+    showBulkDelete: Boolean,
+    onBulkDelete: () -> Unit,
 ) {
     var platformMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var periodMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -376,6 +373,14 @@ private fun HistoryFilters(
                 .weight(1f)
                 .height(1.dp),
         )
+        if (showBulkDelete) {
+            TextButton(
+                onClick = onBulkDelete,
+                modifier = Modifier.testTag("history-bulk-delete"),
+            ) {
+                Text("批量删除")
+            }
+        }
     }
 }
 
@@ -434,25 +439,63 @@ private fun HistoryItem(
         playable -> "无法读取"
         else -> "文件不可用"
     }
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Column(modifier = Modifier.width(48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Filled.CheckCircle,
-                contentDescription = "已完成",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(if (expanded) 24.dp else 22.dp),
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .width(48.dp)
+                .height(if (expanded) 72.dp else 58.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .width(1.dp)
+                    .height(if (expanded) 16.dp else 10.dp)
+                    .background(Color(0xFFD4E7DA)),
             )
+            if (selectionMode) {
+                IconButton(
+                    onClick = onSelectionChange,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(if (expanded) 44.dp else 40.dp)
+                        .testTag("history-select-${item.taskId}"),
+                ) {
+                    Icon(
+                        imageVector = if (selected) {
+                            Icons.Filled.CheckCircle
+                        } else {
+                            Icons.Outlined.RadioButtonUnchecked
+                        },
+                        contentDescription = if (selected) {
+                            "取消选择 ${item.title}"
+                        } else {
+                            "选择 ${item.title}"
+                        },
+                        tint = if (selected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.size(if (expanded) 30.dp else 28.dp),
+                    )
+                }
+            } else {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = "已完成",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(if (expanded) 26.dp else 24.dp),
+                )
+            }
             Text(
                 formatHistoryClock(item.completedAt),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = if (expanded) 27.dp else 24.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall,
-            )
-            Box(
-                Modifier
-                    .padding(top = 4.dp)
-                    .width(1.dp)
-                    .height(if (expanded) 76.dp else 52.dp)
-                    .background(Color(0xFFD4E7DA)),
             )
         }
         WorkbenchCard(
@@ -479,16 +522,6 @@ private fun HistoryItem(
                     verticalArrangement = Arrangement.spacedBy(if (expanded) 6.dp else 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (selectionMode) {
-                            Checkbox(
-                                checked = selected,
-                                onCheckedChange = { onSelectionChange() },
-                                modifier = Modifier
-                                    .size(if (expanded) 36.dp else 30.dp)
-                                    .testTag("history-select-${item.taskId}"),
-                            )
-                            Spacer(Modifier.width(4.dp))
-                        }
                         PlatformIcon(
                         item.platform,
                         contentDescription = "${item.platform.label()} 图标",

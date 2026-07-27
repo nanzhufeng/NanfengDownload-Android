@@ -98,6 +98,14 @@ class HistoryScreenInstrumentedTest {
 
         composeRule.onNodeWithTag("history-bulk-delete").performClick()
         composeRule.onNodeWithTag("history-bulk-toolbar").assertIsDisplayed()
+        composeRule.onNodeWithTag("history-select-history-1").performClick()
+        composeRule.onNodeWithText("已选 1 项").assertIsDisplayed()
+        val selectorBounds = composeRule.onNodeWithTag("history-select-history-1").getBoundsInRoot()
+        val cardBounds = composeRule.onNodeWithTag("history-card-history-1").getBoundsInRoot()
+        val selectorCenter = (selectorBounds.top.value + selectorBounds.bottom.value) / 2f
+        val cardCenter = (cardBounds.top.value + cardBounds.bottom.value) / 2f
+        assertTrue("左侧选择勾号应与历史卡片垂直居中", kotlin.math.abs(selectorCenter - cardCenter) < 4f)
+        assertTrue("选择勾号应单独位于历史卡片左侧", selectorBounds.right.value <= cardBounds.left.value)
         composeRule.onNodeWithTag("history-select-all").performClick()
         composeRule.onNodeWithText("已选 2 项").assertIsDisplayed()
         composeRule.onNodeWithTag("history-delete-selected").performClick()
