@@ -14,7 +14,7 @@
 
 ## 下载安装
 
-前往 [v1.2.0 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.0) 下载 `NanfengDownload-Android-v1.2.0.apk`。AAB 用于后续应用商店分发，普通安装请选择 APK；校验值见同一 Release 的 `SHA256SUMS.txt`。本地构建仍按约定输出中文名，GitHub Release 因平台会清洗非 ASCII 附件名而使用英文文件名。
+前往 [v1.2.6 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.6) 下载 `NanfengDownload-Android-v1.2.6.apk`。AAB 用于后续应用商店分发，普通安装请选择 APK；校验值见同一 Release 的 `SHA256SUMS.txt`。本地构建仍按约定输出中文名，GitHub Release 因平台会清洗非 ASCII 附件名而使用英文文件名。
 
 正式版使用长期 Release 签名。项目曾通过 Android v3 签名证书谱系，将指定 OPPO 上的 `0.1.0-probe` Debug 验收版无损迁移到正式签名；其他设备若签名不一致，仍必须停止并先确认迁移或备份方案，不得自动卸载或清除数据。
 
@@ -62,8 +62,8 @@ NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
 构建产物直接命名为：
 
 ```text
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.0.apk
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.0.aab
+android/app/build/outputs/formal-release/南枫下载-Android-v1.2.6.apk
+android/app/build/outputs/formal-release/南枫下载-Android-v1.2.6.aab
 ```
 
 自动化 UI 测试必须绑定项目专用模拟器。OPPO 真机更新固定使用“推送 APK → `pm install -r --user 0`”的同签名覆盖路径，不使用会触发 ColorOS 图形确认页的直接 `adb install`。
@@ -76,4 +76,4 @@ android/app/build/outputs/formal-release/南枫下载-Android-v1.2.0.aab
 
 ## 发布状态
 
-当前仓库明确维护 Android 版。`v1.2.0` 使用既有正式证书生成 APK/AAB，并在 OPPO 完成 YouTube 音频提速、数据保留和内置音频播放验收。Google Play 上架和签名密钥异地加密备份仍是后续独立任务。
+当前仓库明确维护 Android 版。`v1.2.6` 使用既有正式证书生成 APK/AAB，并在 OPPO 完成音视频快速合并、YouTube 真实成品、数据保留和安装包回读校验。Google Play 上架和签名密钥异地加密备份仍是后续独立任务。

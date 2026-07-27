@@ -14,11 +14,11 @@
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
 | 当前代码 checkpoint | 当前分支包含 `v1.2.6` 音视频快速合并，以及 `v1.2.5` 历史批量选择、`v1.2.4` 历史批量删除和 `v1.2.3` 音频/视频自定义分段 |
-| Git 状态 | `v1.2.6` 改动以本文件和 verification 记录为验收依据；本轮只建立本地 checkpoint，暂不上传 GitHub |
+| Git 状态 | `v1.2.6` 改动以本文件和 verification 记录为验收依据，并同步到 GitHub `main` 与同版本 Release |
 | applicationId | `com.nanzhufeng.videodownloader` |
 | 当前版本 | `1.2.6` / `versionCode 10206` |
 | 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.6.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.6` 已完成本地正式构建与 OPPO 验收；尚未上传 GitHub |
+| 发布状态 | `v1.2.6` 已完成正式构建、OPPO 验收与 GitHub Release 交付 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。

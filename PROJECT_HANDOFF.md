@@ -19,7 +19,7 @@
 - OPPO 真实 YouTube 样本 `Tears of Steel - Blender VFX Open Movie` 完成 720p 独立音视频下载、快速合并和 MediaStore 发布。成品为 MP4，76,939,898 B、734,215 ms；历史显示 12:14 / 73.4 MB。
 - OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.6 / 10206`；`firstInstallTime` 保持不变，手机回读 APK 与本地产物哈希一致。
 - 最终 APK 为 86,239,281 B，SHA-256 `b93b4f3eca96cfb22a179a08a3ab7544d4d3cb6e1d03b435884e3f6c7b05b0bb`；AAB 为 36,092,081 B，SHA-256 `ee6536663d57d5da75339d93d74d4c51a30e67edd141792512cd66d68c4d1020`。
-- 本轮暂不上传 GitHub。完整证据见 `docs/verification/2026-07-27-android-v1.2.6-fast-mux.md`。
+- 源码已同步到 GitHub `main`，正式 APK、AAB 与 SHA-256 校验文件发布到 `v1.2.6` Release。完整证据见 `docs/verification/2026-07-27-android-v1.2.6-fast-mux.md`。
 
 ### Android v1.2.5 历史批量选择布局（2026-07-27）
 
