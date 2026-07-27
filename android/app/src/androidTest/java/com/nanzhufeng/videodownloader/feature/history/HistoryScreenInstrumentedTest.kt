@@ -170,6 +170,34 @@ class HistoryScreenInstrumentedTest {
     }
 
     @Test
+    fun segmentedAudio_staysOneHistoryCardAndPlayerCanNavigateSegments() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(
+                    completedHistory("segmented-audio", "分段长音频").copy(
+                        resolution = ResolutionPreset.AUDIO_MP3,
+                        outputUri = "content://media/external/audio/media/1",
+                        outputUris = listOf(
+                            "content://media/external/audio/media/1",
+                            "content://media/external/audio/media/2",
+                            "content://media/external/audio/media/3",
+                        ),
+                        audioSegmentCount = 3,
+                        fileExists = true,
+                    ),
+                ),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithText("共 3 段", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("history-thumbnail-segmented-audio").performClick()
+        composeRule.onNodeWithText("正在播放音频 · 第 1/3 段").assertIsDisplayed()
+        composeRule.onNodeWithText("下一段").performClick()
+        composeRule.onNodeWithText("正在播放音频 · 第 2/3 段").assertIsDisplayed()
+    }
+
+    @Test
     fun innerScreen_arrangesCompletedTimelineCardsInTwoColumns() {
         composeRule.setContent {
             Box(Modifier.requiredWidth(700.dp).height(800.dp)) {

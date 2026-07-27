@@ -43,6 +43,33 @@ class StreamSelectionTest(unittest.TestCase):
         self.assertEqual("audio", primary["format_id"])
         self.assertIsNone(secondary)
 
+    def test_audio_preset_prefers_stereo_m4a_over_higher_bitrate_surround_audio(self):
+        formats = [
+            {
+                "format_id": "stereo",
+                "url": "https://media.test/stereo",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a.40.2",
+                "abr": 129,
+                "audio_channels": 2,
+            },
+            {
+                "format_id": "surround",
+                "url": "https://media.test/surround",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a.40.2",
+                "abr": 388,
+                "audio_channels": 6,
+            },
+        ]
+
+        primary, secondary = _select_streams(formats, "AUDIO_MP3")
+
+        self.assertEqual("stereo", primary["format_id"])
+        self.assertIsNone(secondary)
+
     def test_audio_preset_uses_720p_progressive_when_audio_and_360p_are_missing(self):
         formats = [
             self._video("720-video-only", 1280, 720, 1200),

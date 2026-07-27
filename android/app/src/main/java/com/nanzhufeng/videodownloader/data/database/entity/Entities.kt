@@ -59,6 +59,9 @@ data class DownloadTaskEntity(
     val updatedAt: Long,
     val connectionMode: String = "UNKNOWN",
     val connectionCount: Int = 0,
+    val processingStage: String = "NONE",
+    val processingProgressPercent: Int = 0,
+    val audioSegmentCount: Int = 1,
 )
 
 data class DownloadTaskWithMedia(
@@ -93,6 +96,8 @@ data class DownloadHistoryEntity(
     val completedAt: Long,
     val failureType: String? = null,
     val errorSummary: String? = null,
+    val outputUrisJson: String = "[]",
+    val audioSegmentCount: Int = 1,
 )
 
 data class DownloadHistoryWithThumbnail(

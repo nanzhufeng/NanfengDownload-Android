@@ -70,6 +70,15 @@ object UserFacingErrorPresenter {
                 "音视频合并失败。" +
                     "解决办法：请降低分辨率后重试；若仍失败，请在下载详情中查看原始错误。"
 
+            hasAny(lower, "mp3 校验失败", "lame 输出未通过", "音频转码结果不是有效 mp3") ->
+                "音频转换完成，但生成的 MP3 没有通过完整性校验。" +
+                    "解决办法：请直接点击重试，App 会复用已下载的转换源重新生成，不会重复下载整段视频；" +
+                    "若仍失败，请保留下载详情中的高级信息。"
+
+            hasAny(lower, "源文件中没有可解码的音频轨道", "没有可解码音轨") ->
+                "已下载的转换源没有可解码音轨。" +
+                    "解决办法：请重新智能读取后选择其他画质；若平台没有独立音频，App 会改用带声音的视频转换。"
+
             hasAny(lower, "unexpected end of stream", "premature eof", "connection reset", "connection closed", "stream was reset") ->
                 "网络传输中断，服务器提前关闭了连接。" +
                     "解决办法：请保持 App 运行并点击重试，App 会重新探测地址并续传。"

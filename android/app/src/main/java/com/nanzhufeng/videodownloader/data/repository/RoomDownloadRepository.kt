@@ -7,6 +7,7 @@ import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
 import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
@@ -26,6 +27,7 @@ import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputRep
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
 
 class RoomDownloadRepository(
     private val database: NanzhufengDatabase,
@@ -113,8 +115,32 @@ class RoomDownloadRepository(
     }
 
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) {
-        check(taskDao.updateResolution(taskId, resolution.name, clock()) == 1) {
-            "找不到下载任务：$taskId"
+        database.withTransaction {
+            val now = clock()
+            check(taskDao.updateResolution(taskId, resolution.name, now) == 1) {
+                "找不到下载任务：$taskId"
+            }
+            if (resolution != ResolutionPreset.AUDIO_MP3) {
+                check(taskDao.updateAudioSegmentCount(taskId, 1, now) == 1) {
+                    "重置音频分段数量失败：$taskId"
+                }
+            }
+        }
+    }
+
+    override suspend fun setAudioSegmentCount(taskId: String, segmentCount: Int) {
+        require(segmentCount in 1..MAX_AUDIO_SEGMENTS) {
+            "音频分段数量必须在 1 到 $MAX_AUDIO_SEGMENTS 之间"
+        }
+        val task = requireNotNull(taskDao.getById(taskId)) { "找不到下载任务：$taskId" }
+        require(DownloadTaskStatus.valueOf(task.status) == DownloadTaskStatus.WAITING) {
+            "只有等待中的任务可以修改音频分段数量"
+        }
+        require(ResolutionPreset.valueOf(task.resolution) == ResolutionPreset.AUDIO_MP3) {
+            "只有 MP3 音频任务可以设置分段数量"
+        }
+        check(taskDao.updateAudioSegmentCount(taskId, segmentCount, clock()) == 1) {
+            "更新音频分段数量失败：$taskId"
         }
     }
 
@@ -196,6 +222,21 @@ class RoomDownloadRepository(
         ) { "找不到下载任务：$taskId" }
     }
 
+    override suspend fun updateProcessing(
+        taskId: String,
+        stage: DownloadProcessingStage,
+        progressPercent: Int,
+    ) {
+        check(
+            taskDao.updateProcessing(
+                taskId = taskId,
+                processingStage = stage.name,
+                processingProgressPercent = progressPercent.coerceIn(0, 100),
+                updatedAt = clock(),
+            ) == 1,
+        ) { "找不到下载任务：$taskId" }
+    }
+
     override suspend fun recordThroughputReport(report: DownloadThroughputReport) {
         throughputDao.upsert(report.toEntity())
     }
@@ -243,11 +284,17 @@ class RoomDownloadRepository(
         platform: DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int,
     ): DownloadHistory? = historyDao.findCompleted(
         platform = platform.name,
         contentId = contentId,
         resolution = resolution.name,
+        audioSegmentCount = audioSegmentCount.coerceIn(1, MAX_AUDIO_SEGMENTS),
     )?.toDomain()
+
+    private companion object {
+        const val MAX_AUDIO_SEGMENTS = 20
+    }
 }
 
 private fun MediaItem.normalized(): MediaItem = copy(
@@ -290,6 +337,15 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         connectionMode = runCatching { DownloadConnectionMode.valueOf(task.connectionMode) }
             .getOrDefault(DownloadConnectionMode.UNKNOWN),
         connectionCount = task.connectionCount,
+        processingStage = runCatching {
+            DownloadProcessingStage.valueOf(task.processingStage)
+        }.getOrDefault(DownloadProcessingStage.NONE),
+        processingProgressPercent = task.processingProgressPercent.coerceIn(0, 100),
+        audioSegmentCount = if (task.resolution == ResolutionPreset.AUDIO_MP3.name) {
+            task.audioSegmentCount.coerceIn(1, 20)
+        } else {
+            1
+        },
     ),
     media = MediaItem(
         mediaKey = media.mediaKey,
@@ -320,6 +376,12 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     completedAt = completedAt,
     failureType = failureType?.name,
     errorSummary = errorSummary,
+    outputUrisJson = JSONArray(outputUris).toString(),
+    audioSegmentCount = if (resolution == ResolutionPreset.AUDIO_MP3) {
+        audioSegmentCount.coerceIn(1, 20)
+    } else {
+        1
+    },
 )
 
 private fun QueuedDownload.toHistory(
@@ -338,6 +400,11 @@ private fun QueuedDownload.toHistory(
     fileSize = 0L,
     fileExists = false,
     completedAt = completedAt,
+    audioSegmentCount = if (task.resolution == ResolutionPreset.AUDIO_MP3) {
+        task.audioSegmentCount.coerceIn(1, 20)
+    } else {
+        1
+    },
 )
 
 private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
@@ -355,6 +422,12 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     completedAt = completedAt,
     failureType = failureType?.let(DownloadFailureType::valueOf),
     errorSummary = errorSummary,
+    outputUris = decodeOutputUris(outputUrisJson, outputUri),
+    audioSegmentCount = if (resolution == ResolutionPreset.AUDIO_MP3.name) {
+        audioSegmentCount.coerceIn(1, 20)
+    } else {
+        1
+    },
 )
 
 private fun DownloadHistoryWithThumbnail.toDomain() = history.toDomain().copy(
@@ -406,3 +479,15 @@ private fun DownloadThroughputReportEntity.toDomain() = DownloadThroughputReport
     fallbackReason = fallbackReason,
     errorSummary = errorSummary,
 )
+
+private fun decodeOutputUris(value: String, fallback: String?): List<String> {
+    val decoded = runCatching {
+        val array = JSONArray(value)
+        buildList {
+            for (index in 0 until array.length()) {
+                array.optString(index).takeIf(String::isNotBlank)?.let(::add)
+            }
+        }
+    }.getOrDefault(emptyList())
+    return decoded.ifEmpty { fallback?.let(::listOf).orEmpty() }
+}

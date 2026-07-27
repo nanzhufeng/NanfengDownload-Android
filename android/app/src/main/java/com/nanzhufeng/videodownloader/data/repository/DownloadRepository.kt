@@ -5,6 +5,7 @@ import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
 import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
@@ -36,6 +37,8 @@ interface DownloadRepository {
     suspend fun bulkSelect(taskIds: List<String>, selected: Boolean)
 
     suspend fun setResolution(taskId: String, resolution: ResolutionPreset)
+
+    suspend fun setAudioSegmentCount(taskId: String, segmentCount: Int) = Unit
 
     suspend fun nextSelectedWaiting(): QueuedDownload?
 
@@ -69,6 +72,12 @@ interface DownloadRepository {
         connectionCount: Int,
     ) = Unit
 
+    suspend fun updateProcessing(
+        taskId: String,
+        stage: DownloadProcessingStage,
+        progressPercent: Int,
+    ) = Unit
+
     suspend fun recordThroughputReport(report: DownloadThroughputReport) = Unit
 
     suspend fun transition(taskId: String, to: DownloadTaskStatus)
@@ -88,5 +97,6 @@ interface DownloadRepository {
         platform: DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int = 1,
     ): DownloadHistory?
 }

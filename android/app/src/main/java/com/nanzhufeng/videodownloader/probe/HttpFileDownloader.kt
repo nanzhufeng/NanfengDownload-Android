@@ -117,7 +117,10 @@ class HttpFileDownloader(
         val partial = File(request.target.parentFile, request.target.name + ".part")
         partial.parentFile?.mkdirs()
         var lastError: IOException? = null
-        var rangePlanResolved = partial.exists() && !segmentPlanFile(partial).exists()
+        // 每次新下载调用都重新探测 Range。已有 .part 只能证明写过数据，
+        // 不能证明本次进程仍掌握总长度和分块策略；跳过探测会把顺序 Range
+        // 断点误降级为无上限的单个长响应，重新触发 YouTube 音频限速。
+        var rangePlanResolved = false
         var rangePlan: RangePlan? = null
         val policy = request.transferPolicy ?: TransferPolicy(
             platform = request.platform?.name ?: "GENERIC",

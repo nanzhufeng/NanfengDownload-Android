@@ -272,7 +272,10 @@ private fun HistoryItem(
     var showDetails by rememberSaveable { mutableStateOf(false) }
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
     var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
-    val report = reports.firstOrNull { it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED }
+    val report = reports.firstOrNull {
+        it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED &&
+            it.networkBytes > 0L
+    }
         ?: reports.firstOrNull()
     val playable = item.fileExists && item.outputUri != null
     val mediaMetadata by produceState<HistoryMediaMetadata?>(
@@ -435,7 +438,11 @@ private fun HistoryItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                     Text(
-                    "${item.resolution.label()}  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}",
+                    buildString {
+                        append(item.resolution.label())
+                        if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
+                        append("  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}")
+                    },
                     style = if (expanded) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -513,12 +520,17 @@ private fun HistoryItem(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
-                            Text("连接模式：${entry.connectionMode.label(entry.connectionCount)}")
-                            Text("Range：${if (entry.rangeSupported) "已验证支持" else "不支持或未通过探测"}")
-                            Text("实际网络字节：${formatBytes(entry.networkBytes)} · 成品：${formatBytes(entry.committedBytes)}")
-                            Text("平均：${formatSpeed(entry.averageBytesPerSecond)} · 峰值：${formatSpeed(entry.peakBytesPerSecond)}")
-                            Text("耗时：${String.format(Locale.getDefault(), "%.2f 秒", entry.elapsedMillis / 1000.0)}")
-                            Text("连接内重试：${entry.retryCount} 次 · 重新探测：${entry.reprobeCount} 次")
+                            if (entry.networkBytes > 0L) {
+                                Text("连接模式：${entry.connectionMode.label(entry.connectionCount)}")
+                                Text("Range：${if (entry.rangeSupported) "已验证支持" else "不支持或未通过探测"}")
+                                Text("实际网络字节：${formatBytes(entry.networkBytes)} · 成品：${formatBytes(entry.committedBytes)}")
+                                Text("平均：${formatSpeed(entry.averageBytesPerSecond)} · 峰值：${formatSpeed(entry.peakBytesPerSecond)}")
+                                Text("网络耗时：${formatElapsed(entry.elapsedMillis)}")
+                                Text("连接内重试：${entry.retryCount} 次 · 重新探测：${entry.reprobeCount} 次")
+                            } else {
+                                Text("输入源：${formatBytes(entry.expectedBytes)} · MP3 成品：${formatBytes(entry.committedBytes)}")
+                                Text("本机处理耗时：${formatElapsed(entry.elapsedMillis)}")
+                            }
                             entry.fallbackReason?.let { Text("策略说明：$it") }
                             entry.errorSummary?.let {
                                 Text("原始错误（高级信息）：$it", color = MaterialTheme.colorScheme.error)
@@ -617,12 +629,15 @@ private fun HistoryDetailsDialog(
                 Text(item.title, fontWeight = FontWeight.SemiBold)
                 Text(item.creator, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "${item.platform.label()}  ·  ${item.resolution.label()}",
+                    buildString {
+                        append("${item.platform.label()}  ·  ${item.resolution.label()}")
+                        if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "视频时长：$durationText",
+                    "${if (shouldUseInternalAudioPlayer(item)) "音频" else "视频"}时长：$durationText",
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -748,3 +763,15 @@ private fun formatBytes(value: Long): String = when {
 }
 
 private fun formatSpeed(value: Long): String = "${formatBytes(value)}/s"
+
+private fun formatElapsed(valueMillis: Long): String {
+    val totalSeconds = (valueMillis.coerceAtLeast(0L) + 500L) / 1_000L
+    val hours = totalSeconds / 3_600L
+    val minutes = (totalSeconds % 3_600L) / 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        hours > 0L -> "${hours}小时${minutes}分${seconds}秒"
+        minutes > 0L -> "${minutes}分${seconds}秒"
+        else -> String.format(Locale.getDefault(), "%.2f 秒", valueMillis / 1_000.0)
+    }
+}

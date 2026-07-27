@@ -210,6 +210,7 @@ private class RunnerRepository(initial: QueuedDownload) : DownloadRepository {
         platform: DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int,
     ): DownloadHistory? = null
 }
 

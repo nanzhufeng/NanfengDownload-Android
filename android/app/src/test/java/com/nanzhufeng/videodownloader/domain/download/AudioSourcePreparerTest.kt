@@ -117,6 +117,7 @@ class AudioSourcePreparerTest {
             source: File,
             destination: File,
             cancelled: AtomicBoolean,
+            onProgress: (progressPercent: Int) -> Unit,
         ): File {
             calls += 1
             return action(source, destination, cancelled)

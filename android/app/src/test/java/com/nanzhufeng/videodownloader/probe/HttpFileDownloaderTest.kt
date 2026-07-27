@@ -28,6 +28,56 @@ import org.junit.Test
 
 class HttpFileDownloaderTest {
     @Test
+    fun existingSequentialChunkPartReprobesAndResumesWithBoundedRange() {
+        val payload = fakeMp4Payload(size = 100 * 1024)
+        val requestedRanges = CopyOnWriteArrayList<String>()
+        val server = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    val range = request.getHeader("Range") ?: error("Range header required")
+                    requestedRanges += range
+                    val bounds = range.removePrefix("bytes=").split('-', limit = 2)
+                    val start = bounds[0].toInt()
+                    val end = bounds[1].toInt().coerceAtMost(payload.lastIndex)
+                    return MockResponse()
+                        .setResponseCode(206)
+                        .setHeader("Content-Range", "bytes $start-$end/${payload.size}")
+                        .setBody(Buffer().write(payload.copyOfRange(start, end + 1)))
+                }
+            }
+            start()
+        }
+        val directory = createTempDirectory("download-chunk-resume-").toFile()
+        try {
+            val target = File(directory, "audio.m4a")
+            File(directory, "audio.m4a.part").writeBytes(payload.copyOfRange(0, 32 * 1024))
+
+            val result = HttpFileDownloader(retryDelayMillis = 0).download(
+                DirectDownloadRequest(
+                    url = server.url("/audio.m4a").toString(),
+                    headers = emptyMap(),
+                    target = target,
+                    transferPolicy = TransferPolicy(
+                        platform = "YOUTUBE",
+                        maxConnections = 1,
+                        segmentedThresholdBytes = Long.MAX_VALUE,
+                        chunkSizeBytes = 32L * 1024L,
+                    ),
+                ),
+                AtomicBoolean(false),
+            ) { _, _ -> }
+
+            assertArrayEquals(payload, result.readBytes())
+            assertEquals("bytes=0-0", requestedRanges.first())
+            assertEquals("bytes=32768-65535", requestedRanges[1])
+            assertFalse("恢复时禁止退回无上限 Range", requestedRanges.any { it == "bytes=32768-" })
+        } finally {
+            server.shutdown()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun sequentialSmallRangesAvoidOneLongThrottledAudioResponse() {
         val payload = fakeMp4Payload(size = 100 * 1024)
         val requestedRanges = CopyOnWriteArrayList<String>()

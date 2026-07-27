@@ -57,6 +57,7 @@ class NanzhufengDatabaseInstrumentedTest {
             platform = "TIKTOK",
             contentId = "content-1",
             resolution = "UP_TO_720P",
+            audioSegmentCount = 1,
         )
 
         assertNotNull(found)

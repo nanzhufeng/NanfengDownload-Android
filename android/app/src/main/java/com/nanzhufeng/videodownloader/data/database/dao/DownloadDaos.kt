@@ -106,6 +106,15 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET audioSegmentCount = :segmentCount, updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateAudioSegmentCount(taskId: String, segmentCount: Int, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = :status,
             failureType = NULL,
             errorSummary = NULL,
@@ -174,6 +183,22 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET processingStage = :processingStage,
+            processingProgressPercent = :processingProgressPercent,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+        """,
+    )
+    suspend fun updateProcessing(
+        taskId: String,
+        processingStage: String,
+        processingProgressPercent: Int,
+        updatedAt: Long,
+    ): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = 'PAUSED', updatedAt = :updatedAt
         WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'WAITING_NETWORK')
         """,
@@ -218,6 +243,8 @@ interface DownloadTaskDao {
             remainingSeconds = NULL,
             connectionMode = 'UNKNOWN',
             connectionCount = 0,
+            processingStage = 'NONE',
+            processingProgressPercent = 0,
             status = 'WAITING',
             failureType = NULL,
             errorSummary = NULL,
@@ -301,6 +328,7 @@ interface DownloadHistoryDao {
         WHERE platform = :platform
           AND contentId = :contentId
           AND resolution = :resolution
+          AND audioSegmentCount = :audioSegmentCount
           AND finalStatus = 'COMPLETED'
         ORDER BY completedAt DESC
         LIMIT 1
@@ -310,6 +338,7 @@ interface DownloadHistoryDao {
         platform: String,
         contentId: String,
         resolution: String,
+        audioSegmentCount: Int,
     ): DownloadHistoryEntity?
 }
 

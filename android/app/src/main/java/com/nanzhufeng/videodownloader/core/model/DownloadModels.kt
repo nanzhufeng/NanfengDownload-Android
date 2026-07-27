@@ -52,6 +52,16 @@ enum class DownloadConnectionMode {
     MULTI,
 }
 
+enum class DownloadProcessingStage {
+    NONE,
+    NETWORK_MEDIA,
+    NETWORK_AUDIO,
+    NETWORK_VIDEO_TO_AUDIO,
+    TRANSCODING,
+    VALIDATING,
+    PUBLISHING,
+}
+
 enum class TransferReportOutcome {
     COMPLETED,
     FAILED,
@@ -121,6 +131,9 @@ data class DownloadTask(
     val updatedAt: Long,
     val connectionMode: DownloadConnectionMode = DownloadConnectionMode.UNKNOWN,
     val connectionCount: Int = 0,
+    val processingStage: DownloadProcessingStage = DownloadProcessingStage.NONE,
+    val processingProgressPercent: Int = 0,
+    val audioSegmentCount: Int = 1,
 )
 
 data class QueuedDownload(
@@ -144,4 +157,6 @@ data class DownloadHistory(
     val failureType: DownloadFailureType? = null,
     val errorSummary: String? = null,
     val thumbnailUrl: String = "",
+    val outputUris: List<String> = outputUri?.let(::listOf).orEmpty(),
+    val audioSegmentCount: Int = 1,
 )

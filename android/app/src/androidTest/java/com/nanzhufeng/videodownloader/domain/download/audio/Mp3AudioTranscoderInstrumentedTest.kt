@@ -23,12 +23,14 @@ class Mp3AudioTranscoderInstrumentedTest {
         val destination = File(context.cacheDir, "tone-2s-result.mp3")
         copyFixture(source)
         destination.delete()
+        val progress = mutableListOf<Int>()
 
         try {
             Mp3AudioTranscoder().transcode(
                 source = source,
                 destination = destination,
                 cancelled = AtomicBoolean(false),
+                onProgress = progress::add,
             )
 
             assertTrue(source.isFile)
@@ -39,6 +41,8 @@ class Mp3AudioTranscoderInstrumentedTest {
             }
             assertFalse("MP3 must not contain an MP4 ftyp header", "ftyp" in headerText)
             assertTrue(Mp3FileValidator.isValid(destination))
+            assertTrue(progress.any { it in 1..99 })
+            assertEquals(100, progress.last())
 
             val extractor = MediaExtractor()
             try {
@@ -87,6 +91,40 @@ class Mp3AudioTranscoderInstrumentedTest {
             source.delete()
             destination.delete()
             File(destination.parentFile, destination.name + ".transcoding.part").delete()
+        }
+    }
+
+    @Test
+    fun transcodesSourceOnceIntoRequestedNumberOfValidatedSegments() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val source = File(context.cacheDir, "tone-segments-source.m4a")
+        val destinations = (1..2).map { index ->
+            File(context.cacheDir, "tone-segment-$index-of-2.mp3")
+        }
+        copyFixture(source)
+        destinations.forEach(File::delete)
+
+        try {
+            val outputs = Mp3AudioTranscoder().transcodeSegments(
+                source = source,
+                destinations = destinations,
+                cancelled = AtomicBoolean(false),
+            )
+
+            assertEquals(2, outputs.size)
+            assertTrue(outputs.all(Mp3FileValidator::isValid))
+            val durationsUs = outputs.map { Mp3FileValidator.inspect(it).durationUs ?: 0L }
+            assertTrue("Every segment must have duration", durationsUs.all { it > 500_000L })
+            assertTrue(
+                "Segment durations should preserve the original two-second timeline",
+                durationsUs.sum() in 1_700_000L..2_300_000L,
+            )
+        } finally {
+            source.delete()
+            destinations.forEach { destination ->
+                destination.delete()
+                File(destination.parentFile, destination.name + ".transcoding.part").delete()
+            }
         }
     }
 

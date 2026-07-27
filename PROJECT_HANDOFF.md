@@ -1,6 +1,6 @@
 # 南枫下载 Android 当前交接
 
-更新时间：2026-07-26（Asia/Shanghai）
+更新时间：2026-07-27（Asia/Shanghai）
 当前分支：`codex/android-ui-download-core-checkpoint-20260718`
 
 ## 当前目标
@@ -8,6 +8,24 @@
 把 Android 正式工作台完整落地到 OPPO Find N5，并以真实设备上的正式用户路径验收为结束条件。模拟器、构建或 APK 生成不能替代 OPPO 真机结论。
 
 ## 已完成阶段
+
+### Android v1.2.2 长音频自定义分段（2026-07-27）
+
+- 等待中的“仅音频 MP3”任务新增 1–20 段选择；默认不分段。分段设置属于单任务真值，切回视频清晰度时自动恢复为 1 段。
+- 转码链只下载一次来源、只执行一次 MediaExtractor/MediaCodec 解码；按时间戳边界依次切换 LAME 输出会话，生成指定数量的真实 MP3，不重复完整解码。
+- MediaStore 一次发布全部分段，文件名包含“第 XX 段，共 N 段”；Room 历史保存 URI 列表并只展示一条聚合记录，直接显示总时长、总大小和段数。
+- App 内置音频播放器支持上一段、下一段与自动续播；OPPO 已验证从第 1/2 段切换到第 2/2 段。
+- LAME 编码质量参数由 2 调整为 5，保持双声道 192 kbps CBR；每次 MP3 转码耗时、输入/输出字节、结果和原始错误写入永久吞吐报告。
+- 真实 OPPO 样本为 YouTube `Big Buck Bunny 60fps 4K - Official Blender Foundation Short Film`，选择“仅音频、2 段”。首次测试发现解析器按最高码率选中 6 声道 AAC，设备 MP3 链只支持单/双声道；随后修复为优先选择兼容声道的 M4A。
+- 第二次重试发现旧 6 声道缓存仍按作品 ID 复用；缓存契约已收紧为“作品一致且来源体积指纹兼容”，音轨发生变化时清理旧源并重新下载，普通同源失败仍保留续用能力。
+- 最终真机成品：
+  - 第 01 段：7,617,305 B，317.387708 秒，44.1 kHz、双声道、192 kbps。
+  - 第 02 段：7,616,678 B，317.361583 秒，44.1 kHz、双声道、192 kbps。
+  - 合计：15,233,983 B，634.749291 秒；历史显示“共 2 段 · 时长 10:34 · 14.5 MB”。
+- Python 23 项、Debug/Release JVM 各 156 项、Release Lint、专用模拟器 69 项仪器测试全部通过；3 项 TikTok 外部条件探测因未提供实时参数按预期跳过。
+- 最终 APK 为 91,475,431 B，SHA-256 `f6cd3fd7900f28806e97e87dcc107eff49103d972bc9188b44d91948d76d1e93`；AAB 为 38,314,189 B，SHA-256 `455c75db92ea7154f4f3c55b782f434f31b41c9c5c98849807dcba734217258e`。
+- OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.2 / 10202`；`firstInstallTime` 保持 `2026-07-18 13:44:10`，手机回读 APK 与本地产物哈希一致。
+- 本轮暂不上传 GitHub。完整证据见 `docs/verification/2026-07-27-android-v1.2.2-long-audio-segmentation.md`。
 
 ### Android v1.2.0 音频来源回退、提速与内置播放（2026-07-26）
 
@@ -88,7 +106,7 @@
 ### 真正 MP3 编码
 
 - `AUDIO_MP3` 不再要求来源扩展名必须是 `.mp3`，也不再存在把 M4A/MP4 政名为 MP3 的路径。
-- Android `MediaExtractor` / `MediaCodec` 把来源音频流式解码为 PCM 16-bit；LAME 4.0 JNI 以单声道 128 kbps CBR、双声道 192 kbps CBR、quality 2 编码 MPEG Layer III。
+- Android `MediaExtractor` / `MediaCodec` 把来源音频流式解码为 PCM 16-bit；LAME 4.0 JNI 以单声道 128 kbps CBR、双声道 192 kbps CBR、quality 5 编码 MPEG Layer III。
 - 完成文件必须同时通过 ID3/帧同步头、`audio/mpeg` 轨道、正时长、采样率和声道数校验，才会返回给现有 MediaStore/Repository 流程。
 - 中断或失败只删除任务缓存中的转码半成品，保留来源文件；现有目标文件不被静默覆盖。
 - 已纳入官方 LAME 4.0 完整源码，归档 SHA-256 为 `3df5124d5ad3a98312ffd7ba6a9b36230e4f8a3e66d3ce0f425e336c32d216eb`；许可和来源说明在 `android/app/src/main/assets/licenses/lame-4.0/`。
@@ -172,18 +190,18 @@
 - 当前应用显示名统一为“南枫下载”；Gradle 构建直接输出 `android/app/build/outputs/apk/debug/南枫下载.apk`，不再生成或交付 `app-debug.apk`。
 - Debug APK：`android/app/build/outputs/apk/debug/南枫下载.apk`，68,046,080 B，SHA-256 `01b01b2386934b82a12b87e3c4f3466a786c6426b20f0ebf48a4d411d43659df`。
 - APK 完整性：`unzip -t` 返回无错误；两套 ABI 均包含 LAME 与 JNI 共享库。
-- OPPO 已于 2026-07-21 通过 v3 证书谱系从旧 Debug 版无损升级到正式签名 `1.0.0 / versionCode 10000`；2026-07-26 又以同一正式证书依次无损覆盖到 `1.1.0 / 10100` 和 `1.2.0 / 10200`，历史和输入草稿保留。
+- OPPO 已于 2026-07-21 通过 v3 证书谱系从旧 Debug 版无损升级到正式签名 `1.0.0 / versionCode 10000`；随后以同一正式证书依次无损覆盖到 `1.1.0 / 10100`、`1.2.0 / 10200` 和 `1.2.2 / 10202`，历史和输入草稿保留。
 
 ## 正式 Release 后仍待验证
 
 1. 作者/频道/播放列表的大批量分页、过滤与取消勾选仍需更长时间的公开内容回归。
 2. 断网恢复、用户暂停不自动恢复和完成通知已有自动化覆盖，但尚未在本轮 OPPO 用户界面逐项人工触发。
-3. OPPO `v1.2.0` 同签名覆盖、YouTube 音频传输提速和内置音频播放均已完成；后续版本继续禁止卸载或清数据。
+3. OPPO `v1.2.2` 同签名覆盖、YouTube 音频传输提速、内置音频播放和 2 段真实 MP3 均已完成；后续版本继续禁止卸载或清数据。
 4. 正式签名密钥仍需用户控制的异地加密备份；本机密钥与钥匙串不能替代灾难恢复副本。
 
 ## 后续待办
 
-下一阶段如需公开交付，应将当前 checkpoint 推送 GitHub，并按正式 Release 流程上传 `v1.2.0` APK、AAB 与 SHA-256 校验文件。
+下一阶段如需公开交付，应先取得用户明确授权，再将当前 checkpoint 推送 GitHub，并按正式 Release 流程上传 `v1.2.2` APK、AAB 与 SHA-256 校验文件。
 
 执行依据：
 

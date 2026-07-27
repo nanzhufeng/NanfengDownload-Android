@@ -158,6 +158,7 @@ private class RecordingDownloads(
         platform: DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int,
     ): DownloadHistory? = null
 }
 

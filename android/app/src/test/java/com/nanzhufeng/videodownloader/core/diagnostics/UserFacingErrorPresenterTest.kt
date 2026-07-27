@@ -114,4 +114,17 @@ class UserFacingErrorPresenterTest {
         assertTrue(expired.contains("重新复制"))
         assertFalse(expired.contains("xsec_token"))
     }
+
+    @Test
+    fun mp3ValidationFailureExplainsCachedRetryWithoutLeakingRawDiagnostics() {
+        val message = UserFacingErrorPresenter.message(
+            "MP3 校验失败：没有检测到连续帧；bytes=123456；header=ID3-only",
+            DownloadPlatform.YOUTUBE,
+        )
+
+        assertTrue(message.contains("没有通过完整性校验"))
+        assertTrue(message.contains("复用已下载的转换源"))
+        assertTrue(message.contains("不会重复下载"))
+        assertFalse(message.contains("ID3-only"))
+    }
 }

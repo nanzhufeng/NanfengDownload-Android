@@ -46,6 +46,8 @@ class AppContainer private constructor(
                 NanzhufengMigrations.MIGRATION_1_2,
                 NanzhufengMigrations.MIGRATION_2_3,
                 NanzhufengMigrations.MIGRATION_3_4,
+                NanzhufengMigrations.MIGRATION_4_5,
+                NanzhufengMigrations.MIGRATION_5_6,
             )
                 .build()
             val downloads = RoomDownloadRepository(database)
@@ -67,6 +69,9 @@ class AppContainer private constructor(
                     },
                     throughputReportSink = { report ->
                         downloads.recordThroughputReport(report)
+                    },
+                    processingSink = { taskId, stage, progressPercent ->
+                        downloads.updateProcessing(taskId, stage, progressPercent)
                     },
                 ),
                 outputStore = MediaStoreOutputStore(applicationContext),

@@ -10,6 +10,7 @@ import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.domain.download.audio.LameMp3Encoder
 import com.nanzhufeng.videodownloader.domain.download.audio.PcmFormat
+import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -56,6 +57,58 @@ class MediaStoreOutputStoreInstrumentedTest {
         } finally {
             publishedUri?.let { context.contentResolver.delete(it, null, null) }
             source.delete()
+        }
+    }
+
+    @Test
+    fun publishesSegmentedMp3FilesAsOneStoredMediaResult() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val sources = (1..2).map { index ->
+            File(context.cacheDir, "media-store-segment-$index.mp3").also {
+                it.delete()
+                encodeFourSecondsOfSilence(it)
+            }
+        }
+        val expectedBytes = sources.sumOf(File::length)
+        val publishedUris = mutableListOf<Uri>()
+
+        try {
+            val stored = MediaStoreOutputStore(context).publish(
+                media = media().copy(
+                    contentId = "media-store-segmented-audio-test",
+                    title = "MediaStore 分段音频测试",
+                ),
+                resolution = ResolutionPreset.AUDIO_MP3,
+                prepared = PreparedMedia(
+                    file = sources.first(),
+                    mimeType = "audio/mpeg",
+                    additionalFiles = sources.drop(1),
+                ),
+                saveTreeUri = null,
+                fileNameRule = FileNameRule.DATE_AND_TITLE,
+                audioSegmentCount = 2,
+            )
+            publishedUris += stored.uris.map(Uri::parse)
+
+            assertEquals(2, stored.uris.size)
+            assertEquals(expectedBytes, stored.fileSize)
+            val displayNames = publishedUris.map { uri ->
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )!!.use { cursor ->
+                    assertTrue(cursor.moveToFirst())
+                    cursor.getString(0)
+                }
+            }
+            assertTrue(displayNames[0].contains("第01段，共2段"))
+            assertTrue(displayNames[1].contains("第02段，共2段"))
+        } finally {
+            publishedUris.forEach { context.contentResolver.delete(it, null, null) }
+            sources.forEach(File::delete)
         }
     }
 

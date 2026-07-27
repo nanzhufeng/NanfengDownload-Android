@@ -220,6 +220,9 @@ fun NanzhufengApp(
                         onItemResolutionChanged = { taskId, resolution ->
                             scope.launch { downloads.setResolution(taskId, resolution) }
                         },
+                        onAudioSegmentCountChanged = { taskId, count ->
+                            scope.launch { downloads.setAudioSegmentCount(taskId, count) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -353,6 +356,9 @@ fun NanzhufengApp(
                         onItemResolutionChanged = { taskId, resolution ->
                             scope.launch { downloads.setResolution(taskId, resolution) }
                         },
+                        onAudioSegmentCountChanged = { taskId, count ->
+                            scope.launch { downloads.setAudioSegmentCount(taskId, count) }
+                        },
                         onResolutionSelected = { resolution ->
                             scope.launch { settings.setDefaultResolution(resolution) }
                         },
@@ -473,6 +479,7 @@ private fun AppNavHost(
     onSelectionChanged: (String, Boolean) -> Unit,
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
     onItemResolutionChanged: (String, com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
+    onAudioSegmentCountChanged: (String, Int) -> Unit,
     onResolutionSelected: (com.nanzhufeng.videodownloader.core.model.ResolutionPreset) -> Unit,
     sessionStates: List<SiteSessionState>,
     onAutoResumeChanged: (Boolean) -> Unit,
@@ -516,6 +523,7 @@ private fun AppNavHost(
                 onSelectionChanged = onSelectionChanged,
                 onBulkSelectionChanged = onBulkSelectionChanged,
                 onResolutionChanged = onItemResolutionChanged,
+                onAudioSegmentCountChanged = onAudioSegmentCountChanged,
                 onDeleteQueued = onDeleteQueued,
                 onRetryQueued = onRetryQueued,
                 onStartDownloads = onStartDownloads,

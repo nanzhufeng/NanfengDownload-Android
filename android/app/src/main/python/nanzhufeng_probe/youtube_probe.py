@@ -50,13 +50,25 @@ def _select_audio(formats):
             and item.get("vcodec") in {None, "none"}
         )
 
+    def is_mp3_compatible(item):
+        channels = item.get("audio_channels")
+        return channels is None or channels in {1, 2}
+
     score = lambda item: (item.get("abr") or item.get("tbr") or 0)
     compatible = _best(
         formats,
-        lambda item: is_audio(item) and item.get("ext") in {"m4a", "mp4"},
+        lambda item: (
+            is_audio(item)
+            and is_mp3_compatible(item)
+            and item.get("ext") in {"m4a", "mp4"}
+        ),
         score,
     )
-    return compatible or _best(formats, is_audio, score)
+    return compatible or _best(
+        formats,
+        lambda item: is_audio(item) and is_mp3_compatible(item),
+        score,
+    )
 
 
 def _short_edge(item):
@@ -74,6 +86,7 @@ def _select_audio_conversion_video(formats, max_short_edge=720):
             item.get("url")
             and item.get("vcodec") not in {None, "none"}
             and item.get("acodec") not in {None, "none"}
+            and item.get("audio_channels") in {None, 1, 2}
         )
 
     progressive = [item for item in formats if is_progressive(item)]
@@ -496,6 +509,9 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
         "video_url": chosen_video["url"],
         "audio_url": (audio or {}).get("url", ""),
         "video_ext": chosen_video.get("ext") or "mp4",
+        "video_size_bytes": int(
+            chosen_video.get("filesize") or chosen_video.get("filesize_approx") or 0
+        ),
         "audio_ext": (audio or {}).get("ext", ""),
         "audio_from_video_source": audio_from_video_source,
         "headers": headers,

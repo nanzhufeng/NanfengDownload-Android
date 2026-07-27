@@ -39,15 +39,19 @@ internal fun InternalAudioPlayerDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    val uri = remember(item.outputUri) {
-        item.outputUri?.let(Uri::parse)
+    val segmentUris = remember(item.outputUris, item.outputUri) {
+        item.outputUris
+            .ifEmpty { item.outputUri?.let(::listOf).orEmpty() }
+            .map(Uri::parse)
     }
-    var prepared by remember(item.taskId) { mutableStateOf(false) }
-    var playing by remember(item.taskId) { mutableStateOf(false) }
-    var durationMillis by remember(item.taskId) { mutableIntStateOf(0) }
-    var positionMillis by remember(item.taskId) { mutableIntStateOf(0) }
-    var errorMessage by remember(item.taskId) { mutableStateOf<String?>(null) }
-    val player = remember(item.taskId, item.outputUri) { MediaPlayer() }
+    var segmentIndex by remember(item.taskId) { mutableIntStateOf(0) }
+    val uri = segmentUris.getOrNull(segmentIndex)
+    var prepared by remember(item.taskId, segmentIndex) { mutableStateOf(false) }
+    var playing by remember(item.taskId, segmentIndex) { mutableStateOf(false) }
+    var durationMillis by remember(item.taskId, segmentIndex) { mutableIntStateOf(0) }
+    var positionMillis by remember(item.taskId, segmentIndex) { mutableIntStateOf(0) }
+    var errorMessage by remember(item.taskId, segmentIndex) { mutableStateOf<String?>(null) }
+    val player = remember(item.taskId, segmentIndex, uri) { MediaPlayer() }
 
     DisposableEffect(player, uri) {
         if (uri == null) {
@@ -68,8 +72,12 @@ internal fun InternalAudioPlayerDialog(
                     playing = true
                 }
                 player.setOnCompletionListener {
-                    playing = false
-                    positionMillis = durationMillis
+                    if (segmentIndex < segmentUris.lastIndex) {
+                        segmentIndex += 1
+                    } else {
+                        playing = false
+                        positionMillis = durationMillis
+                    }
                 }
                 player.setOnErrorListener { _, _, _ ->
                     prepared = false
@@ -99,7 +107,15 @@ internal fun InternalAudioPlayerDialog(
     AlertDialog(
         modifier = Modifier.testTag("internal-audio-player"),
         onDismissRequest = onDismiss,
-        title = { Text("正在播放音频") },
+        title = {
+            Text(
+                if (segmentUris.size > 1) {
+                    "正在播放音频 · 第 ${segmentIndex + 1}/${segmentUris.size} 段"
+                } else {
+                    "正在播放音频"
+                },
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(item.title, style = MaterialTheme.typography.titleMedium)
@@ -149,6 +165,26 @@ internal fun InternalAudioPlayerDialog(
                         )
                     }
                     Text(formatPlayerTime(durationMillis))
+                }
+                if (segmentUris.size > 1) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        TextButton(
+                            enabled = segmentIndex > 0,
+                            onClick = { segmentIndex -= 1 },
+                        ) {
+                            Text("上一段")
+                        }
+                        Text("共 ${segmentUris.size} 段")
+                        TextButton(
+                            enabled = segmentIndex < segmentUris.lastIndex,
+                            onClick = { segmentIndex += 1 },
+                        ) {
+                            Text("下一段")
+                        }
+                    }
                 }
             }
         },

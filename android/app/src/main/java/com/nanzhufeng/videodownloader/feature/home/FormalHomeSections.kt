@@ -98,6 +98,7 @@ import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.core.ui.AppCardTone
@@ -125,6 +126,7 @@ internal fun CompactHome(
     onSelectionChanged: (String, Boolean) -> Unit,
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
     onResolutionChanged: (String, ResolutionPreset) -> Unit,
+    onAudioSegmentCountChanged: (String, Int) -> Unit,
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onStartDownloads: () -> Unit,
@@ -177,6 +179,7 @@ internal fun CompactHome(
                 onSelectionChanged = onSelectionChanged,
                 onBulkSelectionChanged = onBulkSelectionChanged,
                 onResolutionChanged = onResolutionChanged,
+                onAudioSegmentCountChanged = onAudioSegmentCountChanged,
                 onDeleteQueued = onDeleteQueued,
                 onRetryQueued = onRetryQueued,
                 onStartDownloads = onStartDownloads,
@@ -217,6 +220,7 @@ internal fun ExpandedHome(
     onSelectionChanged: (String, Boolean) -> Unit,
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
     onResolutionChanged: (String, ResolutionPreset) -> Unit,
+    onAudioSegmentCountChanged: (String, Int) -> Unit,
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onStartDownloads: () -> Unit,
@@ -245,6 +249,7 @@ internal fun ExpandedHome(
                     onSelectionChanged = onSelectionChanged,
                     onBulkSelectionChanged = onBulkSelectionChanged,
                     onResolutionChanged = onResolutionChanged,
+                    onAudioSegmentCountChanged = onAudioSegmentCountChanged,
                     onDeleteQueued = onDeleteQueued,
                     onRetryQueued = onRetryQueued,
                     onStartDownloads = onStartDownloads,
@@ -461,6 +466,7 @@ private fun QueuePanel(
     onSelectionChanged: (String, Boolean) -> Unit,
     onBulkSelectionChanged: (List<String>, Boolean) -> Unit,
     onResolutionChanged: (String, ResolutionPreset) -> Unit,
+    onAudioSegmentCountChanged: (String, Int) -> Unit,
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onStartDownloads: () -> Unit,
@@ -568,6 +574,7 @@ private fun QueuePanel(
                                 queued = queued,
                                 onSelectionChanged = onSelectionChanged,
                                 onResolutionChanged = onResolutionChanged,
+                                onAudioSegmentCountChanged = onAudioSegmentCountChanged,
                                 onDeleteQueued = onDeleteQueued,
                                 onRetryQueued = onRetryQueued,
                                 expandedLayout = expandedLayout,
@@ -644,6 +651,7 @@ private fun QueueRow(
     queued: QueuedDownload,
     onSelectionChanged: (String, Boolean) -> Unit,
     onResolutionChanged: (String, ResolutionPreset) -> Unit,
+    onAudioSegmentCountChanged: (String, Int) -> Unit,
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     expandedLayout: Boolean,
@@ -710,6 +718,25 @@ private fun QueueRow(
                             ResolutionMenu(task.resolution, true) { onResolutionChanged(task.taskId, it) }
                         } else {
                             ResolutionBadge(task.resolution)
+                        }
+                        if (
+                            task.resolution == ResolutionPreset.AUDIO_MP3 &&
+                            task.status == DownloadTaskStatus.WAITING
+                        ) {
+                            AudioSegmentCountMenu(
+                                segmentCount = task.audioSegmentCount,
+                                onSelected = { onAudioSegmentCountChanged(task.taskId, it) },
+                            )
+                        } else if (
+                            task.resolution == ResolutionPreset.AUDIO_MP3 &&
+                            task.audioSegmentCount > 1
+                        ) {
+                            Text(
+                                "${task.audioSegmentCount} 段",
+                                color = WarmOrange,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
                         }
                         Text(
                             queueStatusText(queued),
@@ -802,7 +829,13 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
     val healthController = remember(task.taskId) { TransferHealthNoticeController() }
     val healthNotice = if (audioTranscoding) null else healthController.update(task, nowMillis)
     val animatedProgress by animateFloatAsState(
-        targetValue = queued.progress(), animationSpec = quickFeedbackTween(), label = "queue-download-progress",
+        targetValue = if (audioTranscoding) {
+            task.processingProgressPercent.coerceIn(0, 100) / 100f
+        } else {
+            queued.progress()
+        },
+        animationSpec = quickFeedbackTween(),
+        label = "queue-download-progress",
     )
     Column(
         modifier = Modifier.fillMaxWidth().padding(start = 41.dp, end = 8.dp, bottom = 4.dp)
@@ -815,7 +848,11 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(
-                if (audioTranscoding) "正在提取音频" else "速度 ${formatSpeed(queued.task.speedBytesPerSecond)}",
+                if (audioTranscoding) {
+                    "正在提取音频 ${task.processingProgressPercent.coerceIn(0, 100)}%"
+                } else {
+                    "速度 ${formatSpeed(queued.task.speedBytesPerSecond)}"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
             )
@@ -982,25 +1019,26 @@ internal fun audioTaskPhaseText(task: DownloadTask): String? {
     ) {
         return null
     }
-    return if (isAudioTranscoding(task)) {
-        "正在提取音频并生成 MP3"
+    val progress = if (task.totalBytes > 0L) {
+        ((task.downloadedBytes.toDouble() / task.totalBytes) * 100)
+            .toInt()
+            .coerceIn(0, 100)
     } else {
-        val progress = if (task.totalBytes > 0L) {
-            ((task.downloadedBytes.toDouble() / task.totalBytes) * 100)
-                .toInt()
-                .coerceIn(0, 100)
-        } else {
-            0
-        }
-        "正在下载音频转换源 $progress%"
+        0
+    }
+    return when (task.processingStage) {
+        DownloadProcessingStage.TRANSCODING ->
+            "正在提取音频并生成 MP3 ${task.processingProgressPercent.coerceIn(0, 100)}%"
+        DownloadProcessingStage.NETWORK_VIDEO_TO_AUDIO -> "正在下载视频转换源 $progress%"
+        DownloadProcessingStage.NETWORK_AUDIO -> "正在下载音频 $progress%"
+        else -> "正在准备音频任务"
     }
 }
 
 private fun isAudioTranscoding(task: DownloadTask): Boolean =
     task.resolution == ResolutionPreset.AUDIO_MP3 &&
         task.status == DownloadTaskStatus.DOWNLOADING &&
-        task.totalBytes > 0L &&
-        task.downloadedBytes >= task.totalBytes
+        task.processingStage == DownloadProcessingStage.TRANSCODING
 
 @Composable
 private fun ResolutionBadge(resolution: ResolutionPreset) {
@@ -1063,6 +1101,48 @@ private fun ResolutionMenu(
                     onClick = {
                         expanded = false
                         onSelected(preset)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioSegmentCountMenu(
+    segmentCount: Int,
+    onSelected: (Int) -> Unit,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+            modifier = Modifier
+                .height(26.dp)
+                .widthIn(min = 52.dp)
+                .testTag("audio-segment-count"),
+            shape = RoundedCornerShape(13.dp),
+            border = BorderStroke(1.dp, WarmOrange.copy(alpha = 0.58f)),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = WarmOrange),
+        ) {
+            Text(
+                if (segmentCount <= 1) "不分段" else "$segmentCount 段",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.heightIn(max = 320.dp),
+        ) {
+            (1..20).forEach { count ->
+                DropdownMenuItem(
+                    text = { Text(if (count == 1) "不分段" else "均分为 $count 段") },
+                    onClick = {
+                        expanded = false
+                        onSelected(count)
                     },
                 )
             }

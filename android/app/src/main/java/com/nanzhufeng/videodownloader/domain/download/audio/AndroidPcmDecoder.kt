@@ -15,7 +15,8 @@ class AndroidPcmDecoder {
         source: File,
         cancelled: AtomicBoolean,
         onFormat: (PcmFormat) -> Unit,
-        onPcm: (samples: ShortArray, frames: Int) -> Unit,
+        onPcm: (samples: ShortArray, frames: Int, presentationTimeUs: Long) -> Unit,
+        onProgress: (processedUs: Long, totalUs: Long) -> Unit = { _, _ -> },
     ) {
         if (cancelled.get()) throw CancellationException("音频转码已取消")
 
@@ -32,6 +33,11 @@ class AndroidPcmDecoder {
             val inputFormat = extractor.getTrackFormat(trackIndex)
             val mime = inputFormat.getString(MediaFormat.KEY_MIME)
                 ?: throw IOException("音频轨道缺少 MIME 类型")
+            val durationUs = if (inputFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                inputFormat.getLong(MediaFormat.KEY_DURATION).coerceAtLeast(0L)
+            } else {
+                0L
+            }
 
             extractor.selectTrack(trackIndex)
             decoder = MediaCodec.createDecoderByType(mime)
@@ -53,9 +59,16 @@ class AndroidPcmDecoder {
                 if (pcmEncoding != AudioFormat.ENCODING_PCM_16BIT) {
                     throw IOException("设备解码器输出的不是 PCM 16-bit：$pcmEncoding")
                 }
+                val channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
+                if (channelCount !in 1..2) {
+                    throw IOException(
+                        "源音轨为 ${channelCount} 声道，当前 MP3 转换仅支持单声道或双声道。" +
+                            "请重新智能读取，应用会优先选择兼容音轨。",
+                    )
+                }
                 val next = PcmFormat(
                     sampleRate = format.getInteger(MediaFormat.KEY_SAMPLE_RATE),
-                    channelCount = format.getInteger(MediaFormat.KEY_CHANNEL_COUNT),
+                    channelCount = channelCount,
                 )
                 val previous = pcmFormat
                 if (previous == null) {
@@ -127,7 +140,17 @@ class AndroidPcmDecoder {
                                 if (samples.size % activeFormat.channelCount != 0) {
                                     throw IOException("PCM 缓冲区末尾含有不完整的声道帧")
                                 }
-                                onPcm(samples, samples.size / activeFormat.channelCount)
+                                onPcm(
+                                    samples,
+                                    samples.size / activeFormat.channelCount,
+                                    bufferInfo.presentationTimeUs.coerceAtLeast(0L),
+                                )
+                                if (durationUs > 0L) {
+                                    onProgress(
+                                        bufferInfo.presentationTimeUs.coerceAtLeast(0L),
+                                        durationUs,
+                                    )
+                                }
                             }
                         } finally {
                             decoder.releaseOutputBuffer(outputIndex, false)
@@ -136,6 +159,7 @@ class AndroidPcmDecoder {
                     }
                 }
             }
+            if (durationUs > 0L) onProgress(durationUs, durationUs)
         } finally {
             if (decoderStarted) runCatching { decoder?.stop() }
             decoder?.release()

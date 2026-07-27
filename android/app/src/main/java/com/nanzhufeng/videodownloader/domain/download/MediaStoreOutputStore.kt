@@ -28,28 +28,37 @@ class MediaStoreOutputStore(
     override suspend fun findExisting(
         media: MediaItem,
         resolution: ResolutionPreset,
-    ): StoredMedia? = findExisting(media, resolution, null, FileNameRule.DATE_AND_TITLE)
+    ): StoredMedia? = findExisting(media, resolution, null, FileNameRule.DATE_AND_TITLE, 1)
 
     override suspend fun findExisting(
         media: MediaItem,
         resolution: ResolutionPreset,
         saveTreeUri: String?,
         fileNameRule: FileNameRule,
+        audioSegmentCount: Int,
     ): StoredMedia? = outputMutex.withLock { withContext(Dispatchers.IO) {
+        val paths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
         if (saveTreeUri != null) {
-            return@withContext findTreeDocument(
-                treeUri = Uri.parse(saveTreeUri),
-                relativePath = customRelativePath(media, resolution, fileNameRule),
-            )?.let { uri ->
+            val stored = paths.map { relativePath ->
+                val uri = findTreeDocument(
+                    treeUri = Uri.parse(saveTreeUri),
+                    relativePath = relativePath.substringAfter('/'),
+                ) ?: return@withContext null
                 val size = resolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
                 StoredMedia(uri.toString(), size).takeIf(::isValid)
+                    ?: return@withContext null
             }
+            return@withContext stored.aggregate()
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext null
-        val path = policy.relativePath(media, resolution, fileNameRule)
-        val candidate = loadIndex().firstOrNull { item -> item.relativePath == path }
-            ?: return@withContext null
-        candidate.stored.takeIf(::isValid)
+        val index = loadIndex()
+        val stored = paths.map { path ->
+            index.firstOrNull { item -> item.relativePath == path }
+                ?.stored
+                ?.takeIf(::isValid)
+                ?: return@withContext null
+        }
+        stored.aggregate()
     } }
 
     override suspend fun uriExists(uri: String): Boolean = withContext(Dispatchers.IO) {
@@ -68,7 +77,7 @@ class MediaStoreOutputStore(
         media: MediaItem,
         resolution: ResolutionPreset,
         prepared: PreparedMedia,
-    ): StoredMedia = publish(media, resolution, prepared, null, FileNameRule.DATE_AND_TITLE)
+    ): StoredMedia = publish(media, resolution, prepared, null, FileNameRule.DATE_AND_TITLE, 1)
 
     override suspend fun publish(
         media: MediaItem,
@@ -76,96 +85,110 @@ class MediaStoreOutputStore(
         prepared: PreparedMedia,
         saveTreeUri: String?,
         fileNameRule: FileNameRule,
+        audioSegmentCount: Int,
     ): StoredMedia = outputMutex.withLock { withContext(Dispatchers.IO) {
+        val files = prepared.files
+        val paths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
+        require(files.size == paths.size) {
+            "待保存音频分段数量与任务设置不一致：${files.size}/${paths.size}"
+        }
         if (saveTreeUri != null) {
             return@withContext publishToTree(
                 treeUri = Uri.parse(saveTreeUri),
-                relativePath = customRelativePath(media, resolution, fileNameRule),
+                relativePaths = paths.map { it.substringAfter('/') },
                 prepared = prepared,
             )
         }
         require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             "正式公共目录写入要求 Android 10 或更高版本"
         }
-        require(MediaFileValidator.isLikelyMedia(prepared.file)) { "待保存文件不是有效媒体" }
+        require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
 
-        val relativePath = policy.relativePath(media, resolution, fileNameRule)
-        val directory = relativePath.substringBeforeLast('/') + "/"
-        val displayName = relativePath.substringAfterLast('/')
         val collection = collectionFor(resolution)
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
-            put(MediaStore.MediaColumns.MIME_TYPE, prepared.mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, directory)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        val uri = requireNotNull(resolver.insert(collection, values)) {
-            "无法在系统媒体库创建输出文件"
-        }
+        val createdUris = mutableListOf<Uri>()
+        val stored = mutableListOf<StoredMedia>()
         try {
-            requireNotNull(resolver.openOutputStream(uri, "w")) { "无法打开系统媒体库输出流" }
-                .use { output -> prepared.file.inputStream().use { input -> input.copyTo(output) } }
-            values.clear()
-            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
-            val stored = StoredMedia(uri.toString(), prepared.file.length())
-            require(isValid(stored)) { "写入系统媒体库后校验失败" }
-            cachedIndex = cachedIndex.orEmpty() + IndexedMedia(
-                relativePath = relativePath,
-                stored = stored,
-            )
-            prepared.file.delete()
-            stored
+            files.zip(paths).forEach { (file, relativePath) ->
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, relativePath.substringAfterLast('/'))
+                    put(MediaStore.MediaColumns.MIME_TYPE, prepared.mimeType)
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath.substringBeforeLast('/') + "/")
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
+                }
+                val uri = requireNotNull(resolver.insert(collection, values)) {
+                    "无法在系统媒体库创建输出文件"
+                }
+                createdUris += uri
+                requireNotNull(resolver.openOutputStream(uri, "w")) {
+                    "无法打开系统媒体库输出流"
+                }.use { output -> file.inputStream().use { input -> input.copyTo(output) } }
+                values.clear()
+                values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                val item = StoredMedia(uri.toString(), file.length())
+                require(isValid(item)) { "写入系统媒体库后校验失败：${file.name}" }
+                stored += item
+                cachedIndex = cachedIndex.orEmpty() + IndexedMedia(
+                    relativePath = relativePath,
+                    stored = item,
+                )
+            }
+            files.forEach(File::delete)
+            stored.aggregate()
         } catch (error: Throwable) {
-            resolver.delete(uri, null, null)
+            createdUris.forEach { uri -> resolver.delete(uri, null, null) }
             throw error
         }
     } }
 
-    private fun customRelativePath(
-        media: MediaItem,
-        resolution: ResolutionPreset,
-        fileNameRule: FileNameRule,
-    ): String = policy.relativePath(media, resolution, fileNameRule).substringAfter('/')
-
     private fun publishToTree(
         treeUri: Uri,
-        relativePath: String,
+        relativePaths: List<String>,
         prepared: PreparedMedia,
     ): StoredMedia {
-        require(MediaFileValidator.isLikelyMedia(prepared.file)) { "待保存文件不是有效媒体" }
-        val parts = relativePath.split('/').filter(String::isNotBlank)
-        require(parts.size >= 2) { "自定义保存路径无效" }
-        var parent = DocumentsContract.buildDocumentUriUsingTree(
-            treeUri,
-            DocumentsContract.getTreeDocumentId(treeUri),
-        )
-        parts.dropLast(1).forEach { directory ->
-            parent = findChild(parent, directory)
-                ?: requireNotNull(
-                    DocumentsContract.createDocument(
-                        resolver,
-                        parent,
-                        DocumentsContract.Document.MIME_TYPE_DIR,
-                        directory,
-                    ),
-                ) { "无法创建保存目录：$directory" }
-        }
-        val displayName = parts.last()
-        val existing = findChild(parent, displayName)
-        val destination = existing ?: requireNotNull(
-            DocumentsContract.createDocument(resolver, parent, prepared.mimeType, displayName),
-        ) { "无法在所选文件夹创建输出文件" }
+        val files = prepared.files
+        require(files.size == relativePaths.size) { "自定义目录的音频分段数量不一致" }
+        require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
+        val createdDocuments = mutableListOf<Uri>()
+        val stored = mutableListOf<StoredMedia>()
         try {
-            requireNotNull(resolver.openOutputStream(destination, "wt")) {
-                "无法写入所选文件夹"
-            }.use { output -> prepared.file.inputStream().use { input -> input.copyTo(output) } }
-            val stored = StoredMedia(destination.toString(), prepared.file.length())
-            require(isValid(stored)) { "写入自定义文件夹后校验失败" }
-            prepared.file.delete()
-            return stored
+            files.zip(relativePaths).forEach { (file, relativePath) ->
+                val parts = relativePath.split('/').filter(String::isNotBlank)
+                require(parts.size >= 2) { "自定义保存路径无效" }
+                var parent = DocumentsContract.buildDocumentUriUsingTree(
+                    treeUri,
+                    DocumentsContract.getTreeDocumentId(treeUri),
+                )
+                parts.dropLast(1).forEach { directory ->
+                    parent = findChild(parent, directory)
+                        ?: requireNotNull(
+                            DocumentsContract.createDocument(
+                                resolver,
+                                parent,
+                                DocumentsContract.Document.MIME_TYPE_DIR,
+                                directory,
+                            ),
+                        ) { "无法创建保存目录：$directory" }
+                }
+                val displayName = parts.last()
+                val existing = findChild(parent, displayName)
+                val destination = existing ?: requireNotNull(
+                    DocumentsContract.createDocument(resolver, parent, prepared.mimeType, displayName),
+                ) { "无法在所选文件夹创建输出文件" }
+                if (existing == null) createdDocuments += destination
+                requireNotNull(resolver.openOutputStream(destination, "wt")) {
+                    "无法写入所选文件夹"
+                }.use { output -> file.inputStream().use { input -> input.copyTo(output) } }
+                val item = StoredMedia(destination.toString(), file.length())
+                require(isValid(item)) { "写入自定义文件夹后校验失败：$displayName" }
+                stored += item
+            }
+            files.forEach(File::delete)
+            return stored.aggregate()
         } catch (error: Throwable) {
-            if (existing == null) runCatching { DocumentsContract.deleteDocument(resolver, destination) }
+            createdDocuments.forEach { destination ->
+                runCatching { DocumentsContract.deleteDocument(resolver, destination) }
+            }
             throw error
         }
     }
@@ -275,6 +298,35 @@ class MediaStoreOutputStore(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         }
 
+    private fun outputPaths(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        fileNameRule: FileNameRule,
+        requestedSegmentCount: Int,
+    ): List<String> {
+        val base = policy.relativePath(media, resolution, fileNameRule)
+        val segmentCount = if (resolution == ResolutionPreset.AUDIO_MP3) {
+            requestedSegmentCount.coerceIn(1, MAX_AUDIO_SEGMENTS)
+        } else {
+            1
+        }
+        if (segmentCount == 1) return listOf(base)
+        val extension = base.substringAfterLast('.', "")
+        val withoutExtension = if (extension.isBlank()) base else base.removeSuffix(".$extension")
+        return (1..segmentCount).map { index ->
+            "$withoutExtension（第${index.toString().padStart(2, '0')}段，共${segmentCount}段）.$extension"
+        }
+    }
+
+    private fun List<StoredMedia>.aggregate(): StoredMedia {
+        require(isNotEmpty()) { "没有可保存的媒体文件" }
+        return StoredMedia(
+            uri = first().uri,
+            fileSize = sumOf(StoredMedia::fileSize),
+            additionalUris = drop(1).map(StoredMedia::uri),
+        )
+    }
+
     private data class IndexedMedia(
         val relativePath: String,
         val stored: StoredMedia,
@@ -283,5 +335,6 @@ class MediaStoreOutputStore(
     private companion object {
         const val MIN_MP3_BYTES = 1024L
         const val MIN_CONTAINER_BYTES = 64 * 1024L
+        const val MAX_AUDIO_SEGMENTS = 20
     }
 }

@@ -107,7 +107,9 @@ Java_com_nanzhufeng_videodownloader_domain_download_audio_NativeLameBridge_open(
     result |= lame_set_in_samplerate(session->lame, sample_rate);
     result |= lame_set_num_channels(session->lame, channels);
     result |= lame_set_brate(session->lame, bit_rate_kbps);
-    result |= lame_set_quality(session->lame, 2);
+    // Quality 5 keeps the existing CBR bitrate while avoiding the much slower
+    // psychoacoustic search used by quality 2 on multi-hour audio.
+    result |= lame_set_quality(session->lame, 5);
     result |= lame_set_VBR(session->lame, vbr_off);
     result |= lame_set_mode(session->lame, channels == 1 ? MONO : JOINT_STEREO);
     id3tag_init(session->lame);

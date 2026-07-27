@@ -28,6 +28,7 @@ class YtDlpTaskMediaResolver(
             videoUrl = info.videoUrl,
             audioUrl = info.audioUrl,
             videoExtension = info.videoExt,
+            videoSizeBytes = info.videoSizeBytes,
             audioExtension = info.audioExt,
             headers = info.headers,
             audioFromVideoSource = info.audioFromVideoSource,

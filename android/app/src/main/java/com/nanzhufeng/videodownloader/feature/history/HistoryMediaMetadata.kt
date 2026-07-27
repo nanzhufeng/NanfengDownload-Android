@@ -18,9 +18,29 @@ internal suspend fun readHistoryMediaMetadata(
     context: Context,
     item: DownloadHistory,
 ): HistoryMediaMetadata = withContext(Dispatchers.IO) {
-    val uri = item.outputUri?.let(Uri::parse)
-        ?: return@withContext HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
+    val uris = item.outputUris.ifEmpty { item.outputUri?.let(::listOf).orEmpty() }
+        .map(Uri::parse)
+    if (uris.isEmpty()) {
+        return@withContext HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
+    }
 
+    val metadata = uris.map { uri ->
+        readSingleMetadata(context, uri)
+    }
+    val readableDurations = metadata.mapNotNull(HistoryMediaMetadata::durationMillis)
+    val readableSizes = metadata.map(HistoryMediaMetadata::fileSize)
+    HistoryMediaMetadata(
+        durationMillis = readableDurations.sum().takeIf { readableDurations.size == uris.size },
+        fileSize = readableSizes.sum()
+            .takeIf { readableSizes.all { size -> size > 0L } }
+            ?: item.fileSize,
+    )
+}
+
+private fun readSingleMetadata(
+    context: Context,
+    uri: Uri,
+): HistoryMediaMetadata {
     val actualSize = runCatching {
         context.contentResolver.query(
             uri,
@@ -36,7 +56,7 @@ internal suspend fun readHistoryMediaMetadata(
                 null
             }
         }
-    }.getOrNull()?.takeIf { it > 0L } ?: item.fileSize
+    }.getOrNull()?.takeIf { it > 0L } ?: 0L
 
     val durationMillis = runCatching {
         MediaMetadataRetriever().use { retriever ->
@@ -47,10 +67,7 @@ internal suspend fun readHistoryMediaMetadata(
         }
     }.getOrNull()
 
-    HistoryMediaMetadata(
-        durationMillis = durationMillis,
-        fileSize = actualSize,
-    )
+    return HistoryMediaMetadata(durationMillis = durationMillis, fileSize = actualSize)
 }
 
 internal fun formatMediaDuration(durationMillis: Long): String {

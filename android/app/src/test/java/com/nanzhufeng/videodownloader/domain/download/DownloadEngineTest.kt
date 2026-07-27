@@ -173,5 +173,6 @@ private class EngineRepository : DownloadRepository {
         platform: DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int,
     ): DownloadHistory? = null
 }

@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader.domain.download
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
@@ -23,6 +24,7 @@ data class ResolvedMedia(
     val videoUrl: String,
     val audioUrl: String?,
     val videoExtension: String,
+    val videoSizeBytes: Long = 0L,
     val audioExtension: String?,
     val headers: Map<String, String>,
     val audioFromVideoSource: Boolean = false,
@@ -32,12 +34,20 @@ data class ResolvedMedia(
 data class PreparedMedia(
     val file: File,
     val mimeType: String,
-)
+    val additionalFiles: List<File> = emptyList(),
+) {
+    val files: List<File>
+        get() = listOf(file) + additionalFiles
+}
 
 data class StoredMedia(
     val uri: String,
     val fileSize: Long,
-)
+    val additionalUris: List<String> = emptyList(),
+) {
+    val uris: List<String>
+        get() = listOf(uri) + additionalUris
+}
 
 interface TaskMediaResolver {
     suspend fun resolve(media: MediaItem, resolution: ResolutionPreset): ResolvedMedia
@@ -64,6 +74,7 @@ interface DownloadOutputStore {
         resolution: ResolutionPreset,
         saveTreeUri: String?,
         fileNameRule: FileNameRule,
+        audioSegmentCount: Int = 1,
     ): StoredMedia? = findExisting(media, resolution)
 
     suspend fun uriExists(uri: String): Boolean
@@ -80,6 +91,7 @@ interface DownloadOutputStore {
         prepared: PreparedMedia,
         saveTreeUri: String?,
         fileNameRule: FileNameRule,
+        audioSegmentCount: Int = 1,
     ): StoredMedia = publish(media, resolution, prepared)
 }
 
@@ -112,16 +124,30 @@ class DownloadTaskRunner(
             queued.media.platform,
             queued.media.contentId,
             queued.task.resolution,
+            queued.task.audioSegmentCount,
         )
+        val completedUris = completed?.outputUris.orEmpty()
+        var completedFilesExist = completedUris.isNotEmpty()
+        for (uri in completedUris) {
+            if (!outputStore.uriExists(uri)) {
+                completedFilesExist = false
+                break
+            }
+        }
         val existing = when {
-            completed?.outputUri != null && outputStore.uriExists(completed.outputUri) ->
-                StoredMedia(completed.outputUri, completed.fileSize)
+            completed != null && completedFilesExist ->
+                StoredMedia(
+                    uri = completedUris.first(),
+                    fileSize = completed.fileSize,
+                    additionalUris = completedUris.drop(1),
+                )
 
             else -> outputStore.findExisting(
                 queued.media,
                 queued.task.resolution,
                 queued.task.saveTreeUri,
                 queued.task.fileNameRule,
+                queued.task.audioSegmentCount,
             )
         }
         if (existing != null) {
@@ -177,8 +203,18 @@ class DownloadTaskRunner(
                 }
             }
 
+            repository.updateProcessing(
+                queued.task.taskId,
+                DownloadProcessingStage.VALIDATING,
+                0,
+            )
             repository.transition(queued.task.taskId, DownloadTaskStatus.VALIDATING)
             status = DownloadTaskStatus.VALIDATING
+            repository.updateProcessing(
+                queued.task.taskId,
+                DownloadProcessingStage.PUBLISHING,
+                0,
+            )
             val stored = measureDownloadStage(
                 taskId = queued.task.taskId,
                 stage = "publish",
@@ -191,9 +227,15 @@ class DownloadTaskRunner(
                     prepared,
                     queued.task.saveTreeUri,
                     queued.task.fileNameRule,
+                    queued.task.audioSegmentCount,
                 )
             }
             repository.transition(queued.task.taskId, DownloadTaskStatus.COMPLETED)
+            repository.updateProcessing(
+                queued.task.taskId,
+                DownloadProcessingStage.NONE,
+                100,
+            )
             repository.archiveTerminal(queued.toHistory(DownloadTaskStatus.COMPLETED, stored))
             return TaskRunResult.Completed
         } catch (error: CancellationException) {
@@ -257,6 +299,8 @@ class DownloadTaskRunner(
         completedAt = clock(),
         failureType = failureType,
         errorSummary = errorSummary,
+        outputUris = stored?.uris.orEmpty(),
+        audioSegmentCount = task.audioSegmentCount.coerceIn(1, 20),
     )
 
     private fun DownloadTaskStatus.toFailureType(): DownloadFailureType = when (this) {

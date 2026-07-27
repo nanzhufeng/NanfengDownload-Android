@@ -297,6 +297,35 @@ class NanzhufengAppInstrumentedTest {
     }
 
     @Test
+    fun waitingAudioTaskLetsUserChooseExactSegmentCountInline() {
+        var selectedTaskId: String? = null
+        var selectedSegmentCount: Int? = null
+        composeRule.setContent {
+            NanzhufengTheme {
+                Box(Modifier.requiredWidth(360.dp).height(800.dp)) {
+                    HomeScreen(
+                        queue = listOf(referenceQueueItem()),
+                        input = "",
+                        onInputChange = {},
+                        onSmartRead = {},
+                        onAudioSegmentCountChanged = { taskId, segmentCount ->
+                            selectedTaskId = taskId
+                            selectedSegmentCount = segmentCount
+                        },
+                    )
+                }
+            }
+        }
+
+        composeRule.onNodeWithTag("audio-segment-count").assertIsDisplayed().performClick()
+        composeRule.onNodeWithText("均分为 4 段").assertIsDisplayed().performClick()
+        composeRule.runOnIdle {
+            assertEquals("queue-reference", selectedTaskId)
+            assertEquals(4, selectedSegmentCount)
+        }
+    }
+
+    @Test
     fun compactQueueShowsMoreRowsAndAVisibleScrollPositionWithoutRedundantTabs() {
         composeRule.setContent {
             NanzhufengTheme {
@@ -513,6 +542,7 @@ private class FakeDownloadRepository : DownloadRepository {
         platform: com.nanzhufeng.videodownloader.core.model.DownloadPlatform,
         contentId: String,
         resolution: ResolutionPreset,
+        audioSegmentCount: Int,
     ): DownloadHistory? = null
 }
 

@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.feature.home
 
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -66,7 +67,7 @@ class QueuePresentationTest {
     @Test
     fun audioTask_reportsVideoSourceDownloadBeforeConversion() {
         assertEquals(
-            "正在下载音频转换源 40%",
+            "正在下载视频转换源 40%",
             audioTaskPhaseText(
                 task(
                     speed = 2L * 1024L * 1024L,
@@ -74,6 +75,7 @@ class QueuePresentationTest {
                     resolution = ResolutionPreset.AUDIO_MP3,
                     downloadedBytes = 40L,
                     totalBytes = 100L,
+                    processingStage = DownloadProcessingStage.NETWORK_VIDEO_TO_AUDIO,
                 ),
             ),
         )
@@ -82,7 +84,7 @@ class QueuePresentationTest {
     @Test
     fun audioTask_reportsMp3ExtractionAfterSourceDownloadCompletes() {
         assertEquals(
-            "正在提取音频并生成 MP3",
+            "正在提取音频并生成 MP3 63%",
             audioTaskPhaseText(
                 task(
                     speed = 0L,
@@ -90,6 +92,8 @@ class QueuePresentationTest {
                     resolution = ResolutionPreset.AUDIO_MP3,
                     downloadedBytes = 100L,
                     totalBytes = 100L,
+                    processingStage = DownloadProcessingStage.TRANSCODING,
+                    processingProgressPercent = 63,
                 ),
             ),
         )
@@ -101,6 +105,8 @@ class QueuePresentationTest {
         resolution: ResolutionPreset = ResolutionPreset.UP_TO_720P,
         downloadedBytes: Long = 10L,
         totalBytes: Long = 100L,
+        processingStage: DownloadProcessingStage = DownloadProcessingStage.NETWORK_MEDIA,
+        processingProgressPercent: Int = 0,
     ) = DownloadTask(
         taskId = "active",
         mediaKey = "youtube:active",
@@ -117,5 +123,7 @@ class QueuePresentationTest {
         errorSummary = null,
         retryCount = 0,
         updatedAt = updatedAt,
+        processingStage = processingStage,
+        processingProgressPercent = processingProgressPercent,
     )
 }
