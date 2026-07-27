@@ -35,6 +35,19 @@ class DownloadOverallProgressTest {
     }
 
     @Test
+    fun mergeProgressUsesLocalProcessingRangeAndStopsBelowCompletion() {
+        val task = task(
+            status = DownloadTaskStatus.DOWNLOADING,
+            stage = DownloadProcessingStage.MERGING,
+            processingPercent = 50,
+            downloaded = 100L,
+            total = 100L,
+        )
+
+        assertEquals(89, DownloadOverallProgress.percent(task))
+    }
+
+    @Test
     fun publishingStopsBelowOneHundredUntilRepositoryMarksCompleted() {
         val publishing = task(
             status = DownloadTaskStatus.VALIDATING,

@@ -1043,6 +1043,12 @@ internal fun audioTaskPhaseText(task: DownloadTask): String? {
 internal fun mediaTaskPhaseText(task: DownloadTask): String? {
     if (
         task.status == DownloadTaskStatus.DOWNLOADING &&
+        task.processingStage == DownloadProcessingStage.MERGING
+    ) {
+        return "正在快速合并音视频 ${task.processingProgressPercent.coerceIn(0, 100)}%"
+    }
+    if (
+        task.status == DownloadTaskStatus.DOWNLOADING &&
         task.processingStage == DownloadProcessingStage.VIDEO_SEGMENTING
     ) {
         return "正在无损生成 ${task.audioSegmentCount.coerceIn(2, 20)} 段视频 " +
@@ -1069,6 +1075,7 @@ private fun isLocalProcessing(task: DownloadTask): Boolean =
     task.status == DownloadTaskStatus.DOWNLOADING &&
         (
             task.processingStage in setOf(
+                DownloadProcessingStage.MERGING,
                 DownloadProcessingStage.TRANSCODING,
                 DownloadProcessingStage.VIDEO_SEGMENTING,
             ) ||

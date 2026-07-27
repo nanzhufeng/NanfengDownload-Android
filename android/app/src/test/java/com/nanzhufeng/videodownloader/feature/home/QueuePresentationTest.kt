@@ -115,6 +115,23 @@ class QueuePresentationTest {
         )
     }
 
+    @Test
+    fun videoTask_reportsRealMuxProgress() {
+        assertEquals(
+            "正在快速合并音视频 63%",
+            mediaTaskPhaseText(
+                task(
+                    speed = 0L,
+                    updatedAt = 100_000L,
+                    processingStage = DownloadProcessingStage.MERGING,
+                    processingProgressPercent = 63,
+                    downloadedBytes = 100L,
+                    totalBytes = 100L,
+                ),
+            ),
+        )
+    }
+
     private fun task(
         speed: Long,
         updatedAt: Long,

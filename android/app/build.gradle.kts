@@ -42,8 +42,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10205
-        versionName = "1.2.5"
+        versionCode = 10206
+        versionName = "1.2.6"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -107,7 +107,7 @@ android.applicationVariants.all {
     outputs.all {
         if (buildType.name == "release") {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName =
-                "南枫下载-Android-v1.2.5.apk"
+                "南枫下载-Android-v1.2.6.apk"
         } else {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
         }
@@ -133,9 +133,9 @@ tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.con
 
 tasks.register<Copy>("stageFormalReleaseArtifacts") {
     dependsOn("assembleRelease", "bundleRelease")
-    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.2.5.apk"))
+    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.2.6.apk"))
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab")) {
-        rename { "南枫下载-Android-v1.2.5.aab" }
+        rename { "南枫下载-Android-v1.2.6.aab" }
     }
     into(layout.buildDirectory.dir("outputs/formal-release"))
 }
@@ -174,8 +174,6 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    implementation("androidx.media3:media3-common:1.8.1")
-    implementation("androidx.media3:media3-transformer:1.8.1")
     ksp("androidx.room:room-compiler:2.6.1")
 
     testImplementation("junit:junit:4.13.2")

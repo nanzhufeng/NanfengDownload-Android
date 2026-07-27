@@ -27,6 +27,7 @@ object DownloadOverallProgress {
             DownloadProcessingStage.NONE,
             -> networkProgress(task)
 
+            DownloadProcessingStage.MERGING,
             DownloadProcessingStage.TRANSCODING,
             DownloadProcessingStage.VIDEO_SEGMENTING,
             -> LOCAL_PROCESSING_START +

@@ -5,6 +5,7 @@ import android.webkit.CookieManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
+import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4TrackMuxer
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -225,11 +226,12 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
             ) { downloaded, total ->
                 updateTransferReport("下载音频流", downloaded, total)
             }
-            Media3MuxProbe.merge(
-                context = getApplication(),
+            AndroidMp4TrackMuxer().merge(
                 video = video,
                 audio = audio,
                 output = File(directory, "merged.mp4"),
+                cancelled = cancelled,
+                onProgress = {},
             )
         } else {
             video

@@ -9,6 +9,18 @@
 
 ## 已完成阶段
 
+### Android v1.2.6 音视频快速合并（2026-07-27）
+
+- 独立视频流与音频流的合并从 Media3 Transformer 改为 Android `MediaExtractor + MediaMuxer` 直接轨道封装；不解码、不重编码，不改变画质和音质。
+- 同一份约 5 分钟、33,830,538 B 夹具的公平对比：旧实现 13,028 ms，新实现 7,231 ms，耗时下降约 44.5%。
+- 合并使用固定上限的直接缓冲并按时间戳交错写入，保留视频旋转信息；取消或失败会删除未完成输出。
+- 下载列表新增独立 `MERGING` 阶段，显示“正在快速合并音视频 X%”；合并阶段最多显示 99%，不会在成品发布前误报 100%。
+- Debug/Release JVM 各 166 项、Release Lint、专用模拟器 79 项仪器测试全部通过；3 项外部 TikTok 与 1 项可选大夹具性能测试按条件跳过。
+- OPPO 真实 YouTube 样本 `Tears of Steel - Blender VFX Open Movie` 完成 720p 独立音视频下载、快速合并和 MediaStore 发布。成品为 MP4，76,939,898 B、734,215 ms；历史显示 12:14 / 73.4 MB。
+- OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.6 / 10206`；`firstInstallTime` 保持不变，手机回读 APK 与本地产物哈希一致。
+- 最终 APK 为 86,239,281 B，SHA-256 `b93b4f3eca96cfb22a179a08a3ab7544d4d3cb6e1d03b435884e3f6c7b05b0bb`；AAB 为 36,092,081 B，SHA-256 `ee6536663d57d5da75339d93d74d4c51a30e67edd141792512cd66d68c4d1020`。
+- 本轮暂不上传 GitHub。完整证据见 `docs/verification/2026-07-27-android-v1.2.6-fast-mux.md`。
+
 ### Android v1.2.5 历史批量选择布局（2026-07-27）
 
 - “批量删除”从标题行移到“全部平台 / 全部时间”筛选行，三项固定同排，不再额外占用历史时间线高度。

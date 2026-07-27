@@ -10,12 +10,13 @@ import com.nanzhufeng.videodownloader.core.model.TransferReportOutcome
 import com.nanzhufeng.videodownloader.domain.download.audio.AudioTranscoder
 import com.nanzhufeng.videodownloader.domain.download.audio.AudioSourceFileValidator
 import com.nanzhufeng.videodownloader.domain.download.audio.Mp3AudioTranscoder
+import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4TrackMuxer
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4VideoSegmenter
+import com.nanzhufeng.videodownloader.domain.download.video.MediaTrackMuxer
 import com.nanzhufeng.videodownloader.domain.download.video.VideoSegmenter
 import com.nanzhufeng.videodownloader.probe.DirectDownloadRequest
 import com.nanzhufeng.videodownloader.probe.FileDownloader
 import com.nanzhufeng.videodownloader.probe.HttpFileDownloader
-import com.nanzhufeng.videodownloader.probe.Media3MuxProbe
 import com.nanzhufeng.videodownloader.probe.MediaFileValidator
 import java.io.File
 import java.io.IOException
@@ -61,6 +62,7 @@ class DirectMediaTransfer(
     context: Context,
     downloader: FileDownloader = HttpFileDownloader(),
     audioTranscoder: AudioTranscoder = Mp3AudioTranscoder(),
+    private val mediaTrackMuxer: MediaTrackMuxer = AndroidMp4TrackMuxer(),
     private val videoSegmenter: VideoSegmenter = AndroidMp4VideoSegmenter(),
     private val performanceReporter: DownloadPerformanceReporter = DownloadPerformanceReporter.NONE,
     private val transferModeSink: DownloadTransferModeSink = DownloadTransferModeSink.NONE,
@@ -311,13 +313,35 @@ class DirectMediaTransfer(
                 onProgress,
             )
             val merged = File(directory, "merged.mp4")
-            measureDownloadStage(
-                taskId = task.task.taskId,
-                stage = "mux",
-                reporter = performanceReporter,
-                nowNanos = monotonicNanos,
-            ) {
-                Media3MuxProbe.merge(applicationContext, primary, audio, merged)
+            processingSink.update(task.task.taskId, DownloadProcessingStage.MERGING, 0)
+            val mergeProgressUpdates = Channel<Int>(Channel.CONFLATED)
+            val mergeProgressJob = CoroutineScope(currentCoroutineContext()).launch {
+                for (progress in mergeProgressUpdates) {
+                    processingSink.update(
+                        task.task.taskId,
+                        DownloadProcessingStage.MERGING,
+                        progress.coerceIn(0, 100),
+                    )
+                }
+            }
+            try {
+                measureDownloadStage(
+                    taskId = task.task.taskId,
+                    stage = "mux",
+                    reporter = performanceReporter,
+                    nowNanos = monotonicNanos,
+                ) {
+                    mediaTrackMuxer.merge(
+                        video = primary,
+                        audio = audio,
+                        output = merged,
+                        cancelled = cancelled,
+                        onProgress = mergeProgressUpdates::trySend,
+                    )
+                }
+            } finally {
+                mergeProgressUpdates.close()
+                mergeProgressJob.join()
             }
             require(MediaFileValidator.isLikelyMedia(merged)) { "合并结果不是有效媒体文件" }
             primary.delete()

@@ -57,6 +57,7 @@ enum class DownloadProcessingStage {
     NETWORK_MEDIA,
     NETWORK_AUDIO,
     NETWORK_VIDEO_TO_AUDIO,
+    MERGING,
     TRANSCODING,
     VIDEO_SEGMENTING,
     VALIDATING,
