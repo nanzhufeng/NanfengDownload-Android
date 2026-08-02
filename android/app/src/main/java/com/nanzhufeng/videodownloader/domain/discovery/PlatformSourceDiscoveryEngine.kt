@@ -35,10 +35,13 @@ class PlatformSourceDiscoveryEngine(
             continuation.invokeOnCancellation { future.cancel(true) }
         }
 
-    private fun readBlocking(input: String, page: Int): DiscoveryResult = try {
+    private fun readBlocking(input: String, page: Int): DiscoveryResult {
+        var source: ClassifiedSource? = null
+        return try {
             require(page >= 1) { "页码必须从 1 开始" }
-            val source = gateway.classify(input)
-            val resolved = source.resolveIfNeeded()
+            val classified = gateway.classify(input)
+            source = classified
+            val resolved = classified.resolveIfNeeded()
             when (resolved.kind) {
                 SourceKind.SINGLE_VIDEO -> DiscoveryResult.Single(
                     gateway.extractSingle(resolved.url).toDiscoveredMedia(),
@@ -51,8 +54,24 @@ class PlatformSourceDiscoveryEngine(
                 SourceKind.UNKNOWN_XIAOHONGSHU_SHARE,
                 -> error("链接未能解析为单视频或作品列表")
             }
-    } catch (error: Exception) {
-        DiscoveryResult.Failure(DiscoveryFailurePresenter.message(error))
+        } catch (error: Exception) {
+            if (source?.platform == Platform.DOUYIN && error.isMissingVideoFormats()) {
+                DiscoveryResult.DouyinCaptureRequired(source.url)
+            } else {
+                DiscoveryResult.Failure(DiscoveryFailurePresenter.message(error))
+            }
+        }
+    }
+
+    private fun Throwable.isMissingVideoFormats(): Boolean {
+        val evidence = generateSequence(this) { it.cause }
+            .mapNotNull(Throwable::message)
+            .joinToString("\n")
+            .lowercase()
+        return evidence.contains("没有找到可下载") ||
+            evidence.contains("no video formats") ||
+            evidence.contains("no formats found") ||
+            evidence.contains("requested format is not available")
     }
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {

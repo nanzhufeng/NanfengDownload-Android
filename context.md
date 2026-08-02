@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 当前分支包含 `v1.2.7` 删除历史后可安全重新下载，以及 `v1.2.6` 音视频快速合并和既有分段/批量历史能力 |
-| Git 状态 | `v1.2.7` 代码、README 和验收文档已同步到 GitHub `main` 与同版本 Release |
+| 当前代码 checkpoint | 当前分支包含 `v1.2.8` 抖音短链接修复、`v1.2.7` 删除历史后安全重新下载，以及既有快速合并、分段与批量历史能力 |
+| Git 状态 | `v1.2.8` 代码、README 和验收文档已同步到 GitHub `main` 与同版本 Release |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.2.7` / `versionCode 10207` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.7.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.7` 已完成正式构建、模拟器验收、OPPO 无损覆盖与 GitHub Release 交付 |
+| 当前版本 | `1.2.8` / `versionCode 10208` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.8.apk` 与同名 `.aab` |
+| 发布状态 | `v1.2.8` 已完成正式构建、OPPO 无损覆盖、原问题链接真实下载与 GitHub Release 交付 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.7.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.8.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,7 +192,22 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-当前 `v1.2.7` 修正“历史已删除，旧媒体文件仍导致重新下载被误判重复”：
+当前 `v1.2.8` 修正“抖音 `v.douyin.com` 短链接进入通用解析器后没有可下载格式”：
+
+- 短链接先通过受控网络请求解析跳转，只接受 `douyin.com` / `iesdouyin.com` 官方域名。
+- 从官方跳转路径提取作品 ID，统一转换为 `https://www.douyin.com/video/<id>` 后再进入 yt-dlp 主链，并补齐抖音 Referer。
+- WebView 媒体捕获仅作为解析失败后的短时兜底，捕获结果仍回到统一发现、队列、下载、校验、MediaStore 和历史链路。
+- Debug JVM：174 项，0 失败、0 错误、0 跳过。
+- Release JVM：174 项，0 失败、0 错误、0 跳过。
+- Python：25 项，0 失败。
+- Release Lint：通过；新增 Android 仪器测试已编译，本轮未执行，不计入通过数量。
+- APK 为 `1.2.8 / 10208`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- OPPO 原问题链接 `https://v.douyin.com/R37NZ1wqjiM/` 已完成“智能读取 → 入队 → 下载 → MediaStore → 历史”闭环；作品 ID `7669248142533973995`，成品 11,912,525 B、时长 258,344 ms，历史显示 720p、04:18、11.4 MB。
+- OPPO 吞吐报告为单连接，平均约 770.0 KB/s、峰值约 3.6 MB/s；这是该样本真实测量值，不作为其他抖音资源的固定速度承诺。
+- 正式 APK：87,626,185 B，SHA-256 `75ab0e85787fc2d1a07b472bd48657a32b07a939351d63063d15b7d654edf51c`。
+- 正式 AAB：37,435,220 B，SHA-256 `e078b8756ea9bce6a11a16352ff8fd2f9d3b5aff21d0df2684a5debba8752929`。
+
+`v1.2.7` 删除历史后安全重新下载的契约继续保留：
 
 - `:app:testDebugUnitTest`：167 项，0 失败、0 错误、0 跳过。
 - `:app:testReleaseUnitTest`：167 项，0 失败、0 错误、0 跳过。
@@ -201,7 +216,6 @@ adb -s <OPPO序列号> shell \
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
 - Release APK：86,239,017 B，SHA-256 `9a3cc6a8ca6e6bc3c93e280e76ddf3763799656735d69023286305f090bbf766`。
 - Release AAB：36,092,204 B，SHA-256 `e4ae4363e0fbe859a5a186a8304efb8d5dacd59a28b9d94a22448a8605ff08ba`。
-- APK 为 `1.2.7 / 10207`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 已在 OPPO 同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`，从手机拉回的 `base.apk` 与本地 APK 哈希一致。
 - 完成历史仍存在且输出 URI 有效时，任务在解析网络前保持去重。
 - 用户删除完成历史后，同一作品可重新加入下载列表并完整下载；不再被媒体库的旧文件误判为已完成。

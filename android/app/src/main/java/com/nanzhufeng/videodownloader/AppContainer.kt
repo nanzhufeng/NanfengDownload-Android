@@ -23,6 +23,7 @@ import com.nanzhufeng.videodownloader.domain.download.WorkManagerDownloadSchedul
 import com.nanzhufeng.videodownloader.domain.download.YtDlpTaskMediaResolver
 import com.nanzhufeng.videodownloader.domain.session.SessionProvider
 import com.nanzhufeng.videodownloader.domain.session.WebViewSessionProvider
+import com.nanzhufeng.videodownloader.probe.DouyinCapturedMediaRepository
 import kotlinx.coroutines.flow.Flow
 
 class AppContainer private constructor(
@@ -34,6 +35,7 @@ class AppContainer private constructor(
     val downloadEngine: DownloadEngine,
     val networkAvailable: Flow<Boolean>,
     val sessions: SessionProvider,
+    val douyinCaptures: DouyinCapturedMediaRepository,
 ) {
     companion object {
         fun create(context: Context): AppContainer {
@@ -52,6 +54,7 @@ class AppContainer private constructor(
                 .build()
             val downloads = RoomDownloadRepository(database)
             val sessions = WebViewSessionProvider(applicationContext)
+            val douyinCaptures = DouyinCapturedMediaRepository(applicationContext)
             val performanceReporter = DownloadPerformanceReporter { taskId, stage, elapsedMillis ->
                 Log.i(
                     "DownloadPerformance",
@@ -60,7 +63,10 @@ class AppContainer private constructor(
             }
             val taskRunner = DownloadTaskRunner(
                 repository = downloads,
-                resolver = YtDlpTaskMediaResolver(sessions = sessions),
+                resolver = YtDlpTaskMediaResolver(
+                    sessions = sessions,
+                    douyinCaptures = douyinCaptures,
+                ),
                 transfer = DirectMediaTransfer(
                     context = applicationContext,
                     performanceReporter = performanceReporter,
@@ -91,6 +97,7 @@ class AppContainer private constructor(
                 ),
                 networkAvailable = NetworkStatusMonitor(applicationContext).available,
                 sessions = sessions,
+                douyinCaptures = douyinCaptures,
             )
         }
     }

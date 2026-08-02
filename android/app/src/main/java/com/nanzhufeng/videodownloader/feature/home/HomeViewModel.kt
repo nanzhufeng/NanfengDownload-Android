@@ -5,12 +5,14 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
+import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveredMedia
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
+import com.nanzhufeng.videodownloader.probe.DouyinCapturedMedia
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,6 +100,15 @@ class HomeViewModel(
                 }
             }
 
+            is DiscoveryResult.DouyinCaptureRequired -> mutableUiState.update {
+                it.copy(
+                    isReading = true,
+                    sourceInput = input,
+                    notice = "正在通过抖音页面读取视频，请稍候…",
+                    douyinCaptureUrl = result.sourceUrl,
+                )
+            }
+
             is DiscoveryResult.Collection -> {
                 val addedCount = enqueue(result.items, DownloadSourceKind.CREATOR)
                 val skippedCount = (result.items.size - addedCount).coerceAtLeast(0)
@@ -117,6 +128,52 @@ class HomeViewModel(
                     )
                 }
             }
+        }
+    }
+
+    suspend fun completeDouyinCapture(media: DouyinCapturedMedia?, errorMessage: String = "") {
+        if (media == null) {
+            mutableUiState.update {
+                it.copy(
+                    isReading = false,
+                    douyinCaptureUrl = null,
+                    notice = errorMessage.ifBlank {
+                        "抖音页面没有返回可下载视频。解决办法：请确认作品可播放，到设置中重新登录抖音后重试。"
+                    },
+                )
+            }
+            return
+        }
+        val addedCount = enqueue(
+            listOf(
+                DiscoveredMedia(
+                    sourceUrl = media.pageUrl,
+                    platform = DownloadPlatform.DOUYIN,
+                    mediaId = media.workId,
+                    title = media.title,
+                    creator = com.nanzhufeng.videodownloader.domain.discovery.CreatorIdentity(
+                        media.creator,
+                        "",
+                    ),
+                    publishedAt = "",
+                    thumbnailUrl = media.thumbnailUrl,
+                    defaultResolution = com.nanzhufeng.videodownloader.core.model.ResolutionPreset.UP_TO_720P,
+                ),
+            ),
+            DownloadSourceKind.SINGLE_VIDEO,
+        )
+        mutableUiState.update {
+            it.copy(
+                isReading = false,
+                douyinCaptureUrl = null,
+                nextPage = null,
+                canLoadMore = false,
+                notice = if (addedCount == 1) {
+                    "已通过抖音页面读取并加入 1 个作品，请开始下载"
+                } else {
+                    "该作品已存在于下载列表或历史中，未重复添加"
+                },
+            )
         }
     }
 
@@ -140,6 +197,7 @@ data class HomeUiState(
     val canLoadMore: Boolean = false,
     val nextPage: Int? = null,
     val notice: String = "",
+    val douyinCaptureUrl: String? = null,
 )
 
 private fun DiscoveredMedia.toMediaItem(sourceKind: DownloadSourceKind) = MediaItem(

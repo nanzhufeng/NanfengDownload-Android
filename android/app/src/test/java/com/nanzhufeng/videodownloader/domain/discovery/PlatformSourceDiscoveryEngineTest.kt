@@ -101,6 +101,32 @@ class PlatformSourceDiscoveryEngineTest {
             message,
         )
     }
+
+    @Test
+    fun douyinZeroFormatsRequestsWebViewCaptureInsteadOfBlamingResolution() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(MissingDouyinFormatsGateway())
+            .read("https://v.douyin.com/current/")
+
+        assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
+        assertEquals(
+            "https://v.douyin.com/current/",
+            (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
+        )
+    }
+}
+
+private class MissingDouyinFormatsGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, input)
+
+    override fun resolve(url: String) =
+        ResolvedSource(SourceKind.SINGLE_VIDEO, "https://www.douyin.com/video/7669248142533973995")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo =
+        error("没有找到可下载且具备音频的 MP4 视频流")
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
 }
 
 private class BlockingGateway : ProbeDiscoveryGateway {

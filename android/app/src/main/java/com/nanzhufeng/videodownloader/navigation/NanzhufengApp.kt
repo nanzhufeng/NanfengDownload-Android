@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -74,6 +77,7 @@ import com.nanzhufeng.videodownloader.domain.session.NoOpSessionProvider
 import com.nanzhufeng.videodownloader.domain.session.SessionProvider
 import com.nanzhufeng.videodownloader.domain.session.SessionSite
 import com.nanzhufeng.videodownloader.domain.session.SiteSessionState
+import com.nanzhufeng.videodownloader.probe.DouyinProbeActivity
 import android.widget.Toast
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -122,6 +126,21 @@ fun NanzhufengApp(
             factory = HomeViewModel.factory(downloads, settings, discovery),
         )
         val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
+        val douyinCaptureLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            val media = if (result.resultCode == Activity.RESULT_OK) {
+                DouyinProbeActivity.capturedMedia(result.data)
+            } else {
+                null
+            }
+            scope.launch {
+                homeViewModel.completeDouyinCapture(
+                    media = media,
+                    errorMessage = DouyinProbeActivity.errorMessage(result.data),
+                )
+            }
+        }
         val isNetworkAvailable by networkAvailable.collectAsStateWithLifecycle(initialValue = false)
         val navController = rememberNavController()
         var recoveryRequested by remember { mutableStateOf(false) }
@@ -165,6 +184,12 @@ fun NanzhufengApp(
 
         LaunchedEffect(settings) {
             homeViewModel.restoreInputDraft(settings.settings.first().inputDraft)
+        }
+
+        LaunchedEffect(homeState.douyinCaptureUrl) {
+            homeState.douyinCaptureUrl?.let { sourceUrl ->
+                douyinCaptureLauncher.launch(DouyinProbeActivity.createIntent(context, sourceUrl))
+            }
         }
 
         completionDialog?.let { item ->

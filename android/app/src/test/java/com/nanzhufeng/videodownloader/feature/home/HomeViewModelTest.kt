@@ -13,6 +13,7 @@ import com.nanzhufeng.videodownloader.domain.discovery.CreatorIdentity
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveredMedia
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
+import com.nanzhufeng.videodownloader.probe.DouyinCapturedMedia
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
@@ -93,6 +94,40 @@ class HomeViewModelTest {
         viewModel.restoreInputDraft("https://example.com/older")
 
         assertEquals("https://youtu.be/shared", viewModel.uiState.value.input)
+    }
+
+    @Test
+    fun douyinWebViewCaptureCompletesTheSameSmartReadAndEnqueuesMedia() = runBlocking {
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(
+            downloads,
+            FakeSettings(),
+            object : SourceDiscoveryEngine {
+                override suspend fun read(input: String, page: Int) =
+                    DiscoveryResult.DouyinCaptureRequired("https://v.douyin.com/current/")
+            },
+        )
+
+        viewModel.onInputChanged("https://v.douyin.com/current/")
+        viewModel.smartRead()
+        assertTrue(viewModel.uiState.value.isReading)
+        assertEquals("https://v.douyin.com/current/", viewModel.uiState.value.douyinCaptureUrl)
+
+        viewModel.completeDouyinCapture(
+            DouyinCapturedMedia(
+                workId = "7669248142533973995",
+                pageUrl = "https://www.douyin.com/video/7669248142533973995",
+                mediaUrl = "https://v3-web.douyinvod.com/video/tos/cn/target.mp4",
+                title = "抖音作品",
+                creator = "作者",
+                thumbnailUrl = "",
+                capturedAtMillis = 1L,
+            ),
+        )
+
+        assertEquals("7669248142533973995", downloads.enqueued.single().single().contentId)
+        assertTrue(!viewModel.uiState.value.isReading)
+        assertTrue(viewModel.uiState.value.notice.contains("已通过抖音页面读取"))
     }
 }
 

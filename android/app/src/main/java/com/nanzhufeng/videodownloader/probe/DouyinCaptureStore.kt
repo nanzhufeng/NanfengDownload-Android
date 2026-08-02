@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.net.URI
 
 object DouyinCaptureStore {
-    private data class CapturedMedia(
+    data class CapturedMedia(
         val mediaUrl: String,
         val pageUrl: String,
     )
@@ -29,20 +29,29 @@ object DouyinCaptureStore {
         targetWorkId.compareAndSet(null, pageWorkId)
     }
 
-    fun capture(pageUrl: String, requestUrl: String) {
-        val expected = targetWorkId.get() ?: return
-        val pageWorkId = extractWorkId(pageUrl) ?: return
+    fun capture(pageUrl: String, requestUrl: String): CapturedMedia? {
+        val expected = targetWorkId.get() ?: return null
+        val pageWorkId = extractWorkId(pageUrl) ?: return null
         if (pageWorkId == expected && isMediaUrl(requestUrl)) {
             captured.compareAndSet(null, CapturedMedia(requestUrl, pageUrl))
         }
+        return captured.get()
     }
 
-    private fun extractWorkId(url: String): String? =
+    internal fun extractWorkId(url: String): String? =
         workIdPattern.find(url)?.groupValues?.get(1)
 
-    private fun isMediaUrl(url: String): Boolean {
+    internal fun isMediaUrl(url: String): Boolean {
         val lower = url.lowercase()
         val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val trustedMediaHost = host == "douyin.com" || host.endsWith(".douyin.com") ||
+            host == "iesdouyin.com" || host.endsWith(".iesdouyin.com") ||
+            host == "douyinvod.com" || host.endsWith(".douyinvod.com") ||
+            host == "bytecdn.cn" || host.endsWith(".bytecdn.cn") ||
+            host == "byteimg.com" || host.endsWith(".byteimg.com") ||
+            host == "ibytedtos.com" || host.endsWith(".ibytedtos.com") ||
+            host == "amemv.com" || host.endsWith(".amemv.com") ||
+            host == "snssdk.com" || host.endsWith(".snssdk.com")
         val douyinVideoCdn = (host == "douyinvod.com" || host.endsWith(".douyinvod.com")) &&
             ("/tos-" in lower || "video_mp4" in lower)
         val mediaPath = "/video/tos/" in lower ||
@@ -55,6 +64,7 @@ object DouyinCaptureStore {
             lower.endsWith(".jpeg") ||
             lower.endsWith(".png")
         return lower.startsWith("https://") &&
+            trustedMediaHost &&
             mediaPath &&
             !image &&
             "douyin.com/video/" !in lower

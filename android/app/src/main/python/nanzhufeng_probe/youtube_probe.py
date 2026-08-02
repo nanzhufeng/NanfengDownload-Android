@@ -183,6 +183,8 @@ def _request_headers(url, cookie_header=""):
     }
     if _host_matches(host, "bilibili.com") or _host_matches(host, "b23.tv"):
         headers["Referer"] = "https://www.bilibili.com/"
+    elif _host_matches(host, "douyin.com") or _host_matches(host, "iesdouyin.com"):
+        headers["Referer"] = "https://www.douyin.com/"
     elif (
         _host_matches(host, "xiaohongshu.com")
         or _host_matches(host, "rednote.com")
@@ -209,6 +211,7 @@ def _resolve_known_short_link(url, cookie_header=""):
     host = urlsplit(url).netloc.lower().split(":", 1)[0]
     if host not in {
         "b23.tv",
+        "v.douyin.com",
         "xhslink.com",
         "www.xhslink.com",
         "xhslink.cn",
@@ -219,7 +222,17 @@ def _resolve_known_short_link(url, cookie_header=""):
     final_host = urlsplit(final_url).netloc.lower().split(":", 1)[0]
     if host == "b23.tv" and not _host_matches(final_host, "bilibili.com"):
         raise ValueError("哔哩哔哩短链接跳转到了非官方域名，已拒绝读取")
-    if host != "b23.tv" and not (
+    if host == "v.douyin.com":
+        if not (
+            _host_matches(final_host, "douyin.com")
+            or _host_matches(final_host, "iesdouyin.com")
+        ):
+            raise ValueError("抖音短链接跳转到了非官方域名，已拒绝读取")
+        work_id = re.search(r"/(?:share/)?video/(\d+)", urlsplit(final_url).path)
+        if not work_id:
+            raise ValueError("抖音短链接没有返回可识别的作品地址")
+        return f"https://www.douyin.com/video/{work_id.group(1)}"
+    if host not in {"b23.tv", "v.douyin.com"} and not (
         _host_matches(final_host, "xiaohongshu.com")
         or _host_matches(final_host, "rednote.com")
     ):

@@ -22,6 +22,8 @@ data class DiscoveredMedia(
 sealed interface DiscoveryResult {
     data class Single(val item: DiscoveredMedia) : DiscoveryResult
 
+    data class DouyinCaptureRequired(val sourceUrl: String) : DiscoveryResult
+
     data class Collection(
         val owner: CreatorIdentity,
         val items: List<DiscoveredMedia>,

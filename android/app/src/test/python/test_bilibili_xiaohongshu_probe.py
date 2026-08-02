@@ -182,5 +182,38 @@ class XiaohongshuStateTest(unittest.TestCase):
                 )
 
 
+class DouyinShortLinkTest(unittest.TestCase):
+    def test_douyin_short_link_is_resolved_to_canonical_video_before_ytdlp(self):
+        with patch(
+            "nanzhufeng_probe.youtube_probe._fetch",
+            return_value=(
+                "",
+                "https://www.iesdouyin.com/share/video/7669248142533973995/?region=CN",
+            ),
+        ) as fetch:
+            resolved = _resolve_known_short_link(
+                "https://v.douyin.com/R37NZ1wqjiM/",
+                "sessionid=account",
+            )
+
+        self.assertEqual(
+            "https://www.douyin.com/video/7669248142533973995",
+            resolved,
+        )
+        fetch.assert_called_once_with(
+            "https://v.douyin.com/R37NZ1wqjiM/",
+            "sessionid=account",
+            max_bytes=2 * 1024 * 1024,
+        )
+
+    def test_douyin_short_link_rejects_non_official_redirect(self):
+        with patch(
+            "nanzhufeng_probe.youtube_probe._fetch",
+            return_value=("", "https://attacker.example/video/7669248142533973995"),
+        ):
+            with self.assertRaisesRegex(ValueError, "非官方域名"):
+                _resolve_known_short_link("https://v.douyin.com/current/", "")
+
+
 if __name__ == "__main__":
     unittest.main()

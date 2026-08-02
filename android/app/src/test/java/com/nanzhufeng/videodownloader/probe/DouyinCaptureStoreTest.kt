@@ -10,7 +10,7 @@ class DouyinCaptureStoreTest {
         DouyinCaptureStore.begin("https://www.douyin.com/video/7315041660419853608")
         DouyinCaptureStore.capture(
             pageUrl = "https://www.douyin.com/video/7315041660419853608",
-            requestUrl = "https://example.com/video/tos/cn/tos-cn-ve-15/o123.mp4",
+            requestUrl = "https://v3-web.douyinvod.com/video/tos/cn/tos-cn-ve-15/o123.mp4",
         )
 
         assertTrue(DouyinCaptureStore.latestMediaUrl?.endsWith("o123.mp4") == true)
@@ -21,7 +21,7 @@ class DouyinCaptureStoreTest {
         DouyinCaptureStore.begin("https://www.douyin.com/video/7315041660419853608")
         DouyinCaptureStore.capture(
             pageUrl = "https://www.douyin.com/video/9999999999999999999",
-            requestUrl = "https://example.com/video/tos/cn/tos-cn-ve-15/other.mp4",
+            requestUrl = "https://v3-web.douyinvod.com/video/tos/cn/tos-cn-ve-15/other.mp4",
         )
 
         assertFalse(DouyinCaptureStore.latestMediaUrl != null)
@@ -34,7 +34,7 @@ class DouyinCaptureStoreTest {
         DouyinCaptureStore.updatePage(pageUrl)
         DouyinCaptureStore.capture(
             pageUrl = pageUrl,
-            requestUrl = "https://example.com/video/tos/cn/tos-cn-ve-15/redirected.mp4",
+            requestUrl = "https://v3-web.douyinvod.com/video/tos/cn/tos-cn-ve-15/redirected.mp4",
         )
 
         assertTrue(DouyinCaptureStore.latestMediaUrl?.endsWith("redirected.mp4") == true)
@@ -63,5 +63,17 @@ class DouyinCaptureStoreTest {
         )
 
         assertTrue(DouyinCaptureStore.latestMediaUrl?.contains("/aweme/v1/playwm/") == true)
+    }
+
+    @Test
+    fun rejectsMediaLikePathOnUntrustedHost() {
+        val pageUrl = "https://www.douyin.com/video/7659318944100076838"
+        DouyinCaptureStore.begin(pageUrl)
+        DouyinCaptureStore.capture(
+            pageUrl = pageUrl,
+            requestUrl = "https://attacker.example/video/tos/cn/fake.mp4",
+        )
+
+        assertFalse(DouyinCaptureStore.latestMediaUrl != null)
     }
 }

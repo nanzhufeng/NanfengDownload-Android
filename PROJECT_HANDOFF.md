@@ -9,6 +9,19 @@
 
 ## 已完成阶段
 
+### Android v1.2.8 抖音短链接恢复真实下载（2026-08-02）
+
+- 原问题链接为 `https://v.douyin.com/R37NZ1wqjiM/`。根因是 Python 短链接解析只覆盖哔哩哔哩和小红书，没有在进入 yt-dlp 前处理 `v.douyin.com`，导致链接落入 Generic 解析且返回“没有可下载格式”。
+- 现在先验证抖音官方跳转域名，从 `/share/video/<id>` 或 `/video/<id>` 提取作品 ID，并转换为稳定的标准作品地址；非官方跳转会直接拒绝。
+- 解析请求补齐抖音 Referer；WebView 媒体捕获作为受控短时兜底，但结果必须回到统一发现、队列、传输、校验、MediaStore 和历史链路。
+- Debug/Release JVM 各 174 项、Python 25 项、Release Lint、双 ABI APK/AAB 与签名/结构验证通过；新增 Android 仪器测试已编译但本轮未执行。
+- OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.8 / 10208`，原问题链接真实读取并下载完成。
+- 真实成品：作品 ID `7669248142533973995`，作者“蔡昶律师”，MP4 为 11,912,525 B、时长 258,344 ms，已进入系统媒体库和历史；历史显示 720p、04:18、11.4 MB。
+- 吞吐报告：单连接，平均约 770.0 KB/s、峰值约 3.6 MB/s。
+- 最终 APK 为 87,626,185 B，SHA-256 `75ab0e85787fc2d1a07b472bd48657a32b07a939351d63063d15b7d654edf51c`；AAB 为 37,435,220 B，SHA-256 `e078b8756ea9bce6a11a16352ff8fd2f9d3b5aff21d0df2684a5debba8752929`。
+- 源码与 README 已同步到 GitHub `main`，正式 APK、AAB 与 SHA-256 校验文件发布到 `v1.2.8` Release，并从 GitHub 端重新下载校验。
+- 完整证据见 `docs/verification/2026-08-02-android-v1.2.8-douyin-short-link.md`。
+
 ### Android v1.2.7 删除历史后可安全重新下载（2026-08-02）
 
 - 根因不在“智能读取”入口：用户删除历史后，作品已能重新入列；但任务启动时又根据 MediaStore 同名文件直接转为 `SKIPPED`。
