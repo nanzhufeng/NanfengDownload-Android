@@ -214,6 +214,11 @@ class RoomDownloadRepositoryInstrumentedTest {
         assertTrue(repository.deleteHistoryRecord("task-1"))
 
         assertTrue(repository.history.first().isEmpty())
+        assertEquals(
+            "删除完成历史后，同一作品应可重新加入下载列表",
+            listOf("task-1"),
+            repository.enqueue(listOf(media()), ResolutionPreset.UP_TO_720P),
+        )
     }
 
     @Test

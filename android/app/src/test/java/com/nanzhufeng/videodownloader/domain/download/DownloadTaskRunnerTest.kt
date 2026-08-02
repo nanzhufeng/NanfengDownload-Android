@@ -23,8 +23,12 @@ import org.junit.Test
 
 class DownloadTaskRunnerTest {
     @Test
-    fun verifiedExistingMediaIsSkippedBeforeResolvingNetworkSource() = runBlocking {
-        val repository = RunnerRepository(queued())
+    fun completedHistoryWithVerifiedMediaIsSkippedBeforeResolvingNetworkSource() = runBlocking {
+        val queued = queued()
+        val repository = RunnerRepository(
+            initial = queued,
+            completedHistory = completedHistory(queued),
+        )
         val resolver = RecordingResolver()
         val runner = DownloadTaskRunner(
             repository = repository,
@@ -40,6 +44,31 @@ class DownloadTaskRunnerTest {
         assertEquals(0, resolver.calls)
         assertEquals(DownloadTaskStatus.SKIPPED, repository.current.task.status)
         assertEquals(DownloadTaskStatus.SKIPPED, repository.archived.single().finalStatus)
+    }
+
+    @Test
+    fun existingFileWithoutHistoryIsDownloadedAgainAsNewCopy() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val resolver = SuccessfulResolver()
+        val transfer = SuccessfulTransfer()
+        val outputStore = RepublishOutputStore()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = transfer,
+            outputStore = outputStore,
+            clock = { 250L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Completed, result)
+        assertEquals(1, resolver.calls)
+        assertEquals(1, transfer.calls)
+        assertEquals(0, outputStore.findExistingCalls)
+        assertEquals(1, outputStore.publishCalls)
+        assertEquals(DownloadTaskStatus.COMPLETED, repository.archived.single().finalStatus)
+        assertEquals("content://media/new-copy", repository.archived.single().outputUri)
     }
 
     @Test
@@ -160,9 +189,27 @@ class DownloadTaskRunnerTest {
             thumbnailUrl = "",
         ),
     )
+
+    private fun completedHistory(queued: QueuedDownload) = DownloadHistory(
+        taskId = "completed-task",
+        platform = queued.media.platform,
+        contentId = queued.media.contentId,
+        originalUrl = queued.media.originalUrl,
+        title = queued.media.title,
+        creator = queued.media.creator,
+        resolution = queued.task.resolution,
+        finalStatus = DownloadTaskStatus.COMPLETED,
+        outputUri = "content://media/existing",
+        fileSize = 128_000L,
+        fileExists = true,
+        completedAt = 150L,
+    )
 }
 
-private class RunnerRepository(initial: QueuedDownload) : DownloadRepository {
+private class RunnerRepository(
+    initial: QueuedDownload,
+    private val completedHistory: DownloadHistory? = null,
+) : DownloadRepository {
     var current = initial
     val archived = mutableListOf<DownloadHistory>()
     override val activeTasks: Flow<List<QueuedDownload>> = MutableStateFlow(listOf(initial))
@@ -211,7 +258,7 @@ private class RunnerRepository(initial: QueuedDownload) : DownloadRepository {
         contentId: String,
         resolution: ResolutionPreset,
         audioSegmentCount: Int,
-    ): DownloadHistory? = null
+    ): DownloadHistory? = completedHistory
 }
 
 private class RecordingResolver : TaskMediaResolver {
@@ -258,6 +305,22 @@ private class RefreshThenSuccessTransfer : MediaTransfer {
     }
 }
 
+private class SuccessfulTransfer : MediaTransfer {
+    var calls = 0
+
+    override suspend fun download(
+        task: QueuedDownload,
+        source: ResolvedMedia,
+        onProgress: suspend (Long, Long, Long, Long?) -> Unit,
+    ): PreparedMedia {
+        calls += 1
+        return PreparedMedia(
+            File.createTempFile("redownload-after-history-delete", ".mp4").apply { deleteOnExit() },
+            "video/mp4",
+        )
+    }
+}
+
 private class FailingTransfer : MediaTransfer {
     override suspend fun download(
         task: QueuedDownload,
@@ -279,6 +342,30 @@ private class ExistingOutputStore : DownloadOutputStore {
         resolution: ResolutionPreset,
         prepared: PreparedMedia,
     ): StoredMedia = error("不应写入")
+}
+
+private class RepublishOutputStore : DownloadOutputStore {
+    var findExistingCalls = 0
+    var publishCalls = 0
+
+    override suspend fun findExisting(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+    ): StoredMedia {
+        findExistingCalls += 1
+        return StoredMedia("content://media/existing", 128_000L)
+    }
+
+    override suspend fun uriExists(uri: String): Boolean = true
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+    ): StoredMedia {
+        publishCalls += 1
+        return StoredMedia("content://media/new-copy", prepared.file.length())
+    }
 }
 
 private class EmptyOutputStore : DownloadOutputStore {

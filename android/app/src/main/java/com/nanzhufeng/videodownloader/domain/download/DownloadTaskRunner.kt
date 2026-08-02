@@ -142,13 +142,15 @@ class DownloadTaskRunner(
                     additionalUris = completedUris.drop(1),
                 )
 
-            else -> outputStore.findExisting(
+            completed != null -> outputStore.findExisting(
                 queued.media,
                 queued.task.resolution,
                 queued.task.saveTreeUri,
                 queued.task.fileNameRule,
                 queued.task.audioSegmentCount,
             )
+
+            else -> null
         }
         if (existing != null) {
             repository.transition(queued.task.taskId, DownloadTaskStatus.SKIPPED)

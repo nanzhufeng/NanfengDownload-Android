@@ -88,14 +88,14 @@ class MediaStoreOutputStore(
         audioSegmentCount: Int,
     ): StoredMedia = outputMutex.withLock { withContext(Dispatchers.IO) {
         val files = prepared.files
-        val paths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
-        require(files.size == paths.size) {
-            "待保存媒体分段数量与任务设置不一致：${files.size}/${paths.size}"
+        val requestedPaths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
+        require(files.size == requestedPaths.size) {
+            "待保存媒体分段数量与任务设置不一致：${files.size}/${requestedPaths.size}"
         }
         if (saveTreeUri != null) {
             return@withContext publishToTree(
                 treeUri = Uri.parse(saveTreeUri),
-                relativePaths = paths.map { it.substringAfter('/') },
+                relativePaths = requestedPaths.map { it.substringAfter('/') },
                 prepared = prepared,
             )
         }
@@ -105,6 +105,7 @@ class MediaStoreOutputStore(
         require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
 
         val collection = collectionFor(resolution)
+        val paths = uniqueMediaStorePaths(requestedPaths)
         val createdUris = mutableListOf<Uri>()
         val stored = mutableListOf<StoredMedia>()
         try {
@@ -170,12 +171,11 @@ class MediaStoreOutputStore(
                             ),
                         ) { "无法创建保存目录：$directory" }
                 }
-                val displayName = parts.last()
-                val existing = findChild(parent, displayName)
-                val destination = existing ?: requireNotNull(
+                val displayName = uniqueChildName(parent, parts.last())
+                val destination = requireNotNull(
                     DocumentsContract.createDocument(resolver, parent, prepared.mimeType, displayName),
                 ) { "无法在所选文件夹创建输出文件" }
-                if (existing == null) createdDocuments += destination
+                createdDocuments += destination
                 requireNotNull(resolver.openOutputStream(destination, "wt")) {
                     "无法写入所选文件夹"
                 }.use { output -> file.inputStream().use { input -> input.copyTo(output) } }
@@ -228,6 +228,38 @@ class MediaStoreOutputStore(
             }
             null
         }
+    }
+
+    private fun uniqueChildName(parent: Uri, requestedName: String): String {
+        if (findChild(parent, requestedName) == null) return requestedName
+        var copyIndex = 2
+        while (copyIndex < MAX_COPY_INDEX) {
+            val candidate = withCopySuffix(requestedName, copyIndex)
+            if (findChild(parent, candidate) == null) return candidate
+            copyIndex += 1
+        }
+        error("同名媒体副本过多，请整理保存目录后重试")
+    }
+
+    private fun uniqueMediaStorePaths(requestedPaths: List<String>): List<String> {
+        cachedIndex = null
+        val occupied = loadIndex().mapTo(mutableSetOf(), IndexedMedia::relativePath)
+        if (requestedPaths.none(occupied::contains)) return requestedPaths
+        var copyIndex = 2
+        while (copyIndex < MAX_COPY_INDEX) {
+            val candidates = requestedPaths.map { path -> withCopySuffix(path, copyIndex) }
+            if (candidates.none(occupied::contains)) return candidates
+            copyIndex += 1
+        }
+        error("同名媒体副本过多，请整理系统媒体目录后重试")
+    }
+
+    private fun withCopySuffix(path: String, copyIndex: Int): String {
+        val slashIndex = path.lastIndexOf('/')
+        val dotIndex = path.lastIndexOf('.').takeIf { it > slashIndex }
+        val stem = if (dotIndex != null) path.substring(0, dotIndex) else path
+        val extension = if (dotIndex != null) path.substring(dotIndex) else ""
+        return "$stem（$copyIndex）$extension"
     }
 
     private fun loadIndex(): List<IndexedMedia> = cachedIndex ?: buildList {
@@ -332,5 +364,6 @@ class MediaStoreOutputStore(
         const val MIN_MP3_BYTES = 1024L
         const val MIN_CONTAINER_BYTES = 64 * 1024L
         const val MAX_MEDIA_SEGMENTS = 20
+        const val MAX_COPY_INDEX = 10_000
     }
 }

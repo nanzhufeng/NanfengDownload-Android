@@ -13,12 +13,12 @@
 | 仓库根目录 | `/Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android` |
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
-| 当前代码 checkpoint | 当前分支包含 `v1.2.6` 音视频快速合并，以及 `v1.2.5` 历史批量选择、`v1.2.4` 历史批量删除和 `v1.2.3` 音频/视频自定义分段 |
-| Git 状态 | `v1.2.6` 改动以本文件和 verification 记录为验收依据，并同步到 GitHub `main` 与同版本 Release |
+| 当前代码 checkpoint | 当前分支包含 `v1.2.7` 删除历史后可安全重新下载，以及 `v1.2.6` 音视频快速合并和既有分段/批量历史能力 |
+| Git 状态 | `v1.2.7` 代码和验收文档仅作为当前本地 checkpoint，暂未上传 GitHub |
 | applicationId | `com.nanzhufeng.videodownloader` |
-| 当前版本 | `1.2.6` / `versionCode 10206` |
-| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.6.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.6` 已完成正式构建、OPPO 验收与 GitHub Release 交付 |
+| 当前版本 | `1.2.7` / `versionCode 10207` |
+| 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.7.apk` 与同名 `.aab` |
+| 发布状态 | `v1.2.7` 已完成正式构建、模拟器验收和 OPPO 无损覆盖；未上传 GitHub |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。
@@ -181,7 +181,7 @@ OPPO 真机固定使用“推送 APK → `pm install -r --user 0`”的同签名
 
 ```bash
 adb -s <OPPO序列号> push \
-  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.6.apk \
+  android/app/build/outputs/formal-release/南枫下载-Android-v1.2.7.apk \
   /data/local/tmp/nanfeng-download.apk
 
 adb -s <OPPO序列号> shell \
@@ -192,21 +192,21 @@ adb -s <OPPO序列号> shell \
 
 ## 7. 当前验证等级
 
-当前 `v1.2.6` 将独立音视频合并从 Media3 Transformer 替换为 `MediaExtractor + MediaMuxer` 直接轨道封装，不解码、不重编码：
+当前 `v1.2.7` 修正“历史已删除，旧媒体文件仍导致重新下载被误判重复”：
 
-- `:app:testDebugUnitTest`：166 项，0 失败、0 错误、0 跳过。
-- `:app:testReleaseUnitTest`：166 项，0 失败、0 错误、0 跳过。
+- `:app:testDebugUnitTest`：167 项，0 失败、0 错误、0 跳过。
+- `:app:testReleaseUnitTest`：167 项，0 失败、0 错误、0 跳过。
 - `:app:lintRelease`：通过，无阻断问题。
-- 专用模拟器 `emulator-5580` 仪器测试：79 项，0 失败；3 项外部 TikTok 与 1 项可选大夹具性能测试按条件跳过。
+- 专用模拟器 `emulator-5554` 仪器测试：80 项，0 失败；3 项外部 TikTok 与 1 项可选大夹具性能测试按条件跳过。
 - arm64-v8a 与 x86_64 均产生 `libnanzhufeng_mp3.so`。
-- Release APK：86,239,281 B，SHA-256 `b93b4f3eca96cfb22a179a08a3ab7544d4d3cb6e1d03b435884e3f6c7b05b0bb`。
-- Release AAB：36,092,081 B，SHA-256 `ee6536663d57d5da75339d93d74d4c51a30e67edd141792512cd66d68c4d1020`。
-- APK 为 `1.2.6 / 10206`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
+- Release APK：86,239,017 B，SHA-256 `9a3cc6a8ca6e6bc3c93e280e76ddf3763799656735d69023286305f090bbf766`。
+- Release AAB：36,092,204 B，SHA-256 `e4ae4363e0fbe859a5a186a8304efb8d5dacd59a28b9d94a22448a8605ff08ba`。
+- APK 为 `1.2.7 / 10207`、`minSdk 29`、`targetSdk 35`、`debuggable=false`，使用既有正式证书；证书 SHA-256 为 `C4:FB:47:E2:76:B5:A9:38:1E:53:62:E8:D1:76:CC:B9:E1:71:A0:34:F5:13:C9:D8:11:D4:7A:53:64:0F:45:47`。
 - 正式 APK 已在 OPPO 同签名无损覆盖；`firstInstallTime` 保持 `2026-07-18 13:44:10`，从手机拉回的 `base.apk` 与本地 APK 哈希一致。
-- 同一份约 5 分钟、33,830,538 B 音视频夹具：旧 Media3 Transformer 为 13,028 ms，新直接封装为 7,231 ms，耗时下降约 44.5%。
-- 合并阶段拥有独立 `MERGING` 状态，显示“正在快速合并音视频 X%”；进度上限为 99%，只有校验、发布和任务完成后才进入 100%。
-- OPPO 真实 YouTube 样本 `Tears of Steel - Blender VFX Open Movie` 完成 720p 独立音视频下载、合并和 MediaStore 发布；成品 76,939,898 B、时长 734,215 ms，历史显示 12:14 / 73.4 MB。
-- 取消合并会删除未完成输出；合并失败不会发布残缺成品。
+- 完成历史仍存在且输出 URI 有效时，任务在解析网络前保持去重。
+- 用户删除完成历史后，同一作品可重新加入下载列表并完整下载；不再被媒体库的旧文件误判为已完成。
+- 新成品使用“（2）/（3）”后缀保存为独立副本；MediaStore 与自定义文件夹均不覆盖旧文件。
+- OPPO 本轮只执行同签名无损覆盖、冷启动和 APK 回读校验；没有擅自删除新的真实历史或触发第二份网络下载。
 
 `v1.2.3` 音频/视频自定义分段继续保留以下真实回归证据：
 

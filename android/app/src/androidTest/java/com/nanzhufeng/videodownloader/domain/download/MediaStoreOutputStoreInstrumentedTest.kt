@@ -14,12 +14,64 @@ import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MediaStoreOutputStoreInstrumentedTest {
+    @Test
+    fun repeatedPublishAfterHistoryDeletionCreatesNewCopyWithoutOverwriting() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val uniqueTitle = "MediaStore 重复下载测试 ${System.nanoTime()}"
+        val testMedia = media().copy(contentId = uniqueTitle, title = uniqueTitle)
+        val sources = (1..2).map { index ->
+            File(context.cacheDir, "media-store-redownload-$index.mp3").also {
+                it.delete()
+                encodeFourSecondsOfSilence(it)
+            }
+        }
+        val publishedUris = mutableListOf<Uri>()
+
+        try {
+            val store = MediaStoreOutputStore(context)
+            val first = store.publish(
+                media = testMedia,
+                resolution = ResolutionPreset.AUDIO_MP3,
+                prepared = PreparedMedia(sources[0], "audio/mpeg"),
+            )
+            val second = store.publish(
+                media = testMedia,
+                resolution = ResolutionPreset.AUDIO_MP3,
+                prepared = PreparedMedia(sources[1], "audio/mpeg"),
+            )
+            publishedUris += Uri.parse(first.uri)
+            publishedUris += Uri.parse(second.uri)
+
+            val names = publishedUris.map { uri ->
+                context.contentResolver.query(
+                    uri,
+                    arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )!!.use { cursor ->
+                    assertTrue(cursor.moveToFirst())
+                    cursor.getString(0)
+                }
+            }
+            assertNotEquals(first.uri, second.uri)
+            assertNotEquals(names[0], names[1])
+            assertTrue(names[1].contains("（2）"))
+            assertTrue(store.uriExists(first.uri))
+            assertTrue(store.uriExists(second.uri))
+        } finally {
+            publishedUris.forEach { context.contentResolver.delete(it, null, null) }
+            sources.forEach(File::delete)
+        }
+    }
+
     @Test
     fun publishesMp3UnderSharedMusicDirectory() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
