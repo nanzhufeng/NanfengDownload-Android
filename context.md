@@ -1,6 +1,6 @@
 # 南枫下载 Android 项目 Context
 
-更新时间：2026-07-27（Asia/Shanghai）
+更新时间：2026-08-02（Asia/Shanghai）
 
 > 本文件是当前 Android 项目的快速事实入口，供开发者和后续 Codex 任务使用。当前代码与最新真实验证证据高于本文；详细里程碑与真机记录见 `PROJECT_HANDOFF.md`。
 
@@ -14,11 +14,11 @@
 | Android 工程 | `android/` |
 | 当前分支 | `codex/android-ui-download-core-checkpoint-20260718` |
 | 当前代码 checkpoint | 当前分支包含 `v1.2.7` 删除历史后可安全重新下载，以及 `v1.2.6` 音视频快速合并和既有分段/批量历史能力 |
-| Git 状态 | `v1.2.7` 代码和验收文档仅作为当前本地 checkpoint，暂未上传 GitHub |
+| Git 状态 | `v1.2.7` 代码、README 和验收文档已同步到 GitHub `main` 与同版本 Release |
 | applicationId | `com.nanzhufeng.videodownloader` |
 | 当前版本 | `1.2.7` / `versionCode 10207` |
 | 构建产物 | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.7.apk` 与同名 `.aab` |
-| 发布状态 | `v1.2.7` 已完成正式构建、模拟器验收和 OPPO 无损覆盖；未上传 GitHub |
+| 发布状态 | `v1.2.7` 已完成正式构建、模拟器验收、OPPO 无损覆盖与 GitHub Release 交付 |
 | 主要真机 | OPPO Find N5 / PKH120；外屏 1140×2616，内屏 2248×2480 |
 
 当前 Git `origin` 已核对为私有 Android 专用仓库 `https://github.com/nanzhufeng/NanfengDownload-Android.git`，默认分支为 `main`。原本地交接 bundle 以 `handoff-bundle` 远端名保留，不作为日常推送目标。

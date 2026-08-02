@@ -1,6 +1,6 @@
 # 南枫下载 Android 当前交接
 
-更新时间：2026-07-27（Asia/Shanghai）
+更新时间：2026-08-02（Asia/Shanghai）
 当前分支：`codex/android-ui-download-core-checkpoint-20260718`
 
 ## 当前目标
@@ -19,7 +19,7 @@
 - OPPO 已按“推送 APK → `pm install -r --user 0`”同签名无损覆盖到 `1.2.7 / 10207`；`firstInstallTime` 保持 `2026-07-18 13:44:10`，冷启动正常，手机回读 APK 与本地哈希一致。
 - 最终 APK 为 86,239,017 B，SHA-256 `9a3cc6a8ca6e6bc3c93e280e76ddf3763799656735d69023286305f090bbf766`；AAB 为 36,092,204 B，SHA-256 `e4ae4363e0fbe859a5a186a8304efb8d5dacd59a28b9d94a22448a8605ff08ba`。
 - 本轮未擅自操作 OPPO 的真实历史或启动重复网络下载；待用户用原问题链接做最后交互确认。
-- 本轮暂不上传 GitHub。完整证据见 `docs/verification/2026-08-02-android-v1.2.7-redownload-after-history-delete.md`。
+- 源码与 README 已同步到 GitHub `main`，正式 APK、AAB 与 SHA-256 校验文件发布到 `v1.2.7` Release。完整证据见 `docs/verification/2026-08-02-android-v1.2.7-redownload-after-history-delete.md`。
 
 ### Android v1.2.6 音视频快速合并（2026-07-27）
 
