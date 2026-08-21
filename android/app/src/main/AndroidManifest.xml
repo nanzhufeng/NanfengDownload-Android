@@ -39,6 +39,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.NanzhufengVideoDownloader.Starting">
             <intent-filter>

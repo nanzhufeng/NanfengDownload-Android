@@ -182,6 +182,12 @@ class RoomDownloadRepository(
         return historyDao.deleteByIds(uniqueIds)
     }
 
+    override suspend fun deleteMissingHistoryRecords(): Int =
+        historyDao.deleteMissingMedia()
+
+    override suspend fun markHistoryMediaMissing(taskId: String): Boolean =
+        historyDao.markMediaMissing(taskId) == 1
+
     override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverQueueAfterProcessDeath(clock())
 
     override suspend fun updateTransfer(

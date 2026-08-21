@@ -67,6 +67,7 @@ import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
 import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import com.nanzhufeng.videodownloader.feature.history.HistoryScreen
+import com.nanzhufeng.videodownloader.feature.history.InternalVideoPlayerOverlay
 import com.nanzhufeng.videodownloader.feature.home.HomeScreen
 import com.nanzhufeng.videodownloader.feature.home.HomeViewModel
 import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
@@ -145,6 +146,11 @@ fun NanzhufengApp(
         val navController = rememberNavController()
         var recoveryRequested by remember { mutableStateOf(false) }
         var completionDialog by remember { mutableStateOf<DownloadHistory?>(null) }
+        var activeVideoTaskId by rememberSaveable { mutableStateOf<String?>(null) }
+        var activeVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
+        var activeVideoTitle by rememberSaveable { mutableStateOf("") }
+        var activeVideoPositionMillis by rememberSaveable { mutableStateOf(0L) }
+        var activeVideoPlayWhenReady by rememberSaveable { mutableStateOf(true) }
 
         LaunchedEffect(downloads) {
             var initialized = false
@@ -346,6 +352,19 @@ fun NanzhufengApp(
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
                         },
+                        onDeleteMissingHistories = {
+                            scope.launch { downloads.deleteMissingHistoryRecords() }
+                        },
+                        onMediaMissing = { taskId ->
+                            scope.launch { downloads.markHistoryMediaMissing(taskId) }
+                        },
+                        onOpenHistoryVideo = { taskId, uri, title ->
+                            activeVideoTaskId = taskId
+                            activeVideoUri = uri
+                            activeVideoTitle = title
+                            activeVideoPositionMillis = 0L
+                            activeVideoPlayWhenReady = true
+                        },
                         expanded = true,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.weight(1f),
@@ -485,11 +504,48 @@ fun NanzhufengApp(
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
                         },
+                        onDeleteMissingHistories = {
+                            scope.launch { downloads.deleteMissingHistoryRecords() }
+                        },
+                        onMediaMissing = { taskId ->
+                            scope.launch { downloads.markHistoryMediaMissing(taskId) }
+                        },
+                        onOpenHistoryVideo = { taskId, uri, title ->
+                            activeVideoTaskId = taskId
+                            activeVideoUri = uri
+                            activeVideoTitle = title
+                            activeVideoPositionMillis = 0L
+                            activeVideoPlayWhenReady = true
+                        },
                         expanded = false,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.padding(padding),
                     )
                 }
+            }
+
+            activeVideoUri?.let { uri ->
+                val taskId = activeVideoTaskId ?: return@let
+                InternalVideoPlayerOverlay(
+                    playbackSessionId = taskId,
+                    title = activeVideoTitle,
+                    videoUri = uri,
+                    initialPositionMillis = activeVideoPositionMillis,
+                    initialPlayWhenReady = activeVideoPlayWhenReady,
+                    onPlaybackSnapshot = { positionMillis, playWhenReady ->
+                        if (activeVideoTaskId == taskId && activeVideoUri == uri) {
+                            activeVideoPositionMillis = positionMillis
+                            activeVideoPlayWhenReady = playWhenReady
+                        }
+                    },
+                    onDismiss = {
+                        activeVideoTaskId = null
+                        activeVideoUri = null
+                        activeVideoTitle = ""
+                        activeVideoPositionMillis = 0L
+                        activeVideoPlayWhenReady = true
+                    },
+                )
             }
         }
     }
@@ -531,6 +587,9 @@ private fun AppNavHost(
     onRetryQueued: (String) -> Unit,
     onDeleteHistory: (String) -> Unit,
     onDeleteHistories: (List<String>) -> Unit,
+    onDeleteMissingHistories: () -> Unit,
+    onMediaMissing: (String) -> Unit,
+    onOpenHistoryVideo: (taskId: String, uri: String, title: String) -> Unit,
     expanded: Boolean,
     networkAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -577,6 +636,9 @@ private fun AppNavHost(
                 throughputReports = throughputReports,
                 onDeleteRecord = onDeleteHistory,
                 onDeleteRecords = onDeleteHistories,
+                onDeleteMissingRecords = onDeleteMissingHistories,
+                onMediaMissing = onMediaMissing,
+                onOpenInternalVideo = onOpenHistoryVideo,
             )
         }
         composable(AppDestination.SETTINGS.route) {

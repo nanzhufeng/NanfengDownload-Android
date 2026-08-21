@@ -6,6 +6,7 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,6 +29,18 @@ class MediaPlayerClassifierTest {
     fun audioHistoryUsesTheBuiltInPlayerWhileVideoKeepsTheSystemPlayer() {
         assertTrue(shouldUseInternalAudioPlayer(history(ResolutionPreset.AUDIO_MP3)))
         assertFalse(shouldUseInternalAudioPlayer(history(ResolutionPreset.UP_TO_720P)))
+    }
+
+    @Test
+    fun mediaOpenMessagesDoNotCallMissingFilesAPlayerProblem() {
+        assertEquals(
+            "视频文件不存在或已无法读取。已在历史中标记，可重新读取原链接下载。",
+            mediaOpenMessage(MediaOpenResult.MissingMedia, isAudio = false),
+        )
+        assertEquals(
+            "没有可用的视频播放器。请安装或启用一个支持该文件的播放器后重试。",
+            mediaOpenMessage(MediaOpenResult.NoPlayer, isAudio = false),
+        )
     }
 
     private fun history(resolution: ResolutionPreset) = DownloadHistory(

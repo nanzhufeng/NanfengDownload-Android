@@ -5,6 +5,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
+import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -12,7 +13,16 @@ import java.util.Locale
 internal data class HistoryMediaMetadata(
     val durationMillis: Long?,
     val fileSize: Long,
+    val kind: HistoryMediaKind = HistoryMediaKind.VIDEO,
+    val readableUris: List<String> = emptyList(),
+    val totalFileCount: Int = 0,
 )
+
+internal enum class HistoryMediaKind {
+    VIDEO,
+    AUDIO,
+    IMAGE,
+}
 
 internal suspend fun readHistoryMediaMetadata(
     context: Context,
@@ -27,21 +37,40 @@ internal suspend fun readHistoryMediaMetadata(
     val metadata = uris.map { uri ->
         readSingleMetadata(context, uri)
     }
-    val readableDurations = metadata.mapNotNull(HistoryMediaMetadata::durationMillis)
-    val readableSizes = metadata.map(HistoryMediaMetadata::fileSize)
+    val readable = metadata.filter(HistorySingleMediaMetadata::readable)
+    val readableDurations = readable.mapNotNull(HistorySingleMediaMetadata::durationMillis)
+    val readableSizes = metadata.map(HistorySingleMediaMetadata::fileSize)
+    val kind = historyMediaKind(item.resolution, metadata.map(HistorySingleMediaMetadata::mimeType))
     HistoryMediaMetadata(
         durationMillis = readableDurations.sum().takeIf { readableDurations.size == uris.size },
         fileSize = readableSizes.sum()
             .takeIf { readableSizes.all { size -> size > 0L } }
             ?: item.fileSize,
+        kind = kind,
+        readableUris = readable.map { it.uri.toString() },
+        totalFileCount = uris.size,
     )
 }
+
+private data class HistorySingleMediaMetadata(
+    val uri: Uri,
+    val durationMillis: Long?,
+    val fileSize: Long,
+    val mimeType: String,
+    val readable: Boolean,
+)
 
 private fun readSingleMetadata(
     context: Context,
     uri: Uri,
-): HistoryMediaMetadata {
-    val actualSize = runCatching {
+): HistorySingleMediaMetadata {
+    val readable = runCatching {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+            descriptor.statSize != 0L
+        } == true
+    }.getOrDefault(false)
+    val mimeType = runCatching { context.contentResolver.getType(uri).orEmpty() }.getOrDefault("")
+    val actualSize = if (readable) runCatching {
         context.contentResolver.query(
             uri,
             arrayOf(OpenableColumns.SIZE),
@@ -56,18 +85,39 @@ private fun readSingleMetadata(
                 null
             }
         }
-    }.getOrNull()?.takeIf { it > 0L } ?: 0L
+    }.getOrNull()?.takeIf { it > 0L } ?: 0L else 0L
 
-    val durationMillis = runCatching {
+    val durationMillis = if (readable && !mimeType.startsWith("image/")) runCatching {
         MediaMetadataRetriever().use { retriever ->
             retriever.setDataSource(context, uri)
             retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull()
                 ?.takeIf { it >= 0L }
         }
-    }.getOrNull()
+    }.getOrNull() else null
 
-    return HistoryMediaMetadata(durationMillis = durationMillis, fileSize = actualSize)
+    return HistorySingleMediaMetadata(
+        uri = uri,
+        durationMillis = durationMillis,
+        fileSize = actualSize,
+        mimeType = mimeType,
+        readable = readable,
+    )
+}
+
+internal fun historyKindLabel(kind: HistoryMediaKind): String = when (kind) {
+    HistoryMediaKind.VIDEO -> "视频"
+    HistoryMediaKind.AUDIO -> "音频"
+    HistoryMediaKind.IMAGE -> "图片"
+}
+
+internal fun historyMediaKind(
+    resolution: ResolutionPreset,
+    mimeTypes: List<String>,
+): HistoryMediaKind = when {
+    resolution == ResolutionPreset.AUDIO_MP3 -> HistoryMediaKind.AUDIO
+    mimeTypes.any { it.startsWith("image/") } -> HistoryMediaKind.IMAGE
+    else -> HistoryMediaKind.VIDEO
 }
 
 internal fun formatMediaDuration(durationMillis: Long): String {

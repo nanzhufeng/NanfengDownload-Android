@@ -112,7 +112,7 @@ class MediaStoreOutputStore(
             files.zip(paths).forEach { (file, relativePath) ->
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, relativePath.substringAfterLast('/'))
-                    put(MediaStore.MediaColumns.MIME_TYPE, prepared.mimeType)
+                    put(MediaStore.MediaColumns.MIME_TYPE, file.outputMimeType(prepared.mimeType))
                     put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath.substringBeforeLast('/') + "/")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
@@ -173,7 +173,7 @@ class MediaStoreOutputStore(
                 }
                 val displayName = uniqueChildName(parent, parts.last())
                 val destination = requireNotNull(
-                    DocumentsContract.createDocument(resolver, parent, prepared.mimeType, displayName),
+                    DocumentsContract.createDocument(resolver, parent, file.outputMimeType(prepared.mimeType), displayName),
                 ) { "无法在所选文件夹创建输出文件" }
                 createdDocuments += destination
                 requireNotNull(resolver.openOutputStream(destination, "wt")) {
@@ -372,6 +372,9 @@ class MediaStoreOutputStore(
             additionalUris = drop(1).map(StoredMedia::uri),
         )
     }
+
+    private fun File.outputMimeType(fallback: String): String =
+        detectImageMediaFormat()?.mimeType ?: fallback
 
     private data class IndexedMedia(
         val relativePath: String,

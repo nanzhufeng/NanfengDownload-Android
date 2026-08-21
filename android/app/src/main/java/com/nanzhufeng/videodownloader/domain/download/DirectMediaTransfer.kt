@@ -152,8 +152,9 @@ class DirectMediaTransfer(
                         require(MediaFileValidator.isLikelyMedia(downloaded)) {
                             "下载结果不是有效图片文件：${downloaded.name}"
                         }
-                        completedBytes += downloaded.length()
-                        add(downloaded)
+                        val imageFile = downloaded.withDetectedImageExtension()
+                        completedBytes += imageFile.length()
+                        add(imageFile)
                     }
                 }
                 require(images.isNotEmpty()) { "图文作品未返回可下载图片" }
@@ -605,12 +606,8 @@ class DirectMediaTransfer(
         java.net.URI(this).host.orEmpty()
     }.getOrDefault("")
 
-    private fun File.imageMimeType(): String = when (extension.lowercase()) {
-        "png" -> "image/png"
-        "webp" -> "image/webp"
-        "gif" -> "image/gif"
-        else -> "image/jpeg"
-    }
+    private fun File.imageMimeType(): String =
+        detectImageMediaFormat()?.mimeType ?: "image/jpeg"
 
     private fun adoptReusableAudioSource(
         mediaKey: String,

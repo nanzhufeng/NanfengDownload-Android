@@ -311,10 +311,13 @@ interface DownloadHistoryDao {
     @Query(
         """
         SELECT platform || ':' || contentId FROM download_history
-        WHERE finalStatus = 'COMPLETED'
+        WHERE finalStatus = 'COMPLETED' AND fileExists = 1
         """,
     )
     suspend fun getCompletedMediaKeys(): List<String>
+
+    @Query("UPDATE download_history SET fileExists = 0 WHERE taskId = :taskId AND fileExists = 1")
+    suspend fun markMediaMissing(taskId: String): Int
 
     @Query("SELECT * FROM download_history WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadHistoryEntity?
@@ -325,6 +328,9 @@ interface DownloadHistoryDao {
     @Query("DELETE FROM download_history WHERE taskId IN (:taskIds)")
     suspend fun deleteByIds(taskIds: List<String>): Int
 
+    @Query("DELETE FROM download_history WHERE fileExists = 0")
+    suspend fun deleteMissingMedia(): Int
+
     @Query(
         """
         SELECT * FROM download_history
@@ -333,6 +339,7 @@ interface DownloadHistoryDao {
           AND resolution = :resolution
           AND audioSegmentCount = :audioSegmentCount
           AND finalStatus = 'COMPLETED'
+          AND fileExists = 1
         ORDER BY completedAt DESC
         LIMIT 1
         """,

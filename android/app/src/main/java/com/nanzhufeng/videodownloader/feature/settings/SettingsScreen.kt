@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
@@ -387,6 +388,38 @@ fun SettingsScreen(
                     summary = "文件含登录凭据，请勿上传、转发或存入共享位置",
                     onClick = { exportSitePickerVisible = true },
                     modifier = Modifier.testTag("settings-export-cookies"),
+                )
+            }
+        },
+        SettingsContent(key = "feature-review") {
+            SettingsCard(
+                title = "功能审阅",
+                icon = Icons.Outlined.Image,
+                accent = ForestGreen,
+                tone = AppCardTone.MINT,
+                compact = !expanded,
+                modifier = Modifier.testTag("settings-feature-review-card"),
+            ) {
+                Text("图文历史查看 · 保留", fontWeight = FontWeight.Medium)
+                Text(
+                    "入口：历史图片封面或详情“查看图片”。连续图片可左右滑动，视频在同一内容播放器中打开；" +
+                        "本地文件删除后会明确标记不可用，不会误报播放器问题。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("清理失效 · 保留", fontWeight = FontWeight.Medium)
+                Text(
+                    "入口：历史页“批量删除”旁的“清理失效”。仅删除已确认本地媒体不存在的历史记录，" +
+                        "保留仍可读取的文件。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("动图下载与播放 · 保留", fontWeight = FontWeight.Medium)
+                Text(
+                    "入口：图文作品直接下载，历史封面或详情“查看图片”进入全屏播放。" +
+                        "GIF 与动图 WebP 保留原格式并自动播放，连续图片仍可左右滑动。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },

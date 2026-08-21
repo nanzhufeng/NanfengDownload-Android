@@ -83,6 +83,19 @@ class HistoryScreenInstrumentedTest {
     }
 
     @Test
+    fun missingMedia_isShownBesideThePlatformIconInsteadOfInTheBottomSummary() {
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(completedHistory("missing-video", "已删除视频")),
+                onDeleteRecord = {},
+            )
+        }
+
+        composeRule.onNodeWithTag("history-missing-media-missing-video").assertIsDisplayed()
+        composeRule.onNodeWithText("视频已不存在").assertIsDisplayed()
+    }
+
+    @Test
     fun batchDelete_selectAllConfirmsVisibleHistoryRecords() {
         var deletedIds = emptyList<String>()
         composeRule.setContent {
@@ -117,6 +130,28 @@ class HistoryScreenInstrumentedTest {
             assertTrue(deletedIds.toSet() == setOf("history-1", "history-2"))
         }
         composeRule.onNodeWithTag("history-bulk-toolbar").assertDoesNotExist()
+    }
+
+    @Test
+    fun cleanMissingMedia_confirmsThenUsesDedicatedCleanupAction() {
+        var cleanupTriggered = false
+        composeRule.setContent {
+            HistoryScreen(
+                history = listOf(completedHistory("missing-history", "本地视频已删除")),
+                onDeleteRecord = {},
+                onDeleteMissingRecords = { cleanupTriggered = true },
+            )
+        }
+
+        composeRule.onNodeWithTag("history-clean-missing-media").performClick()
+        composeRule.onNodeWithText("清理失效记录？").assertIsDisplayed()
+        composeRule.onNodeWithText("将删除 1 条已确认本地媒体不存在的历史记录。", substring = true)
+            .assertIsDisplayed()
+        composeRule.onNodeWithTag("history-confirm-clean-missing-media").performClick()
+
+        composeRule.runOnIdle {
+            assertTrue(cleanupTriggered)
+        }
     }
 
     @Test

@@ -235,6 +235,15 @@ class RoomDownloadRepositoryInstrumentedTest {
         assertEquals(listOf("history-3"), repository.history.first().map { it.taskId })
     }
 
+    @Test
+    fun cleanMissingHistoryRecordsDeletesOnlyEntriesMarkedUnavailable() = runBlocking {
+        repository.archiveTerminal(history().copy(taskId = "missing", contentId = "missing-content", fileExists = false))
+        repository.archiveTerminal(history().copy(taskId = "available", contentId = "available-content", fileExists = true))
+
+        assertEquals(1, repository.deleteMissingHistoryRecords())
+        assertEquals(listOf("available"), repository.history.first().map { it.taskId })
+    }
+
     private fun media() = MediaItem(
         mediaKey = "ignored",
         platform = DownloadPlatform.TIKTOK,

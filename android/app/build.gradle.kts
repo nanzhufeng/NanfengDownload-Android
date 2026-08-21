@@ -62,8 +62,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10248
-        versionName = "1.2.48"
+        versionCode = 10257
+        versionName = "1.2.57"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -218,8 +218,11 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
     implementation("androidx.media3:media3-transformer:1.7.1")
+    implementation("androidx.media3:media3-exoplayer:1.7.1")
+    implementation("androidx.media3:media3-ui:1.7.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.7.0")
     implementation("io.coil-kt:coil-video:2.7.0")
     ksp("androidx.room:room-compiler:2.6.1")
 
