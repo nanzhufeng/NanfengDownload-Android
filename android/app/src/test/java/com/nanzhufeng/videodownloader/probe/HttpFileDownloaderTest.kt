@@ -22,11 +22,37 @@ import okio.Buffer
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 class HttpFileDownloaderTest {
+    @Test
+    fun credentialHeadersAreScopedToTheExactMediaHost() {
+        val request = DirectDownloadRequest(
+            url = "https://media.example/video.mp4",
+            headers = mapOf(
+                "Referer" to "https://www.tiktok.com/",
+                "Cookie" to "legacy=must-not-be-used",
+                "Authorization" to "Bearer must-not-be-forwarded",
+            ),
+            cookieHeader = "session=media-only",
+            cookieHost = "media.example",
+            target = File("build/tmp/credential-headers.mp4"),
+        )
+
+        val firstHop = request.headersFor("https://media.example/video.mp4".toHttpUrl())
+        val redirectedHop = request.headersFor("https://cdn.example/video.mp4".toHttpUrl())
+
+        assertEquals("https://www.tiktok.com/", firstHop["Referer"])
+        assertEquals("session=media-only", firstHop["Cookie"])
+        assertNull(firstHop["Authorization"])
+        assertNull(redirectedHop["Cookie"])
+        assertNull(redirectedHop["Authorization"])
+    }
+
     @Test
     fun existingSequentialChunkPartReprobesAndResumesWithBoundedRange() {
         val payload = fakeMp4Payload(size = 100 * 1024)

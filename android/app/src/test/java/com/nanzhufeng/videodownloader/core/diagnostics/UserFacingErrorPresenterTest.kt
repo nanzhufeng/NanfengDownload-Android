@@ -66,6 +66,20 @@ class UserFacingErrorPresenterTest {
     }
 
     @Test
+    fun tiktokAudienceGateDoesNotImplyThatNormalPublicVideosNeedLogin() {
+        val message = UserFacingErrorPresenter.message(
+            rawError = "ERROR: [TikTok] 7664193763144715540: This post may not be comfortable " +
+                "for some audiences. Log in for access.",
+            platform = DownloadPlatform.TIKTOK,
+        )
+
+        assertTrue(message.contains("受限内容"))
+        assertTrue(message.contains("普通公开视频不需要登录"))
+        assertTrue(message.contains("账号与权限 → TikTok"))
+        assertFalse(message.contains("链接格式可能不受支持"))
+    }
+
+    @Test
     fun unknownEnglishErrorUsesAChineseFallbackAndKeepsRawTextOutOfDefaultUi() {
         val message = UserFacingErrorPresenter.message("Extractor exploded with opaque upstream failure")
 
@@ -110,7 +124,7 @@ class UserFacingErrorPresenterTest {
             DownloadPlatform.XIAOHONGSHU,
         )
 
-        assertTrue(imageOnly.contains("图文笔记"))
+        assertTrue(imageOnly.contains("原图地址"))
         assertTrue(expired.contains("重新复制"))
         assertFalse(expired.contains("xsec_token"))
     }

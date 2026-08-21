@@ -8,8 +8,6 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.CancellationException
 import java.util.concurrent.CompletionException
 import java.util.concurrent.Executors
@@ -22,6 +20,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.HttpUrl
 
 class HttpDownloadException(
     val statusCode: Int,
@@ -38,6 +37,13 @@ data class DirectDownloadRequest(
     val url: String,
     val headers: Map<String, String>,
     val target: File,
+    /**
+     * Cookies are credentials, not generic media headers. They are only sent
+     * to the exact host for which the extractor obtained them and are removed
+     * before every cross-host redirect.
+     */
+    val cookieHeader: String = "",
+    val cookieHost: String = "",
     val taskId: String = "",
     val platform: DownloadPlatform? = null,
     val streamLabel: String = "媒体",
@@ -46,6 +52,21 @@ data class DirectDownloadRequest(
     val onModeResolved: (DownloadConnectionMode, Int) -> Unit = { _, _ -> },
     val onReport: (DownloadThroughputReport) -> Unit = {},
 )
+
+internal fun DirectDownloadRequest.headersFor(targetUrl: HttpUrl): Map<String, String> = buildMap {
+    headers.forEach { (name, value) ->
+        if (!name.isCredentialHeader()) put(name, value)
+    }
+    if (cookieHeader.isNotBlank() && cookieHost.equals(targetUrl.host, ignoreCase = true)) {
+        put("Cookie", cookieHeader)
+    }
+}
+
+private fun String.isCredentialHeader(): Boolean =
+    equals("Cookie", ignoreCase = true) ||
+        equals("Authorization", ignoreCase = true) ||
+        equals("Proxy-Authorization", ignoreCase = true) ||
+        equals("Host", ignoreCase = true)
 
 fun interface FileDownloader {
     fun download(
@@ -401,14 +422,14 @@ class HttpFileDownloader(
         while (downloaded < totalBytes) {
             if (cancelled.get()) throw CancellationException("下载已取消")
             val endInclusive = minOf(downloaded + chunkSizeBytes - 1L, totalBytes - 1L)
-            val connection = openRangeConnection(request, "bytes=$downloaded-$endInclusive")
-            try {
-                if (connection.responseCode != HTTP_PARTIAL) throw RangeNotSupportedException()
-                val contentRange = connection.getHeaderField("Content-Range").orEmpty()
+            execute(request, range = "bytes=$downloaded-$endInclusive").use { response ->
+                if (response.code != HTTP_PARTIAL) throw RangeNotSupportedException()
+                val contentRange = response.header("Content-Range").orEmpty()
                 if (!contentRange.startsWith("bytes $downloaded-$endInclusive/$totalBytes")) {
                     throw RangeNotSupportedException()
                 }
-                connection.inputStream.use { input ->
+                val body = response.body ?: throw IOException("下载响应缺少内容")
+                body.byteStream().use { input ->
                     FileOutputStream(partial, true).buffered().use { output ->
                         val buffer = ByteArray(BUFFER_SIZE_BYTES)
                         while (downloaded <= endInclusive) {
@@ -426,8 +447,6 @@ class HttpFileDownloader(
                 if (downloaded != endInclusive + 1L) {
                     throw IOException("小分块连接提前结束：$downloaded/${endInclusive + 1L} 字节")
                 }
-            } finally {
-                connection.disconnect()
             }
         }
     }
@@ -484,25 +503,25 @@ class HttpFileDownloader(
         request: DirectDownloadRequest,
         range: String?,
     ): Response {
-        val builder = Request.Builder().url(request.url)
-        request.headers.forEach(builder::header)
-        builder.header("Accept-Encoding", "identity")
-        range?.let { builder.header("Range", it) }
-        return httpClient.newCall(builder.build()).execute()
-    }
-
-    private fun openRangeConnection(
-        request: DirectDownloadRequest,
-        range: String,
-    ): HttpURLConnection = (
-        URL(request.url).openConnection() as HttpURLConnection
-        ).apply {
-        request.headers.forEach(::setRequestProperty)
-        setRequestProperty("Accept-Encoding", "identity")
-        setRequestProperty("Range", range)
-        connectTimeout = 20_000
-        readTimeout = 30_000
-        instanceFollowRedirects = true
+        var url = Request.Builder().url(request.url).build().url
+        repeat(MAX_REDIRECTS) {
+            val builder = Request.Builder().url(url)
+            request.headersFor(url).forEach(builder::header)
+            builder.header("Accept-Encoding", "identity")
+            range?.let { builder.header("Range", it) }
+            val response = httpClient.newCall(builder.build()).execute()
+            if (!response.isRedirect) return response
+            val redirectedUrl = response.header("Location")
+                ?.let(url::resolve)
+                ?: return response
+            if (!redirectedUrl.isHttps) {
+                response.close()
+                throw IOException("媒体跳转到了非 HTTPS 地址，已拒绝传输")
+            }
+            response.close()
+            url = redirectedUrl
+        }
+        throw IOException("媒体链接重定向次数过多，已停止传输")
     }
 
     private fun deleteSegments(partial: File) {
@@ -668,17 +687,21 @@ class HttpFileDownloader(
             // multiplexes them over one HTTP/2 socket. Independent HTTP/1.1
             // connections preserve the intended platform connection count.
             .protocols(listOf(Protocol.HTTP_1_1))
-            .followRedirects(true)
-            .followSslRedirects(true)
+            // Redirects are followed in execute so credentials can be scoped
+            // again for every target URL.
+            .followRedirects(false)
+            .followSslRedirects(false)
             .build()
         val SEGMENT_EXECUTOR = Executors.newFixedThreadPool(8) { runnable ->
             Thread(runnable, "nanzhufeng-range-download").apply { isDaemon = true }
         }
+        const val MAX_REDIRECTS = 12
     }
 }
 
 object MediaFileValidator {
     private const val MIN_MP3_BYTES = 1024L
+    private const val MIN_IMAGE_BYTES = 1024L
     private const val MIN_CONTAINER_BYTES = 64L * 1024L
 
     fun isLikelyMedia(file: File): Boolean {
@@ -705,6 +728,14 @@ object MediaFileValidator {
 
         val isMp3 = text.startsWith("ID3") || hasMpegAudioFrameSync(bytes)
         if (isMp3) return length >= MIN_MP3_BYTES
+
+        val isJpeg = bytes.startsWith(byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte()))
+        val isPng = bytes.startsWith(byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47))
+        val isGif = bytes.startsWith("GIF8".toByteArray(Charsets.US_ASCII))
+        val isWebp = bytes.size >= 12 &&
+            bytes.copyOfRange(0, 4).toString(Charsets.US_ASCII) == "RIFF" &&
+            bytes.copyOfRange(8, 12).toString(Charsets.US_ASCII) == "WEBP"
+        if (isJpeg || isPng || isGif || isWebp) return length >= MIN_IMAGE_BYTES
 
         val isIsoBmff = "ftyp" in text
         val isWebM = bytes.startsWith(byteArrayOf(0x1a, 0x45, 0xdf.toByte(), 0xa3.toByte())) ||

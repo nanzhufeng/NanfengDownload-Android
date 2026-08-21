@@ -17,6 +17,18 @@ import org.junit.Test
 
 class StreamDownloadCoordinatorTest {
     @Test
+    fun smoothsABurstyProgressSampleAcrossTheRollingWindow() {
+        val estimator = RollingTransferSpeed(initialBytes = 0L, initialNanos = 0L)
+
+        assertEquals(1_000L, estimator.record(totalBytes = 250L, atNanos = 250_000_000L))
+
+        val smoothed = estimator.record(totalBytes = 1_250L, atNanos = 500_000_000L)
+
+        assertTrue("rolling speed should not jump to the 4 KB/s burst", smoothed < 4_000L)
+        assertTrue("rolling speed should still reflect the sustained gain", smoothed > 1_000L)
+    }
+
+    @Test
     fun downloadsIndependentVideoAndAudioStreamsConcurrently() = runBlocking {
         val directory = createTempDirectory("parallel-streams-").toFile()
         val bothStarted = CountDownLatch(2)

@@ -50,4 +50,10 @@ object PlatformTransferPolicy {
     } else {
         forAudio(platform)
     }
+
+    fun forImage(platform: DownloadPlatform): TransferPolicy = TransferPolicy(
+        platform = platform.name,
+        maxConnections = 1,
+        segmentedThresholdBytes = Long.MAX_VALUE,
+    )
 }

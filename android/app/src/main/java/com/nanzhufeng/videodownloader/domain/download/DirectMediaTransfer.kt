@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.domain.download
 
 import android.content.Context
+import androidx.media3.common.util.UnstableApi
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
 import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
 import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
@@ -11,8 +12,10 @@ import com.nanzhufeng.videodownloader.domain.download.audio.AudioTranscoder
 import com.nanzhufeng.videodownloader.domain.download.audio.AudioSourceFileValidator
 import com.nanzhufeng.videodownloader.domain.download.audio.Mp3AudioTranscoder
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4TrackMuxer
+import com.nanzhufeng.videodownloader.domain.download.video.AndroidMedia3VideoResolutionTranscoder
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4VideoSegmenter
 import com.nanzhufeng.videodownloader.domain.download.video.MediaTrackMuxer
+import com.nanzhufeng.videodownloader.domain.download.video.VideoResolutionTranscoder
 import com.nanzhufeng.videodownloader.domain.download.video.VideoSegmenter
 import com.nanzhufeng.videodownloader.probe.DirectDownloadRequest
 import com.nanzhufeng.videodownloader.probe.FileDownloader
@@ -58,12 +61,15 @@ fun interface DownloadProcessingSink {
     }
 }
 
+@UnstableApi
 class DirectMediaTransfer(
     context: Context,
     downloader: FileDownloader = HttpFileDownloader(),
     audioTranscoder: AudioTranscoder = Mp3AudioTranscoder(),
     private val mediaTrackMuxer: MediaTrackMuxer = AndroidMp4TrackMuxer(),
     private val videoSegmenter: VideoSegmenter = AndroidMp4VideoSegmenter(),
+    private val videoResolutionTranscoder: VideoResolutionTranscoder =
+        AndroidMedia3VideoResolutionTranscoder(context.applicationContext),
     private val performanceReporter: DownloadPerformanceReporter = DownloadPerformanceReporter.NONE,
     private val transferModeSink: DownloadTransferModeSink = DownloadTransferModeSink.NONE,
     private val throughputReportSink: DownloadThroughputReportSink = DownloadThroughputReportSink.NONE,
@@ -71,6 +77,7 @@ class DirectMediaTransfer(
     private val isReusableAudioSource: (File) -> Boolean = {
         AudioSourceFileValidator.inspect(it).valid
     },
+    private val transferConcurrencyBudget: TransferConcurrencyBudget = TransferConcurrencyBudget(),
     private val monotonicNanos: () -> Long = System::nanoTime,
     private val wallClockMillis: () -> Long = System::currentTimeMillis,
 ) : MediaTransfer {
@@ -84,6 +91,7 @@ class DirectMediaTransfer(
         source: ResolvedMedia,
         onProgress: suspend (Long, Long, Long, Long?) -> Unit,
     ): PreparedMedia = withContext(Dispatchers.IO) {
+        val budgetLease = transferConcurrencyBudget.enter(task.task.taskId)
         val transferScope = CoroutineScope(currentCoroutineContext())
         val streamModes = ConcurrentHashMap<String, Pair<DownloadConnectionMode, Int>>()
         fun modeObserver(streamLabel: String): (DownloadConnectionMode, Int) -> Unit = { mode, count ->
@@ -106,6 +114,56 @@ class DirectMediaTransfer(
         val completionHandle = currentCoroutineContext()[Job]
             ?.invokeOnCompletion { cancelled.set(true) }
         try {
+            if (source.imageUrls.isNotEmpty()) {
+                processingSink.update(
+                    task.task.taskId,
+                    DownloadProcessingStage.NETWORK_MEDIA,
+                    0,
+                )
+                var completedBytes = 0L
+                val images = buildList {
+                    source.imageUrls.forEachIndexed { index, image ->
+                        val label = "图片 ${index + 1}/${source.imageUrls.size}"
+                        val target = File(
+                            directory,
+                            "image-${(index + 1).toString().padStart(2, '0')}.${image.extension.safeExtension("jpg")}",
+                        )
+                        val request = DirectDownloadRequest(
+                            url = image.url,
+                            headers = source.headers,
+                            target = target,
+                            taskId = task.task.taskId,
+                            platform = task.media.platform,
+                            streamLabel = label,
+                            transferPolicy = PlatformTransferPolicy.forImage(task.media.platform),
+                            reprobeCount = source.reprobeCount,
+                            onModeResolved = modeObserver(label),
+                        )
+                        val downloaded = downloadStreams(task, listOf(request), cancelled) {
+                            downloadedBytes, totalBytes, speedBytesPerSecond, remainingSeconds ->
+                            val total = if (totalBytes > 0L) completedBytes + totalBytes else 0L
+                            onProgress(
+                                completedBytes + downloadedBytes,
+                                total,
+                                speedBytesPerSecond,
+                                remainingSeconds,
+                            )
+                        }.single()
+                        require(MediaFileValidator.isLikelyMedia(downloaded)) {
+                            "下载结果不是有效图片文件：${downloaded.name}"
+                        }
+                        completedBytes += downloaded.length()
+                        add(downloaded)
+                    }
+                }
+                require(images.isNotEmpty()) { "图文作品未返回可下载图片" }
+                onProgress(completedBytes, completedBytes, 0L, null)
+                return@withContext PreparedMedia(
+                    file = images.first(),
+                    mimeType = images.first().imageMimeType(),
+                    additionalFiles = images.drop(1),
+                )
+            }
             val isAudioOnly = task.task.resolution == ResolutionPreset.AUDIO_MP3
             val audioStreamLabel = if (source.audioFromVideoSource) {
                 "视频转音频源"
@@ -134,6 +192,8 @@ class DirectMediaTransfer(
                 } else {
                     PlatformTransferPolicy.forPlatform(task.media.platform)
                 },
+                cookieHeader = source.videoCookieHeader,
+                cookieHost = source.videoUrl.requestHost(),
                 reprobeCount = source.reprobeCount,
                 onModeResolved = modeObserver(if (isAudioOnly) audioStreamLabel else "视频流"),
             )
@@ -303,6 +363,8 @@ class DirectMediaTransfer(
                 platform = task.media.platform,
                 streamLabel = "音频流",
                 transferPolicy = PlatformTransferPolicy.forAudio(task.media.platform),
+                cookieHeader = source.audioCookieHeader,
+                cookieHost = audioUrl.requestHost(),
                 reprobeCount = source.reprobeCount,
                 onModeResolved = modeObserver("音频流"),
             )
@@ -349,6 +411,7 @@ class DirectMediaTransfer(
             prepareVideoSegments(task, source, merged, directory, cancelled)
         } finally {
             completionHandle?.dispose()
+            budgetLease.close()
         }
     }
 
@@ -359,8 +422,39 @@ class DirectMediaTransfer(
         directory: File,
         cancelled: AtomicBoolean,
     ): PreparedMedia {
+        val preparedVideo = if (task.task.resolution == ResolutionPreset.UP_TO_360P) {
+            processingSink.update(task.task.taskId, DownloadProcessingStage.TRANSCODING, 0)
+            val progressUpdates = Channel<Int>(Channel.CONFLATED)
+            val progressJob = CoroutineScope(currentCoroutineContext()).launch {
+                for (progress in progressUpdates) {
+                    processingSink.update(
+                        task.task.taskId,
+                        DownloadProcessingStage.TRANSCODING,
+                        progress.coerceIn(0, 100),
+                    )
+                }
+            }
+            try {
+                videoResolutionTranscoder.transcodeTo360p(
+                    source = video,
+                    destination = File(directory, "video-360.mp4"),
+                    cancelled = cancelled,
+                    onProgress = { progress ->
+                        progressUpdates.trySend(progress)
+                        Unit
+                    },
+                )
+            } finally {
+                progressUpdates.close()
+                progressJob.join()
+            }.also { output ->
+                if (output != video) video.delete()
+            }
+        } else {
+            video
+        }
         val segmentCount = task.task.audioSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
-        if (segmentCount == 1) return PreparedMedia(video, "video/mp4")
+        if (segmentCount == 1) return PreparedMedia(preparedVideo, "video/mp4")
 
         processingSink.update(
             task.task.taskId,
@@ -373,7 +467,7 @@ class DirectMediaTransfer(
                 "video-segment-${index.toString().padStart(2, '0')}-of-$segmentCount.mp4",
             )
         }
-        val inputBytes = video.length()
+        val inputBytes = preparedVideo.length()
         val startedAt = wallClockMillis()
         val startedNanos = monotonicNanos()
         var outcome = TransferReportOutcome.FAILED
@@ -398,7 +492,7 @@ class DirectMediaTransfer(
                 nowNanos = monotonicNanos,
             ) {
                 videoSegmenter.split(
-                    source = video,
+                    source = preparedVideo,
                     destinations = destinations,
                     cancelled = cancelled,
                     onProgress = progressUpdates::trySend,
@@ -410,7 +504,7 @@ class DirectMediaTransfer(
             committedBytes = files.sumOf(File::length)
             outcome = TransferReportOutcome.COMPLETED
             progressUpdates.trySend(100)
-            video.delete()
+            preparedVideo.delete()
             return PreparedMedia(
                 file = files.first(),
                 mimeType = "video/mp4",
@@ -469,11 +563,26 @@ class DirectMediaTransfer(
         reporter = performanceReporter,
         nowNanos = monotonicNanos,
     ) {
+        val activeStreamCount = requests.count { request ->
+            !MediaFileValidator.isLikelyMedia(request.target)
+        }.coerceAtLeast(1)
         val reports = ConcurrentLinkedQueue<DownloadThroughputReport>()
         try {
             streamDownloadCoordinator.download(
                 requests = requests.map { request ->
-                    request.copy(onReport = reports::add)
+                    val budgetedPolicy = request.transferPolicy?.let { policy ->
+                        policy.copy(
+                            maxConnections = transferConcurrencyBudget.connectionsPerStream(
+                                taskId = task.task.taskId,
+                                activeStreamCount = activeStreamCount,
+                                requestedConnections = policy.maxConnections,
+                            ),
+                        )
+                    }
+                    request.copy(
+                        transferPolicy = budgetedPolicy,
+                        onReport = reports::add,
+                    )
                 },
                 cancelled = cancelled,
                 onProgress = { progress -> progress.forwardTo(onProgress) },
@@ -491,6 +600,17 @@ class DirectMediaTransfer(
         ?.lowercase()
         ?.takeIf { it.matches(Regex("[a-z0-9]{1,5}")) }
         ?: fallback
+
+    private fun String.requestHost(): String = runCatching {
+        java.net.URI(this).host.orEmpty()
+    }.getOrDefault("")
+
+    private fun File.imageMimeType(): String = when (extension.lowercase()) {
+        "png" -> "image/png"
+        "webp" -> "image/webp"
+        "gif" -> "image/gif"
+        else -> "image/jpeg"
+    }
 
     private fun adoptReusableAudioSource(
         mediaKey: String,

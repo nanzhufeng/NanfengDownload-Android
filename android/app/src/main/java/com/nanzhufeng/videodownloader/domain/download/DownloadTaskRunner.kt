@@ -20,6 +20,11 @@ import javax.net.ssl.SSLException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+data class ResolvedImage(
+    val url: String,
+    val extension: String = "jpg",
+)
+
 data class ResolvedMedia(
     val videoUrl: String,
     val audioUrl: String?,
@@ -27,7 +32,10 @@ data class ResolvedMedia(
     val videoSizeBytes: Long = 0L,
     val audioExtension: String?,
     val headers: Map<String, String>,
+    val videoCookieHeader: String = "",
+    val audioCookieHeader: String = "",
     val audioFromVideoSource: Boolean = false,
+    val imageUrls: List<ResolvedImage> = emptyList(),
     val reprobeCount: Int = 0,
 )
 

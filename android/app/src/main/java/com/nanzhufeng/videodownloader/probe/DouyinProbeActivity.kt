@@ -27,7 +27,7 @@ class DouyinProbeActivity : Activity() {
     private var completed = false
     private var canonicalRedirected = false
     private val captureTimeout = Runnable {
-        finishWithError("抖音页面没有在规定时间内返回视频流，请确认作品可播放并重新登录后重试")
+        finishWithError("抖音页面没有在规定时间内返回视频或图文图片，请确认作品可播放并重新登录后重试")
     }
     private val inspectVideoSource = object : Runnable {
         override fun run() {
@@ -44,7 +44,32 @@ class DouyinProbeActivity : Activity() {
                         return@evaluateJavascript
                     }
                 }
-                handler.postDelayed(this, VIDEO_SOURCE_POLL_MILLIS)
+                webView.evaluateJavascript(IMAGE_SOURCE_SCRIPT) { rawImages ->
+                    if (destroyed || completed) return@evaluateJavascript
+                    val imageUrls = runCatching {
+                        val encoded = JSONTokener(rawImages).nextValue() as? String ?: "[]"
+                        val array = org.json.JSONArray(encoded)
+                        buildList {
+                            for (index in 0 until array.length()) {
+                                array.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                            }
+                        }
+                    }.getOrDefault(emptyList())
+                    val capturedImages = imageUrls.flatMap { url ->
+                        DouyinCaptureStore.captureImage(currentPageUrl.get(), url)
+                    }.distinct()
+                    if (capturedImages.isNotEmpty()) {
+                        completeCapture(
+                            DouyinCaptureStore.CapturedMedia(
+                                mediaUrl = "",
+                                pageUrl = currentPageUrl.get(),
+                                imageUrls = capturedImages,
+                            ),
+                        )
+                    } else {
+                        handler.postDelayed(this, VIDEO_SOURCE_POLL_MILLIS)
+                    }
+                }
             }
         }
     }
@@ -102,6 +127,10 @@ class DouyinProbeActivity : Activity() {
                         requestUrl = request.url.toString(),
                     )
                     if (captured != null) view.post { completeCapture(captured) }
+                    DouyinCaptureStore.captureImage(
+                        pageUrl = currentPageUrl.get(),
+                        requestUrl = request.url.toString(),
+                    )
                     return super.shouldInterceptRequest(view, request)
                 }
             }
@@ -146,6 +175,7 @@ class DouyinProbeActivity : Activity() {
                 creator = metadata.creator.ifBlank { "抖音用户" },
                 thumbnailUrl = metadata.thumbnailUrl,
                 capturedAtMillis = System.currentTimeMillis(),
+                imageUrls = captured.imageUrls,
             )
             runCatching {
                 (application as NanzhufengApplication).container.douyinCaptures.save(media)
@@ -194,6 +224,7 @@ class DouyinProbeActivity : Activity() {
         private const val EXTRA_CREATOR = "creator"
         private const val EXTRA_THUMBNAIL = "thumbnail"
         private const val EXTRA_CAPTURED_AT = "captured_at"
+        private const val EXTRA_IMAGE_URLS = "image_urls"
         private const val EXTRA_ERROR = "capture_error"
         private const val VIDEO_SOURCE_LOG_TAG = "DouyinVideoSource"
         private const val VIDEO_SOURCE_POLL_MILLIS = 500L
@@ -204,6 +235,14 @@ class DouyinProbeActivity : Activity() {
                 const source = video?.querySelector('source');
                 return video?.currentSrc || video?.src || source?.src || '';
             })()
+        """
+        private const val IMAGE_SOURCE_SCRIPT = """
+            (() => JSON.stringify(
+                Array.from(document.querySelectorAll('img'))
+                    .filter((image) => Math.max(image.naturalWidth || 0, image.clientWidth || 0) >= 200)
+                    .map((image) => image.currentSrc || image.src)
+                    .filter(Boolean)
+            ))()
         """
         private const val START_VIDEO_SCRIPT = """
             (() => {
@@ -239,6 +278,7 @@ class DouyinProbeActivity : Activity() {
                 creator = data.getStringExtra(EXTRA_CREATOR).orEmpty(),
                 thumbnailUrl = data.getStringExtra(EXTRA_THUMBNAIL).orEmpty(),
                 capturedAtMillis = data.getLongExtra(EXTRA_CAPTURED_AT, 0L),
+                imageUrls = data.getStringArrayListExtra(EXTRA_IMAGE_URLS).orEmpty(),
             )
         }
 
@@ -267,5 +307,6 @@ class DouyinProbeActivity : Activity() {
             .putExtra(EXTRA_CREATOR, media.creator)
             .putExtra(EXTRA_THUMBNAIL, media.thumbnailUrl)
             .putExtra(EXTRA_CAPTURED_AT, media.capturedAtMillis)
+            .putStringArrayListExtra(EXTRA_IMAGE_URLS, ArrayList(media.imageUrls))
     }
 }

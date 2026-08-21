@@ -76,4 +76,23 @@ class DouyinCaptureStoreTest {
 
         assertFalse(DouyinCaptureStore.latestMediaUrl != null)
     }
+
+    @Test
+    fun capturesImagePostUrlsOnlyFromTheTargetWorkPage() {
+        val pageUrl = "https://www.douyin.com/video/7659318944100076838"
+        DouyinCaptureStore.begin(pageUrl)
+
+        val images = DouyinCaptureStore.captureImage(
+            pageUrl = pageUrl,
+            requestUrl = "https://p3-sign.douyinpic.com/tos-cn-i-0813/photo.webp?x-expires=1",
+        )
+
+        assertTrue(images.single().contains("douyinpic.com"))
+        assertTrue(
+            DouyinCaptureStore.captureImage(
+                pageUrl = "https://www.douyin.com/video/7659318944100076999",
+                requestUrl = "https://p3-sign.douyinpic.com/tos-cn-i-0813/other.webp?x-expires=1",
+            ).isEmpty(),
+        )
+    }
 }

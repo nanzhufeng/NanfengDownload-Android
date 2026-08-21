@@ -7,9 +7,11 @@ object DouyinCaptureStore {
     data class CapturedMedia(
         val mediaUrl: String,
         val pageUrl: String,
+        val imageUrls: List<String> = emptyList(),
     )
 
     private val captured = AtomicReference<CapturedMedia?>(null)
+    private val capturedImages = AtomicReference<List<String>>(emptyList())
     private val targetWorkId = AtomicReference<String?>(null)
     private val workIdPattern = Regex("/video/(\\d+)")
 
@@ -21,6 +23,7 @@ object DouyinCaptureStore {
 
     fun begin(sourceUrl: String) {
         captured.set(null)
+        capturedImages.set(emptyList())
         targetWorkId.set(extractWorkId(sourceUrl))
     }
 
@@ -36,6 +39,18 @@ object DouyinCaptureStore {
             captured.compareAndSet(null, CapturedMedia(requestUrl, pageUrl))
         }
         return captured.get()
+    }
+
+    fun captureImage(pageUrl: String, requestUrl: String): List<String> {
+        val expected = targetWorkId.get() ?: return emptyList()
+        val pageWorkId = extractWorkId(pageUrl) ?: return emptyList()
+        if (pageWorkId != expected || !isImageUrl(requestUrl)) return emptyList()
+        while (true) {
+            val current = capturedImages.get()
+            if (requestUrl in current) return current
+            val updated = current + requestUrl
+            if (capturedImages.compareAndSet(current, updated)) return updated
+        }
     }
 
     internal fun extractWorkId(url: String): String? =
@@ -68,5 +83,20 @@ object DouyinCaptureStore {
             mediaPath &&
             !image &&
             "douyin.com/video/" !in lower
+    }
+
+    internal fun isImageUrl(url: String): Boolean {
+        val lower = url.lowercase()
+        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val trustedImageHost = host == "douyinpic.com" || host.endsWith(".douyinpic.com") ||
+            host == "byteimg.com" || host.endsWith(".byteimg.com") ||
+            host == "ibytedtos.com" || host.endsWith(".ibytedtos.com") ||
+            host == "amemv.com" || host.endsWith(".amemv.com")
+        val imagePath = lower.contains("aweme_images") ||
+            lower.contains("/image/") ||
+            lower.contains("tos-cn-i") ||
+            lower.contains(".jpg") || lower.contains(".jpeg") ||
+            lower.contains(".png") || lower.contains(".webp")
+        return lower.startsWith("https://") && trustedImageHost && imagePath && !isMediaUrl(url)
     }
 }

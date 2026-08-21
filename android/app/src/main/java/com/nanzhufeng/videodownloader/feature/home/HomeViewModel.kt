@@ -138,7 +138,7 @@ class HomeViewModel(
                     isReading = false,
                     douyinCaptureUrl = null,
                     notice = errorMessage.ifBlank {
-                        "抖音页面没有返回可下载视频。解决办法：请确认作品可播放，到设置中重新登录抖音后重试。"
+                        "抖音页面没有返回可下载视频或图文图片。解决办法：请确认作品可播放，到设置中重新登录抖音后重试。"
                     },
                 )
             }
@@ -169,7 +169,8 @@ class HomeViewModel(
                 nextPage = null,
                 canLoadMore = false,
                 notice = if (addedCount == 1) {
-                    "已通过抖音页面读取并加入 1 个作品，请开始下载"
+                    if (media.imageUrls.isNotEmpty()) "已读取抖音图文并加入 1 个图集任务，请开始下载"
+                    else "已通过抖音页面读取并加入 1 个作品，请开始下载"
                 } else {
                     "该作品已存在于下载列表或历史中，未重复添加"
                 },

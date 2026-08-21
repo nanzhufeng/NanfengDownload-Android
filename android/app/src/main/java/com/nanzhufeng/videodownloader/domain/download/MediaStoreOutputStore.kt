@@ -88,7 +88,7 @@ class MediaStoreOutputStore(
         audioSegmentCount: Int,
     ): StoredMedia = outputMutex.withLock { withContext(Dispatchers.IO) {
         val files = prepared.files
-        val requestedPaths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
+        val requestedPaths = outputPaths(media, resolution, fileNameRule, audioSegmentCount, prepared)
         require(files.size == requestedPaths.size) {
             "待保存媒体分段数量与任务设置不一致：${files.size}/${requestedPaths.size}"
         }
@@ -104,7 +104,7 @@ class MediaStoreOutputStore(
         }
         require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
 
-        val collection = collectionFor(resolution)
+        val collection = collectionFor(prepared.mimeType)
         val paths = uniqueMediaStorePaths(requestedPaths)
         val createdUris = mutableListOf<Uri>()
         val stored = mutableListOf<StoredMedia>()
@@ -277,6 +277,13 @@ class MediaStoreOutputStore(
                 MIN_MP3_BYTES,
             ),
         )
+        addAll(
+            queryCollection(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                "Pictures/南烛枫视频下载器/%",
+                MIN_MP3_BYTES,
+            ),
+        )
     }.also { cachedIndex = it }
 
     private fun queryCollection(
@@ -323,20 +330,31 @@ class MediaStoreOutputStore(
         }
     }.getOrDefault(false)
 
-    private fun collectionFor(resolution: ResolutionPreset): Uri =
-        if (resolution == ResolutionPreset.AUDIO_MP3) {
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-        } else {
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-        }
+    private fun collectionFor(mimeType: String): Uri = when {
+        mimeType.startsWith("image/") -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        mimeType.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        else -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+    }
 
     private fun outputPaths(
         media: MediaItem,
         resolution: ResolutionPreset,
         fileNameRule: FileNameRule,
         requestedSegmentCount: Int,
+        prepared: PreparedMedia? = null,
     ): List<String> {
         val base = policy.relativePath(media, resolution, fileNameRule)
+        if (prepared?.mimeType?.startsWith("image/") == true) {
+            val directory = "Pictures" + base.substringBeforeLast('/').removePrefix("Movies")
+            val baseName = base.substringAfterLast('/').substringBeforeLast('.')
+            val count = prepared.files.size
+            return prepared.files.mapIndexed { index, file ->
+                val extension = file.extension.lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,8}")) }
+                    ?: "jpg"
+                val suffix = if (count == 1) "" else "（第${(index + 1).toString().padStart(2, '0')}张，共${count}张）"
+                "$directory/$baseName$suffix.$extension"
+            }
+        }
         val segmentCount = requestedSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
         if (segmentCount == 1) return listOf(base)
         val extension = base.substringAfterLast('.', "")

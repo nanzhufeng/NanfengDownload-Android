@@ -270,7 +270,7 @@ internal fun ExpandedHome(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TotalProgressCard(queue, completedCount)
+                TotalProgressCard(queue, completedCount, expanded = true)
                 DefaultQualityCard(defaultResolution)
                 Box(modifier = Modifier.testTag("home-side-add-task")) {
                     ReadEntryCard(input, onInputChange, onSmartRead, isReading, notice, dense = true)
@@ -334,7 +334,7 @@ private fun RunStatusCard(
 
     WorkbenchCard(
         tone = AppCardTone.NEUTRAL,
-        modifier = modifier,
+        modifier = if (expanded) modifier.height(EXPANDED_SUMMARY_CARD_HEIGHT) else modifier,
         contentPadding = PaddingValues(if (expanded) 16.dp else 12.dp),
     ) {
         Text(
@@ -714,7 +714,7 @@ private fun QueueRow(
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (task.status == DownloadTaskStatus.WAITING) {
+                        if (task.status in setOf(DownloadTaskStatus.WAITING, DownloadTaskStatus.FAILED)) {
                             ResolutionMenu(task.resolution, true) { onResolutionChanged(task.taskId, it) }
                         } else {
                             ResolutionBadge(task.resolution)
@@ -1043,6 +1043,13 @@ internal fun audioTaskPhaseText(task: DownloadTask): String? {
 internal fun mediaTaskPhaseText(task: DownloadTask): String? {
     if (
         task.status == DownloadTaskStatus.DOWNLOADING &&
+        task.resolution == ResolutionPreset.UP_TO_360P &&
+        task.processingStage == DownloadProcessingStage.TRANSCODING
+    ) {
+        return "正在转码为 360p ${task.processingProgressPercent.coerceIn(0, 100)}%"
+    }
+    if (
+        task.status == DownloadTaskStatus.DOWNLOADING &&
         task.processingStage == DownloadProcessingStage.MERGING
     ) {
         return "正在快速合并音视频 ${task.processingProgressPercent.coerceIn(0, 100)}%"
@@ -1198,7 +1205,11 @@ private fun segmentAccent(resolution: ResolutionPreset): Color =
     if (resolution == ResolutionPreset.AUDIO_MP3) WarmOrange else SuccessGreen
 
 @Composable
-private fun TotalProgressCard(queue: List<QueuedDownload>, completedCount: Int = 0) {
+private fun TotalProgressCard(
+    queue: List<QueuedDownload>,
+    completedCount: Int = 0,
+    expanded: Boolean = false,
+) {
     val downloading = queue.count { it.task.status == DownloadTaskStatus.DOWNLOADING }
     val waiting = queue.count { it.task.status in setOf(DownloadTaskStatus.WAITING, DownloadTaskStatus.PARSING, DownloadTaskStatus.VALIDATING) }
     val progress = DownloadOverallProgress.queueFraction(queue)
@@ -1209,26 +1220,57 @@ private fun TotalProgressCard(queue: List<QueuedDownload>, completedCount: Int =
     )
 
     WorkbenchCard(
-        modifier = Modifier.testTag("home-side-total-progress"),
+        modifier = Modifier
+            .then(if (expanded) Modifier.height(EXPANDED_SUMMARY_CARD_HEIGHT) else Modifier)
+            .testTag("home-side-total-progress"),
         tone = AppCardTone.NEUTRAL,
+        contentPadding = PaddingValues(if (expanded) 12.dp else 16.dp),
     ) {
-        Text("任务总进度", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(88.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(progress = { animatedProgress }, modifier = Modifier.fillMaxSize(), strokeWidth = 8.dp)
-                Text("${(animatedProgress * 100).roundToInt()}%", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.width(18.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("总任务数  ${queue.size + completedCount}", style = MaterialTheme.typography.bodyMedium)
-                Text("已完成  $completedCount", style = MaterialTheme.typography.bodyMedium)
-                Text("进行中  $downloading", style = MaterialTheme.typography.bodyMedium)
-                Text("等待中  $waiting", style = MaterialTheme.typography.bodyMedium)
+        Column(
+            modifier = if (expanded) Modifier.fillMaxSize() else Modifier,
+            verticalArrangement = if (expanded) Arrangement.SpaceBetween else Arrangement.Top,
+        ) {
+            Text(
+                "任务总进度",
+                style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            if (!expanded) Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(if (expanded) 64.dp else 88.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier.fillMaxSize(),
+                        strokeWidth = if (expanded) 6.dp else 8.dp,
+                    )
+                    Text(
+                        "${(animatedProgress * 100).roundToInt()}%",
+                        style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+                Spacer(Modifier.width(if (expanded) 12.dp else 18.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(if (expanded) 4.dp else 5.dp)) {
+                    if (expanded) {
+                        Text("共 ${queue.size + completedCount} 项 · 已完成 $completedCount", style = MaterialTheme.typography.labelMedium)
+                        Text("进行中 $downloading · 等待中 $waiting", style = MaterialTheme.typography.labelMedium)
+                    } else {
+                        Text("总任务数  ${queue.size + completedCount}", style = MaterialTheme.typography.bodyMedium)
+                        Text("已完成  $completedCount", style = MaterialTheme.typography.bodyMedium)
+                        Text("进行中  $downloading", style = MaterialTheme.typography.bodyMedium)
+                        Text("等待中  $waiting", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
             }
         }
     }
 }
+
+private val EXPANDED_SUMMARY_CARD_HEIGHT = 136.dp
 
 private fun quickFeedbackTween() = tween<Float>(
     durationMillis = 140,

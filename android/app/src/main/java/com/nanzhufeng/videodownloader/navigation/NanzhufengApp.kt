@@ -196,6 +196,8 @@ fun NanzhufengApp(
             AlertDialog(
                 modifier = Modifier.testTag("completion-dialog"),
                 onDismissRequest = { completionDialog = null },
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
                 title = { Text("下载成功") },
                 text = {
                     Text("${item.title}\n已保存到系统媒体库。")
@@ -267,11 +269,11 @@ fun NanzhufengApp(
                         onUseSystemStorage = {
                             scope.launch { settings.setCustomTree(null, null) }
                         },
-                        onExportCookies = { destinationUri ->
+                        onExportCookies = { site, destinationUri ->
                             scope.launch {
-                                sessions.exportCookies(destinationUri)
+                                sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 $count 组会话", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
                                     }
                                     .onFailure { error ->
                                         Toast.makeText(
@@ -406,11 +408,11 @@ fun NanzhufengApp(
                         onUseSystemStorage = {
                             scope.launch { settings.setCustomTree(null, null) }
                         },
-                        onExportCookies = { destinationUri ->
+                        onExportCookies = { site, destinationUri ->
                             scope.launch {
-                                sessions.exportCookies(destinationUri)
+                                sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 $count 组会话", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
                                     }
                                     .onFailure { error ->
                                         Toast.makeText(
@@ -518,7 +520,7 @@ private fun AppNavHost(
     onFileNameRuleSelected: (FileNameRule) -> Unit,
     onCustomTreeSelected: (String, String) -> Unit,
     onUseSystemStorage: () -> Unit,
-    onExportCookies: (String) -> Unit,
+    onExportCookies: (SessionSite, String) -> Unit,
     onOpenLogin: (SessionSite) -> Unit,
     onImportYoutubeCookies: (String) -> Unit,
     onClearSession: (SessionSite) -> Unit,

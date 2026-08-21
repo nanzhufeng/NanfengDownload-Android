@@ -113,6 +113,7 @@ class PlatformSourceDiscoveryEngineTest {
             (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
         )
     }
+
 }
 
 private class MissingDouyinFormatsGateway : ProbeDiscoveryGateway {

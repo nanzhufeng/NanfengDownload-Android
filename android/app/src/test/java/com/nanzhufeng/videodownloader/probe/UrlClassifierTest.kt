@@ -71,6 +71,27 @@ class UrlClassifierTest {
     }
 
     @Test
+    fun tiktokCurrentShareRouteIsAcceptedForSafeCanonicalizationByTheProbe() {
+        val source = UrlClassifier.extractAndClassify("https://www.tiktok.com/t/ZTDPhcpvK/")
+
+        assertEquals(Platform.TIKTOK, source.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, source.kind)
+    }
+
+    @Test
+    fun iesDouyinOfficialShareRoutesAreAccepted() {
+        val video = UrlClassifier.extractAndClassify(
+            "https://www.iesdouyin.com/share/video/7669248142533973995/",
+        )
+        val creator = UrlClassifier.extractAndClassify(
+            "https://www.iesdouyin.com/share/user/MS4wLjABAAAAcurrent/",
+        )
+
+        assertEquals(SourceKind.SINGLE_VIDEO, video.kind)
+        assertEquals(SourceKind.CHANNEL_OR_PLAYLIST, creator.kind)
+    }
+
+    @Test
     fun bilibiliVideoIsClassifiedAndCreatorHasHonestBoundary() {
         val video = UrlClassifier.extractAndClassify("https://www.bilibili.com/video/BV1bK411W797")
 

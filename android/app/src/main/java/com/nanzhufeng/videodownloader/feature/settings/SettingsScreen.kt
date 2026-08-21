@@ -85,13 +85,16 @@ fun SettingsScreen(
     onFileNameRuleSelected: (FileNameRule) -> Unit = {},
     onCustomTreeSelected: (String, String) -> Unit = { _, _ -> },
     onUseSystemStorage: () -> Unit = {},
-    onExportCookies: (String) -> Unit = {},
+    onExportCookies: (SessionSite, String) -> Unit = { _, _ -> },
     expanded: Boolean,
 ) {
     val context = LocalContext.current
     var concurrencyDialogVisible by remember { mutableStateOf(false) }
     var namingDialogVisible by remember { mutableStateOf(false) }
     var storageDialogVisible by remember { mutableStateOf(false) }
+    var exportSitePickerVisible by remember { mutableStateOf(false) }
+    var exportConfirmationSite by remember { mutableStateOf<SessionSite?>(null) }
+    var pendingExportSite by remember { mutableStateOf<SessionSite?>(null) }
     val cookiePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -111,7 +114,11 @@ fun SettingsScreen(
     }
     val cookieExporter = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/plain"),
-    ) { uri -> uri?.toString()?.let(onExportCookies) }
+    ) { uri ->
+        val site = pendingExportSite
+        pendingExportSite = null
+        if (site != null) uri?.toString()?.let { onExportCookies(site, it) }
+    }
 
     if (concurrencyDialogVisible) {
         ChoiceDialog(
@@ -139,6 +146,8 @@ fun SettingsScreen(
     }
     if (storageDialogVisible) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { storageDialogVisible = false },
             title = { Text("下载路径") },
             text = {
@@ -165,6 +174,54 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(onClick = { storageDialogVisible = false }) { Text("关闭") }
+            },
+        )
+    }
+    if (exportSitePickerVisible) {
+        AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            onDismissRequest = { exportSitePickerVisible = false },
+            title = { Text("选择要导出的平台") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SessionSite.entries.forEach { site ->
+                        val state = sessions.firstOrNull { it.site == site }
+                        TextButton(
+                            onClick = {
+                                exportSitePickerVisible = false
+                                exportConfirmationSite = site
+                            },
+                            enabled = state?.hasSavedSession == true,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("${site.label}${if (state?.hasSavedSession == true) "" else "（暂无会话）"}") }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { exportSitePickerVisible = false }) { Text("取消") } },
+        )
+    }
+    exportConfirmationSite?.let { site ->
+        AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            onDismissRequest = { exportConfirmationSite = null },
+            title = { Text("导出 ${site.label} 登录会话？") },
+            text = {
+                Text(
+                    "cookies.txt 可用于登录 ${site.label} 账号。任何拿到该文件的人都可能使用该会话；" +
+                        "请仅保存到自己可信的本地位置，不要上传、转发或存入共享网盘。",
+                )
+            },
+            dismissButton = { TextButton(onClick = { exportConfirmationSite = null }) { Text("取消") } },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        exportConfirmationSite = null
+                        pendingExportSite = site
+                        cookieExporter.launch("${site.name.lowercase()}-cookies.txt")
+                    },
+                ) { Text("继续选择位置") }
             },
         )
     }
@@ -325,10 +382,10 @@ fun SettingsScreen(
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                 ActionSetting(
-                    title = "导出 cookies.txt",
-                    value = "选择保存位置",
-                    summary = "仅导出当前账号已保存的会话",
-                    onClick = { cookieExporter.launch("cookies.txt") },
+                    title = "导出单个平台 cookies.txt",
+                    value = "选择账号与保存位置",
+                    summary = "文件含登录凭据，请勿上传、转发或存入共享位置",
+                    onClick = { exportSitePickerVisible = true },
                     modifier = Modifier.testTag("settings-export-cookies"),
                 )
             }
@@ -578,6 +635,8 @@ private fun <T> ChoiceDialog(
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {

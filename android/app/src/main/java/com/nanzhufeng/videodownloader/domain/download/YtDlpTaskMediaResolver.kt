@@ -43,7 +43,9 @@ class YtDlpTaskMediaResolver(
                 headers = buildMap {
                     put("Referer", captured.pageUrl)
                     put("User-Agent", DOUYIN_MOBILE_USER_AGENT)
-                    if (access.cookieHeader.isNotBlank()) put("Cookie", access.cookieHeader)
+                },
+                imageUrls = captured.imageUrls.map { imageUrl ->
+                    ResolvedImage(imageUrl, imageUrl.imageExtension())
                 },
             )
         }
@@ -57,8 +59,21 @@ class YtDlpTaskMediaResolver(
             videoSizeBytes = info.videoSizeBytes,
             audioExtension = info.audioExt,
             headers = info.headers,
+            videoCookieHeader = info.videoCookieHeader,
+            audioCookieHeader = info.audioCookieHeader,
             audioFromVideoSource = info.audioFromVideoSource,
+            imageUrls = info.imageUrls.map { imageUrl ->
+                ResolvedImage(
+                    url = imageUrl,
+                    extension = imageUrl.imageExtension(),
+                )
+            },
         )
+    }
+
+    private fun String.imageExtension(): String {
+        val extension = substringBefore('?').substringAfterLast('.', "").lowercase()
+        return extension.takeIf { it.matches(Regex("[a-z0-9]{1,8}")) } ?: "jpg"
     }
 
     private companion object {

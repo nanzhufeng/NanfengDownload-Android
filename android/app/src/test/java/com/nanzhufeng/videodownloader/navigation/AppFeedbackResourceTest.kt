@@ -12,6 +12,7 @@ class AppFeedbackResourceTest {
 
         assertTrue(source.contains("downloads.history.collect"))
         assertTrue(source.contains("AlertDialog("))
+        assertTrue(source.contains("containerColor = Color.White"))
         assertTrue(source.contains("下载成功"))
         assertTrue(source.contains("completion-dialog"))
     }

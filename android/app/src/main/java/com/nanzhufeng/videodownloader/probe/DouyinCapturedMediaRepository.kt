@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.probe
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class DouyinCapturedMedia(
@@ -11,6 +12,7 @@ data class DouyinCapturedMedia(
     val creator: String,
     val thumbnailUrl: String,
     val capturedAtMillis: Long,
+    val imageUrls: List<String> = emptyList(),
 )
 
 fun interface DouyinCapturedMediaSource {
@@ -46,7 +48,10 @@ class DouyinCapturedMediaRepository(
     private fun isValid(media: DouyinCapturedMedia): Boolean =
         media.workId.matches(WORK_ID_PATTERN) &&
             DouyinCaptureStore.extractWorkId(media.pageUrl) == media.workId &&
-            DouyinCaptureStore.isMediaUrl(media.mediaUrl)
+            (
+                DouyinCaptureStore.isMediaUrl(media.mediaUrl) ||
+                    (media.imageUrls.isNotEmpty() && media.imageUrls.all(DouyinCaptureStore::isImageUrl))
+                )
 
     private fun DouyinCapturedMedia.toJson() = JSONObject()
         .put("work_id", workId)
@@ -56,6 +61,7 @@ class DouyinCapturedMediaRepository(
         .put("creator", creator)
         .put("thumbnail_url", thumbnailUrl)
         .put("captured_at_millis", capturedAtMillis)
+        .put("image_urls", JSONArray(imageUrls))
 
     private fun JSONObject.toCapturedMedia() = DouyinCapturedMedia(
         workId = getString("work_id"),
@@ -65,6 +71,13 @@ class DouyinCapturedMediaRepository(
         creator = optString("creator"),
         thumbnailUrl = optString("thumbnail_url"),
         capturedAtMillis = getLong("captured_at_millis"),
+        imageUrls = optJSONArray("image_urls")?.let { urls ->
+            buildList {
+                for (index in 0 until urls.length()) {
+                    urls.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }.orEmpty(),
     )
 
     private companion object {

@@ -502,6 +502,7 @@ class NanzhufengAppInstrumentedTest {
     @Test
     fun failedQueueItemKeepsItsRowShowsTheErrorAndCanRetryInPlace() {
         var retriedTaskId: String? = null
+        var resolutionChange: Pair<String, ResolutionPreset>? = null
         val waiting = referenceQueueItem().copy(
             task = referenceQueueItem().task.copy(taskId = "waiting-row"),
         )
@@ -509,6 +510,7 @@ class NanzhufengAppInstrumentedTest {
             task = referenceQueueItem().task.copy(
                 taskId = "failed-row",
                 status = DownloadTaskStatus.FAILED,
+                resolution = ResolutionPreset.UP_TO_360P,
                 failureType = DownloadFailureType.TRANSFER,
                 errorSummary = "unexpected end of stream",
             ),
@@ -520,6 +522,9 @@ class NanzhufengAppInstrumentedTest {
                     input = "",
                     onInputChange = {},
                     onSmartRead = {},
+                    onResolutionChanged = { taskId, resolution ->
+                        resolutionChange = taskId to resolution
+                    },
                     onRetryQueued = { retriedTaskId = it },
                 )
             }
@@ -530,6 +535,11 @@ class NanzhufengAppInstrumentedTest {
         val waitingHeight = composeRule.onNodeWithTag("queue-row-waiting-row").getBoundsInRoot().run { bottom - top }
         val failedHeight = composeRule.onNodeWithTag("queue-row-failed-row").getBoundsInRoot().run { bottom - top }
         assertEquals("状态变化不能导致队列行高度跳动", waitingHeight, failedHeight)
+        composeRule.onNodeWithTag("resolution-badge-UP_TO_360P").performClick()
+        composeRule.onNodeWithText("最佳画质").performClick()
+        composeRule.runOnIdle {
+            assertEquals("failed-row" to ResolutionPreset.BEST, resolutionChange)
+        }
         composeRule.onNodeWithTag("queue-retry-failed-row").performClick()
         composeRule.runOnIdle { assertEquals("failed-row", retriedTaskId) }
     }

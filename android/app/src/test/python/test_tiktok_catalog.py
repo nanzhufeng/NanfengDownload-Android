@@ -10,15 +10,15 @@ from nanzhufeng_probe.youtube_probe import (
 
 
 class CreatorResultTest(unittest.TestCase):
-    def test_session_access_is_scoped_to_current_extraction(self):
+    def test_cookie_file_is_scoped_by_yt_dlp_without_a_global_cookie_header(self):
         options = _with_session_access(
             {"quiet": True},
             cookie_header="sessionid=abc",
             cookie_file="/private/youtube-cookies.txt",
         )
 
-        self.assertEqual("sessionid=abc", options["http_headers"]["Cookie"])
         self.assertEqual("/private/youtube-cookies.txt", options["cookiefile"])
+        self.assertNotIn("http_headers", options)
 
     def test_deduplicates_and_rejects_foreign_creator(self):
         info = {

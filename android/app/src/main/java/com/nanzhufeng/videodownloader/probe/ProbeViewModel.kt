@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4TrackMuxer
 import java.io.File
+import java.net.URI
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -129,13 +130,14 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
                 "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36",
             )
-            if (cookie.isNotBlank()) put("Cookie", cookie)
         }
         val directory = freshProbeDirectory("douyin")
         val output = downloader.download(
             DirectDownloadRequest(
                 url = mediaUrl,
                 headers = headers,
+                cookieHeader = cookie,
+                cookieHost = mediaUrl.requestHost(),
                 target = File(directory, "douyin.mp4"),
             ),
             cancelled,
@@ -208,6 +210,8 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
             DirectDownloadRequest(
                 url = info.videoUrl,
                 headers = info.headers,
+                cookieHeader = info.videoCookieHeader,
+                cookieHost = info.videoUrl.requestHost(),
                 target = File(directory, "video.${safeExtension(info.videoExt, "mp4")}"),
             ),
             cancelled,
@@ -220,6 +224,8 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
                 DirectDownloadRequest(
                     url = info.audioUrl,
                     headers = info.headers,
+                    cookieHeader = info.audioCookieHeader,
+                    cookieHost = info.audioUrl.requestHost(),
                     target = File(directory, "audio.${safeExtension(info.audioExt, "m4a")}"),
                 ),
                 cancelled,
@@ -253,6 +259,8 @@ class ProbeViewModel(application: Application) : AndroidViewModel(application) {
         val normalized = value.orEmpty().lowercase()
         return normalized.takeIf { it.matches(Regex("[a-z0-9]{1,8}")) } ?: fallback
     }
+
+    private fun String.requestHost(): String = runCatching { URI(this).host.orEmpty() }.getOrDefault("")
 
     private fun updateTransferReport(stage: String, downloaded: Long, total: Long) {
         val totalText = if (total > 0L) " / ${formatBytes(total)}" else ""

@@ -46,9 +46,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -73,6 +73,8 @@ import com.nanzhufeng.videodownloader.core.ui.PlatformIcon
 import com.nanzhufeng.videodownloader.core.ui.SelectedFilterChip
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.videoFrameMillis
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -105,9 +107,9 @@ fun HistoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(if (expanded) "history-expanded-timeline" else "history-compact-timeline"),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(if (expanded) 14.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (expanded) 8.dp else 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -246,6 +248,8 @@ fun HistoryScreen(
 
     pendingDeleteId?.let { taskId ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { pendingDeleteId = null },
             title = { Text("删除历史记录？") },
             text = { Text("只删除这条记录，不会删除已经保存的视频文件。") },
@@ -263,6 +267,8 @@ fun HistoryScreen(
 
     if (pendingBulkDelete) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { pendingBulkDelete = false },
             title = { Text("批量删除历史记录？") },
             text = {
@@ -402,19 +408,12 @@ private fun HistoryItem(
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
     var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
     var showVideoSegments by rememberSaveable { mutableStateOf(false) }
-    val report = reports.firstOrNull {
-        it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED &&
-            it.networkBytes > 0L
-    }
-        ?: reports.firstOrNull()
     val playable = item.fileExists && item.outputUri != null
-    val mediaMetadata by produceState<HistoryMediaMetadata?>(
-        initialValue = null,
-        key1 = item.taskId,
-        key2 = item.outputUri,
-        key3 = item.fileSize,
-    ) {
-        value = if (playable) {
+    var mediaMetadata by remember(item.taskId, item.outputUri, item.fileSize) {
+        mutableStateOf<HistoryMediaMetadata?>(null)
+    }
+    LaunchedEffect(item.taskId, item.outputUri, item.fileSize, playable) {
+        mediaMetadata = if (playable) {
             readHistoryMediaMetadata(context, item)
         } else {
             HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
@@ -442,14 +441,14 @@ private fun HistoryItem(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .width(48.dp)
-                .height(if (expanded) 72.dp else 58.dp),
+                .width(if (expanded) 42.dp else 40.dp)
+                .height(if (expanded) 60.dp else 54.dp),
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .width(1.dp)
-                    .height(if (expanded) 16.dp else 10.dp)
+                    .height(if (expanded) 12.dp else 8.dp)
                     .background(Color(0xFFD4E7DA)),
             )
             if (selectionMode) {
@@ -457,7 +456,7 @@ private fun HistoryItem(
                     onClick = onSelectionChange,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(if (expanded) 44.dp else 40.dp)
+                        .size(if (expanded) 40.dp else 36.dp)
                         .testTag("history-select-${item.taskId}"),
                 ) {
                     Icon(
@@ -476,7 +475,7 @@ private fun HistoryItem(
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
-                        modifier = Modifier.size(if (expanded) 30.dp else 28.dp),
+                        modifier = Modifier.size(if (expanded) 28.dp else 26.dp),
                     )
                 }
             } else {
@@ -486,14 +485,14 @@ private fun HistoryItem(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(if (expanded) 26.dp else 24.dp),
+                    .size(if (expanded) 24.dp else 22.dp),
                 )
             }
             Text(
                 formatHistoryClock(item.completedAt),
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .offset(y = if (expanded) 27.dp else 24.dp),
+                    .offset(y = if (expanded) 23.dp else 21.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -506,7 +505,7 @@ private fun HistoryItem(
                     if (selectionMode) onSelectionChange() else showDetails = true
                 }
                 .testTag("history-card-${item.taskId}"),
-            contentPadding = PaddingValues(if (expanded) 16.dp else 8.dp),
+            contentPadding = PaddingValues(if (expanded) 12.dp else 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HistoryThumbnail(
@@ -516,10 +515,10 @@ private fun HistoryItem(
                         if (selectionMode) onSelectionChange() else playItem()
                     },
                 )
-                Spacer(Modifier.width(if (expanded) 12.dp else 8.dp))
+                Spacer(Modifier.width(8.dp))
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(if (expanded) 6.dp else 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (expanded) 4.dp else 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         PlatformIcon(
@@ -528,7 +527,7 @@ private fun HistoryItem(
                         modifier = Modifier.size(if (expanded) 20.dp else 18.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(item.platform.label(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(item.platform.label(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.weight(1f))
                     if (!selectionMode) {
                         Box {
@@ -603,36 +602,24 @@ private fun HistoryItem(
                 }
                     Text(
                     item.title,
-                    maxLines = if (expanded) 2 else 1,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = if (expanded) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                    style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                     Text(
-                    item.creator,
-                    style = if (expanded) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                    Text(
                     buildString {
+                        append(item.creator)
+                        append(" · ")
                         append(item.resolution.label())
                         if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
                         append("  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}")
                     },
-                    style = if (expanded) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                    if (report != null) {
-                        Text(
-                        "${report.connectionMode.label(report.connectionCount)}  ·  平均 ${formatSpeed(report.averageBytesPerSecond)}  ·  峰值 ${formatSpeed(report.peakBytesPerSecond)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
         }
@@ -700,6 +687,8 @@ private fun HistoryItem(
 
     if (showThroughputReport && reports.isNotEmpty()) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showThroughputReport = false },
             title = { Text("真实吞吐报告") },
             text = {
@@ -751,6 +740,8 @@ private fun VideoSegmentPlayerDialog(
 ) {
     val uris = item.outputUris.ifEmpty { item.outputUri?.let(::listOf).orEmpty() }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("选择视频分段") },
         text = {
@@ -788,18 +779,67 @@ private fun HistoryThumbnail(
     onPlay: () -> Unit,
 ) {
     val playable = item.fileExists && item.outputUri != null
+    val previewSource = remember(
+        item.fileExists,
+        item.outputUri,
+        item.outputUris,
+        item.thumbnailUrl,
+        item.resolution,
+    ) { historyPreviewSource(item) }
+    val context = LocalContext.current
+    var localFrameFailed by remember(previewSource) { mutableStateOf(false) }
+    val localVideoRequest = remember((previewSource as? HistoryPreviewSource.LocalVideo)?.uri) {
+        (previewSource as? HistoryPreviewSource.LocalVideo)?.let { source ->
+            ImageRequest.Builder(context)
+                .data(source.uri)
+                // A short offset avoids a black opening frame on fade-in videos.
+                .videoFrameMillis(750)
+                .crossfade(false)
+                .build()
+        }
+    }
     Box(
         modifier = Modifier
-            .size(width = if (expanded) 104.dp else 76.dp, height = if (expanded) 78.dp else 64.dp)
+            .size(width = if (expanded) 84.dp else 68.dp, height = if (expanded) 62.dp else 52.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(enabled = playable, onClick = onPlay)
             .testTag("history-thumbnail-${item.taskId}"),
         contentAlignment = Alignment.Center,
     ) {
-        if (item.thumbnailUrl.isNotBlank()) {
+        Icon(
+            if (shouldUseInternalAudioPlayer(item)) {
+                Icons.Filled.MusicNote
+            } else {
+                Icons.Outlined.VideoLibrary
+            },
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp),
+        )
+        when (previewSource) {
+            is HistoryPreviewSource.LocalVideo -> {
+                if (!localFrameFailed) {
+                    AsyncImage(
+                        model = requireNotNull(localVideoRequest),
+                        contentDescription = "${item.title} 本地视频预览图",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onError = { localFrameFailed = true },
+                    )
+                } else if (previewSource.fallbackArtworkUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = previewSource.fallbackArtworkUrl,
+                        contentDescription = "${item.title} 备用视频预览图",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+
+            is HistoryPreviewSource.RemoteArtwork -> {
             AsyncImage(
-                model = item.thumbnailUrl,
+                    model = previewSource.url,
                 contentDescription = if (shouldUseInternalAudioPlayer(item)) {
                     "${item.title} 音频封面"
                 } else {
@@ -808,17 +848,9 @@ private fun HistoryThumbnail(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
-            Icon(
-                if (shouldUseInternalAudioPlayer(item)) {
-                    Icons.Filled.MusicNote
-                } else {
-                    Icons.Outlined.VideoLibrary
-                },
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(26.dp),
-            )
+            }
+
+            HistoryPreviewSource.None -> Unit
         }
         if (playable) {
             Icon(
@@ -855,6 +887,8 @@ private fun HistoryDetailsDialog(
         else -> "文件不可用"
     }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = {
             Text(if (item.resolution == com.nanzhufeng.videodownloader.core.model.ResolutionPreset.AUDIO_MP3) "音频详情" else "视频详情")
@@ -926,6 +960,8 @@ private fun PlayerChooserDialog(
     val context = LocalContext.current
     val players = remember(item.taskId, item.outputUri) { queryMediaPlayers(context, item) }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("选择播放器") },
         text = {

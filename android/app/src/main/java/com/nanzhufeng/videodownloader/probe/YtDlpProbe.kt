@@ -24,7 +24,10 @@ data class YtDlpMediaInfo(
     val videoSizeBytes: Long = 0L,
     val audioExt: String?,
     val headers: Map<String, String>,
+    val videoCookieHeader: String = "",
+    val audioCookieHeader: String = "",
     val audioFromVideoSource: Boolean = false,
+    val imageUrls: List<String> = emptyList(),
 )
 
 data class ResolvedSource(
@@ -120,6 +123,13 @@ class YtDlpProbe {
         )
         val headersJson = json.getJSONObject("headers")
         val headers = headersJson.keys().asSequence().associateWith(headersJson::getString)
+        val imageUrls = json.optJSONArray("image_urls")?.let { images ->
+            buildList {
+                for (index in 0 until images.length()) {
+                    images.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }.orEmpty()
         return YtDlpMediaInfo(
             platform = json.getString("platform"),
             id = json.getString("id"),
@@ -134,7 +144,10 @@ class YtDlpProbe {
             videoExt = json.getString("video_ext"),
             videoSizeBytes = json.optLong("video_size_bytes", 0L).coerceAtLeast(0L),
             audioExt = json.getString("audio_ext").ifBlank { null },
+            videoCookieHeader = json.optString("video_cookie_header"),
+            audioCookieHeader = json.optString("audio_cookie_header"),
             audioFromVideoSource = json.optBoolean("audio_from_video_source", false),
+            imageUrls = imageUrls,
             headers = headers,
         )
     }
