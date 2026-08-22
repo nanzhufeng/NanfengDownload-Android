@@ -17,10 +17,29 @@ fun releaseEnvironment(name: String): String? = providers.environmentVariable(na
     ?.trim()
     ?.takeIf(String::isNotEmpty)
 
-val releaseStoreFilePath = releaseEnvironment("NANFENG_RELEASE_STORE_FILE")
-val releaseStorePassword = releaseEnvironment("NANFENG_RELEASE_STORE_PASSWORD")
-val releaseKeyAlias = releaseEnvironment("NANFENG_RELEASE_KEY_ALIAS")
-val releaseKeyPassword = releaseEnvironment("NANFENG_RELEASE_KEY_PASSWORD")
+fun releaseSigningValue(environmentName: String, gradlePropertyName: String): String? =
+    releaseEnvironment(environmentName)
+        ?: providers.gradleProperty(gradlePropertyName)
+            .orNull
+            ?.trim()
+            ?.takeIf(String::isNotEmpty)
+
+val releaseStoreFilePath = releaseSigningValue(
+    environmentName = "NANFENG_RELEASE_STORE_FILE",
+    gradlePropertyName = "nanzhufengDownload.release.storeFile",
+)
+val releaseStorePassword = releaseSigningValue(
+    environmentName = "NANFENG_RELEASE_STORE_PASSWORD",
+    gradlePropertyName = "nanzhufengDownload.release.storePassword",
+)
+val releaseKeyAlias = releaseSigningValue(
+    environmentName = "NANFENG_RELEASE_KEY_ALIAS",
+    gradlePropertyName = "nanzhufengDownload.release.keyAlias",
+)
+val releaseKeyPassword = releaseSigningValue(
+    environmentName = "NANFENG_RELEASE_KEY_PASSWORD",
+    gradlePropertyName = "nanzhufengDownload.release.keyPassword",
+)
 val releaseSigningValues = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
@@ -30,7 +49,8 @@ val releaseSigningValues = listOf(
 val releaseSigningConfigured = releaseSigningValues.all { it != null }
 
 check(releaseSigningValues.none { it != null } || releaseSigningConfigured) {
-    "Release signing is partially configured. Provide all NANFENG_RELEASE_* environment variables."
+    "Release signing is partially configured. Provide all NANFENG_RELEASE_* environment variables " +
+        "or all nanzhufengDownload.release.* Gradle properties."
 }
 
 android {
@@ -42,8 +62,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10208
-        versionName = "1.2.8"
+        versionCode = 10281
+        versionName = "1.2.81"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -68,7 +88,7 @@ android {
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
         }
     }
 
@@ -102,12 +122,18 @@ android {
     }
 }
 
+val formalArtifactVersion = requireNotNull(android.defaultConfig.versionName) {
+    "Release versionName is required for formal artifact naming."
+}
+val formalApkFileName = "南枫下载-Android-v$formalArtifactVersion.apk"
+val formalAabFileName = "南枫下载-Android-v$formalArtifactVersion.aab"
+
 @Suppress("DEPRECATION")
 android.applicationVariants.all {
     outputs.all {
         if (buildType.name == "release") {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName =
-                "南枫下载-Android-v1.2.8.apk"
+                formalApkFileName
         } else {
             (this as com.android.build.gradle.api.ApkVariantOutput).outputFileName = "南枫下载.apk"
         }
@@ -119,7 +145,8 @@ val verifyReleaseSigningConfig by tasks.registering {
         check(releaseSigningConfigured) {
             "Release packaging requires NANFENG_RELEASE_STORE_FILE, " +
                 "NANFENG_RELEASE_STORE_PASSWORD, NANFENG_RELEASE_KEY_ALIAS and " +
-                "NANFENG_RELEASE_KEY_PASSWORD."
+                "NANFENG_RELEASE_KEY_PASSWORD; user-level Gradle fallback is " +
+                "nanzhufengDownload.release.storeFile/storePassword/keyAlias/keyPassword."
         }
         check(file(requireNotNull(releaseStoreFilePath)).isFile) {
             "Release keystore does not exist at NANFENG_RELEASE_STORE_FILE."
@@ -131,11 +158,29 @@ tasks.matching { it.name == "packageRelease" || it.name == "bundleRelease" }.con
     dependsOn(verifyReleaseSigningConfig)
 }
 
+// This Gradle task deploys Debug/instrumentation APKs and enumerates attached devices. It is
+// permanently prohibited across this product family; there is deliberately no bypass.
+val prohibitConnectedAndroidTests by tasks.registering {
+    group = "verification"
+    description = "Fails closed: connected Android tests are permanently prohibited."
+
+    doLast {
+        throw GradleException(
+            "connected*AndroidTest is permanently prohibited. " +
+                "Use JVM tests and isolated emulator acceptance flows that do not invoke connected Android tests.",
+        )
+    }
+}
+
+tasks.matching { it.name.startsWith("connected") && it.name.endsWith("AndroidTest") }.configureEach {
+    dependsOn(prohibitConnectedAndroidTests)
+}
+
 tasks.register<Copy>("stageFormalReleaseArtifacts") {
     dependsOn("assembleRelease", "bundleRelease")
-    from(layout.buildDirectory.file("outputs/apk/release/南枫下载-Android-v1.2.8.apk"))
+    from(layout.buildDirectory.file("outputs/apk/release/$formalApkFileName"))
     from(layout.buildDirectory.file("outputs/bundle/release/app-release.aab")) {
-        rename { "南枫下载-Android-v1.2.8.aab" }
+        rename { formalAabFileName }
     }
     into(layout.buildDirectory.dir("outputs/formal-release"))
 }
@@ -145,7 +190,7 @@ chaquopy {
         version = "3.13"
         configuredBuildPython?.let { buildPython(it) }
         pip {
-            install("yt-dlp==2026.6.9")
+            install("-r", "src/main/python/requirements.txt")
         }
     }
 }
@@ -158,6 +203,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.webkit:webkit:1.11.0")
     implementation("androidx.activity:activity-compose:1.9.1")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
@@ -172,8 +218,13 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.media3:media3-transformer:1.7.1")
+    implementation("androidx.media3:media3-exoplayer:1.7.1")
+    implementation("androidx.media3:media3-ui:1.7.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.7.0")
+    implementation("io.coil-kt:coil-video:2.7.0")
     ksp("androidx.room:room-compiler:2.6.1")
 
     testImplementation("junit:junit:4.13.2")

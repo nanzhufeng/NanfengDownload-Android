@@ -1,11 +1,50 @@
 package com.nanzhufeng.videodownloader.feature.settings
 
 import com.nanzhufeng.videodownloader.domain.session.SessionSite
+import android.webkit.WebSettings
+import java.io.File
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionLoginActivityTest {
+    @Test
+    fun tiktokKeepsItsExistingLoginChallengeCacheWhenThePageIsReopened() {
+        assertTrue(loginCacheMode(SessionSite.TIKTOK) == WebSettings.LOAD_DEFAULT)
+        assertTrue(loginCacheMode(SessionSite.DOUYIN) == WebSettings.LOAD_NO_CACHE)
+    }
+
+    @Test
+    fun loginNavigationAllowsOnlyOfficialHttpsHostsAndGoogleSso() {
+        assertTrue(SessionSite.TIKTOK.isTrustedLoginUrl("https://accounts.google.com/o/oauth2/auth"))
+        assertTrue(SessionSite.TIKTOK.isTrustedLoginUrl("https://m.tiktok.com/login/phone-or-email"))
+        assertFalse(SessionSite.TIKTOK.isTrustedLoginUrl("http://www.tiktok.com/login"))
+        assertFalse(SessionSite.TIKTOK.isTrustedLoginUrl("https://www.tiktok.com.evil.example/login"))
+        assertFalse(SessionSite.TIKTOK.ownsLoginPage("https://accounts.google.com/o/oauth2/auth"))
+    }
+
+    @Test
+    fun loginWebViewResizesWithTheImeInsteadOfPanningTheOfficialForm() {
+        val manifest = File("src/main/AndroidManifest.xml").readText()
+        val loginActivity = manifest.substringAfter("android:name=\".feature.settings.SessionLoginActivity\"")
+            .substringBefore("/>")
+
+        assertTrue(loginActivity.contains("android:windowSoftInputMode=\"adjustResize\""))
+    }
+
+    @Test
+    fun tikTokLoginAssistOnlyStabilizesTheCaretAndAddsAVisibilityToggle() {
+        val script = tikTokLoginPageAssistScript()
+
+        assertTrue(script.contains("setSelectionRange"))
+        assertTrue(script.contains("显示密码"))
+        assertTrue(script.contains("隐藏密码"))
+        assertTrue(script.contains("paddingRight = '76px'"))
+        assertTrue(script.contains("right:34px"))
+        assertFalse(script.contains("console."))
+        assertFalse(script.contains("fetch("))
+    }
+
     @Test
     fun loginUsesMobileBrowserIdentityWithoutWebViewMarker() {
         val userAgent = mobileLoginUserAgent(
@@ -57,9 +96,9 @@ class SessionLoginActivityTest {
     }
 
     @Test
-    fun douyinSsoTargetsTheRegisteredSiteRootInsteadOfTheBrokenLoginPath() {
-        assertTrue(SessionSite.DOUYIN.loginUrl.contains("service=https%3A%2F%2Fwww.douyin.com%2F"))
-        assertFalse(SessionSite.DOUYIN.loginUrl.contains("www.douyin.com%2Flogin"))
+    fun douyinSsoDoesNotRedirectTheMobileLoginToDesktopCampaign() {
+        assertTrue(SessionSite.DOUYIN.loginUrl.startsWith("https://www.douyin.com/login_page?"))
+        assertTrue(SessionSite.DOUYIN.loginUrl.contains("service=https%3A%2F%2Fwww.douyin.com%2Fhome"))
     }
 
     @Test

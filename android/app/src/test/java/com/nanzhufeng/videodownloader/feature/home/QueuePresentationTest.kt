@@ -132,6 +132,38 @@ class QueuePresentationTest {
         )
     }
 
+    @Test
+    fun resolution360pTask_reportsRealDownscaleProgress() {
+        assertEquals(
+            "正在转码为 360p 63%",
+            mediaTaskPhaseText(
+                task(
+                    speed = 0L,
+                    updatedAt = 100_000L,
+                    resolution = ResolutionPreset.UP_TO_360P,
+                    processingStage = DownloadProcessingStage.TRANSCODING,
+                    processingProgressPercent = 63,
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun publishingTask_reportsRealMediaStoreProgress() {
+        assertEquals(
+            "正在保存到系统媒体库 63%",
+            mediaTaskPhaseText(
+                task(
+                    speed = 0L,
+                    updatedAt = 100_000L,
+                    status = DownloadTaskStatus.VALIDATING,
+                    processingStage = DownloadProcessingStage.PUBLISHING,
+                    processingProgressPercent = 63,
+                ),
+            ),
+        )
+    }
+
     private fun task(
         speed: Long,
         updatedAt: Long,
@@ -141,6 +173,7 @@ class QueuePresentationTest {
         processingStage: DownloadProcessingStage = DownloadProcessingStage.NETWORK_MEDIA,
         processingProgressPercent: Int = 0,
         segmentCount: Int = 1,
+        status: DownloadTaskStatus = DownloadTaskStatus.DOWNLOADING,
     ) = DownloadTask(
         taskId = "active",
         mediaKey = "youtube:active",
@@ -152,7 +185,7 @@ class QueuePresentationTest {
         totalBytes = totalBytes,
         speedBytesPerSecond = speed,
         remainingSeconds = 20L,
-        status = DownloadTaskStatus.DOWNLOADING,
+        status = status,
         failureType = null,
         errorSummary = null,
         retryCount = 0,

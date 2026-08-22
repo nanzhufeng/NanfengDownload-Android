@@ -9,6 +9,11 @@ data class RuntimeInfo(
     val ytDlp: String,
 )
 
+data class YtDlpImageItem(
+    val url: String,
+    val motionUrl: String? = null,
+)
+
 data class YtDlpMediaInfo(
     val platform: String,
     val id: String,
@@ -24,12 +29,27 @@ data class YtDlpMediaInfo(
     val videoSizeBytes: Long = 0L,
     val audioExt: String?,
     val headers: Map<String, String>,
+    val videoCookieHeader: String = "",
+    val audioCookieHeader: String = "",
     val audioFromVideoSource: Boolean = false,
+    val imageUrls: List<String> = emptyList(),
+    val imageItems: List<YtDlpImageItem> = emptyList(),
 )
 
 data class ResolvedSource(
     val kind: SourceKind,
     val url: String,
+)
+
+data class DouyinGalleryInfo(
+    val workId: String,
+    val pageUrl: String,
+    val title: String,
+    val creator: String,
+    val creatorId: String,
+    val thumbnail: String,
+    val imageUrls: List<String>,
+    val expectedCount: Int,
 )
 
 data class CreatorVideoEntry(
@@ -120,6 +140,22 @@ class YtDlpProbe {
         )
         val headersJson = json.getJSONObject("headers")
         val headers = headersJson.keys().asSequence().associateWith(headersJson::getString)
+        val imageUrls = json.optJSONArray("image_urls")?.let { images ->
+            buildList {
+                for (index in 0 until images.length()) {
+                    images.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }.orEmpty()
+        val imageItems = json.optJSONArray("image_items")?.let { images ->
+            buildList {
+                for (index in 0 until images.length()) {
+                    val image = images.optJSONObject(index) ?: continue
+                    val url = image.optString("url").takeIf(String::isNotBlank) ?: continue
+                    add(YtDlpImageItem(url, image.optString("motion_url").takeIf(String::isNotBlank)))
+                }
+            }
+        }.orEmpty()
         return YtDlpMediaInfo(
             platform = json.getString("platform"),
             id = json.getString("id"),
@@ -134,8 +170,37 @@ class YtDlpProbe {
             videoExt = json.getString("video_ext"),
             videoSizeBytes = json.optLong("video_size_bytes", 0L).coerceAtLeast(0L),
             audioExt = json.getString("audio_ext").ifBlank { null },
+            videoCookieHeader = json.optString("video_cookie_header"),
+            audioCookieHeader = json.optString("audio_cookie_header"),
             audioFromVideoSource = json.optBoolean("audio_from_video_source", false),
+            imageUrls = imageUrls,
+            imageItems = imageItems,
             headers = headers,
+        )
+    }
+
+    fun extractDouyinGallery(
+        url: String,
+        access: SessionAccess = SessionAccess(),
+    ): DouyinGalleryInfo? {
+        val json = JSONObject(
+            module.callAttr(
+                "extract_douyin_gallery",
+                url,
+                access.cookieHeader,
+            ).toString(),
+        )
+        if (json.length() == 0) return null
+        val urls = json.getJSONArray("image_urls")
+        return DouyinGalleryInfo(
+            workId = json.getString("work_id"),
+            pageUrl = json.getString("page_url"),
+            title = json.getString("title"),
+            creator = json.getString("creator"),
+            creatorId = json.getString("creator_id"),
+            thumbnail = json.getString("thumbnail"),
+            imageUrls = List(urls.length()) { index -> urls.getString(index) },
+            expectedCount = json.getInt("expected_count"),
         )
     }
 

@@ -64,6 +64,12 @@ interface DownloadRepository {
         return deletedCount
     }
 
+    /** Removes only history entries whose saved local media was already confirmed unavailable. */
+    suspend fun deleteMissingHistoryRecords(): Int = 0
+
+    /** A history card found that its saved MediaStore/document URI is no longer readable. */
+    suspend fun markHistoryMediaMissing(taskId: String): Boolean = false
+
     suspend fun recoverInterruptedTasks(): Int = 0
 
     suspend fun updateTransfer(

@@ -52,6 +52,7 @@ class DownloadOverallProgressTest {
         val publishing = task(
             status = DownloadTaskStatus.VALIDATING,
             stage = DownloadProcessingStage.PUBLISHING,
+            processingPercent = 50,
             downloaded = 100L,
             total = 100L,
         )
@@ -59,6 +60,21 @@ class DownloadOverallProgressTest {
 
         assertEquals(98, DownloadOverallProgress.percent(publishing))
         assertEquals(100, DownloadOverallProgress.percent(completed))
+    }
+
+    @Test
+    fun publishingProgressAdvancesInsteadOfStickingAtOneValue() {
+        val start = task(
+            status = DownloadTaskStatus.VALIDATING,
+            stage = DownloadProcessingStage.PUBLISHING,
+            processingPercent = 0,
+            downloaded = 100L,
+            total = 100L,
+        )
+        val almostDone = start.copy(processingProgressPercent = 100)
+
+        assertEquals(96, DownloadOverallProgress.percent(start))
+        assertEquals(99, DownloadOverallProgress.percent(almostDone))
     }
 
     @Test

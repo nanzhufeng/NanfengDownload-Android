@@ -152,7 +152,7 @@ NanzhufengVideoDownloader-Android/
 └── app/、start.py、run.ps1 等     # 旧桌面原型遗留；不是当前 Android 构建入口
 ```
 
-根目录 `README.md` 已更新为当前 Android 正式版入口；`docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md` 仍是旧桌面原型资料，不能代替本文件或 Android 交接文档。
+根目录 `README.md` 是面向仓库访客的入口；`docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md` 是面向 ChatGPT/Codex 的当前 Android 协作上下文；两者都不能代替当前源码、正式产物或 Android 交接文档。
 
 ## 6. 构建、测试与安装
 

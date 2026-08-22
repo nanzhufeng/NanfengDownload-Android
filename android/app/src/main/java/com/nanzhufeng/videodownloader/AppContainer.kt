@@ -2,6 +2,8 @@ package com.nanzhufeng.videodownloader
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 import androidx.room.Room
 import com.nanzhufeng.videodownloader.data.database.NanzhufengDatabase
 import com.nanzhufeng.videodownloader.data.database.NanzhufengMigrations
@@ -38,6 +40,7 @@ class AppContainer private constructor(
     val douyinCaptures: DouyinCapturedMediaRepository,
 ) {
     companion object {
+        @OptIn(markerClass = [UnstableApi::class])
         fun create(context: Context): AppContainer {
             val applicationContext = context.applicationContext
             val database = Room.databaseBuilder(
@@ -50,6 +53,9 @@ class AppContainer private constructor(
                 NanzhufengMigrations.MIGRATION_3_4,
                 NanzhufengMigrations.MIGRATION_4_5,
                 NanzhufengMigrations.MIGRATION_5_6,
+                NanzhufengMigrations.MIGRATION_6_7,
+                NanzhufengMigrations.MIGRATION_7_8,
+                NanzhufengMigrations.MIGRATION_8_9,
             )
                 .build()
             val downloads = RoomDownloadRepository(database)

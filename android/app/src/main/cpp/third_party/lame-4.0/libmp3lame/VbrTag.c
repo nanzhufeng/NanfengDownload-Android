@@ -218,7 +218,11 @@ IsVbrTag(const unsigned char *buf)
     return (isTag0 || isTag1);
 }
 
-#define SHIFT_IN_BITS_VALUE(x,n,v) ( x = (x << (n)) | ( (v) & ~(-1 << (n)) ) )
+/* Keep every mask and shift unsigned: the legacy form shifted a negative signed
+ * value while building the VBR frame header, which is undefined behavior in C. */
+#define SHIFT_IN_BITS_VALUE(x,n,v) \
+    (x = (uint8_t) ((((unsigned int) (x)) << (n)) | \
+                    (((unsigned int) (v)) & ((1u << (n)) - 1u))))
 
 static void
 setLameTagFrameHeader(lame_internal_flags const *gfc, unsigned char *buffer)
@@ -394,10 +398,8 @@ GetVbrTag(VBRTAGDATA * pTagData, const unsigned char *buf)
     }
 
     if (head_flags & TOC_FLAG) {
-        if (pTagData->toc != NULL) {
-            for (i = 0; i < NUMTOCENTRIES; i++)
-                pTagData->toc[i] = buf[i];
-        }
+        for (i = 0; i < NUMTOCENTRIES; i++)
+            pTagData->toc[i] = buf[i];
         buf += NUMTOCENTRIES;
     }
 

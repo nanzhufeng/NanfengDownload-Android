@@ -27,7 +27,8 @@ object UrlClassifier {
                     path.startsWith("/channel/") || path.startsWith("/c/")) ->
                 ClassifiedSource(Platform.YOUTUBE, SourceKind.CHANNEL_OR_PLAYLIST, raw)
 
-            host.matchesDomain("douyin.com") && path.startsWith("/video/") ->
+            host.matchesDomain("douyin.com") &&
+                (path.startsWith("/video/") || path.startsWith("/note/")) ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.SINGLE_VIDEO, raw)
 
             host.matchesDomain("douyin.com") && path.startsWith("/user/") ->
@@ -36,12 +37,22 @@ object UrlClassifier {
             host == "v.douyin.com" ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, raw)
 
+            host.matchesDomain("iesdouyin.com") &&
+                (path.startsWith("/share/video/") || path.startsWith("/share/note/")) ->
+                ClassifiedSource(Platform.DOUYIN, SourceKind.SINGLE_VIDEO, raw)
+
+            host.matchesDomain("iesdouyin.com") && path.startsWith("/share/user/") ->
+                ClassifiedSource(Platform.DOUYIN, SourceKind.CHANNEL_OR_PLAYLIST, raw)
+
             host.matchesDomain("tiktok.com") && path.startsWith("/@") && "/video/" in path ->
                 ClassifiedSource(Platform.TIKTOK, SourceKind.SINGLE_VIDEO, raw)
 
             host.matchesDomain("tiktok.com") &&
                 Regex("^/@[^/]+/?$").matches(path) ->
                 ClassifiedSource(Platform.TIKTOK, SourceKind.CHANNEL_OR_PLAYLIST, raw)
+
+            host.matchesDomain("tiktok.com") && path.startsWith("/t/") ->
+                ClassifiedSource(Platform.TIKTOK, SourceKind.SINGLE_VIDEO, raw)
 
             host == "vm.tiktok.com" || host == "vt.tiktok.com" ->
                 ClassifiedSource(Platform.TIKTOK, SourceKind.UNKNOWN_TIKTOK_SHARE, raw)

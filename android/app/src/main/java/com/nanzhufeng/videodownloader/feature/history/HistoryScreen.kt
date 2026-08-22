@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -46,9 +48,9 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -73,6 +75,8 @@ import com.nanzhufeng.videodownloader.core.ui.PlatformIcon
 import com.nanzhufeng.videodownloader.core.ui.SelectedFilterChip
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import coil.request.videoFrameMillis
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,6 +89,9 @@ fun HistoryScreen(
     onDeleteRecords: (List<String>) -> Unit = { taskIds ->
         taskIds.forEach(onDeleteRecord)
     },
+    onDeleteMissingRecords: () -> Unit = {},
+    onMediaMissing: (String) -> Unit = {},
+    onOpenInternalVideo: (taskId: String, uri: String, title: String) -> Unit = { _, _, _ -> },
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var platform by rememberSaveable { mutableStateOf<DownloadPlatform?>(null) }
@@ -93,21 +100,27 @@ fun HistoryScreen(
     var selectionMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var pendingBulkDelete by rememberSaveable { mutableStateOf(false) }
+    var pendingMissingMediaCleanup by rememberSaveable { mutableStateOf(false) }
     val filtered = filterCompletedHistory(history, query, platform, period)
     val grouped = filtered.groupBy { formatHistoryDay(it.completedAt) }
     val visibleIds = filtered.map(DownloadHistory::taskId)
     val selectedIdSet = selectedIds.toSet()
+    val missingMediaCount = history.count { !it.fileExists }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().testTag("history-screen")) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("history-screen"),
+    ) {
         val expanded = maxWidth >= 600.dp
         LazyVerticalGrid(
             columns = GridCells.Fixed(if (expanded) 2 else 1),
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(if (expanded) "history-expanded-timeline" else "history-compact-timeline"),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(if (expanded) 14.dp else 16.dp),
+            verticalArrangement = Arrangement.spacedBy(if (expanded) 8.dp else 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -150,10 +163,12 @@ fun HistoryScreen(
                         selectedIds = emptyList()
                     },
                     showBulkDelete = !selectionMode && filtered.isNotEmpty(),
+                    missingMediaCount = missingMediaCount,
                     onBulkDelete = {
                         selectedIds = emptyList()
                         selectionMode = true
                     },
+                    onCleanMissingMedia = { pendingMissingMediaCleanup = true },
                 )
             }
             if (selectionMode) {
@@ -237,6 +252,8 @@ fun HistoryScreen(
                                 }
                             },
                             onDelete = { pendingDeleteId = item.taskId },
+                            onMediaMissing = onMediaMissing,
+                            onOpenInternalVideo = onOpenInternalVideo,
                         )
                     }
                 }
@@ -244,8 +261,11 @@ fun HistoryScreen(
         }
     }
 
+
     pendingDeleteId?.let { taskId ->
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { pendingDeleteId = null },
             title = { Text("删除历史记录？") },
             text = { Text("只删除这条记录，不会删除已经保存的视频文件。") },
@@ -263,6 +283,8 @@ fun HistoryScreen(
 
     if (pendingBulkDelete) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { pendingBulkDelete = false },
             title = { Text("批量删除历史记录？") },
             text = {
@@ -284,6 +306,35 @@ fun HistoryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingBulkDelete = false }) { Text("取消") }
+            },
+        )
+    }
+
+    if (pendingMissingMediaCleanup) {
+        AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
+            onDismissRequest = { pendingMissingMediaCleanup = false },
+            title = { Text("清理失效记录？") },
+            text = {
+                Text(
+                    "将删除 $missingMediaCount 条已确认本地媒体不存在的历史记录。" +
+                        "不会删除仍可读取的视频、图片或音频文件。",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingMissingMediaCleanup = false
+                        onDeleteMissingRecords()
+                    },
+                    modifier = Modifier.testTag("history-confirm-clean-missing-media"),
+                ) {
+                    Text("清理 $missingMediaCount 条记录")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMissingMediaCleanup = false }) { Text("取消") }
             },
         )
     }
@@ -310,7 +361,9 @@ private fun HistoryFilters(
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
     showBulkDelete: Boolean,
+    missingMediaCount: Int,
     onBulkDelete: () -> Unit,
+    onCleanMissingMedia: () -> Unit,
 ) {
     var platformMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var periodMenuExpanded by rememberSaveable { mutableStateOf(false) }
@@ -381,6 +434,14 @@ private fun HistoryFilters(
                 Text("批量删除")
             }
         }
+        if (missingMediaCount > 0) {
+            TextButton(
+                onClick = onCleanMissingMedia,
+                modifier = Modifier.testTag("history-clean-missing-media"),
+            ) {
+                Text("清理失效")
+            }
+        }
     }
 }
 
@@ -393,6 +454,8 @@ private fun HistoryItem(
     selected: Boolean,
     onSelectionChange: () -> Unit,
     onDelete: () -> Unit,
+    onMediaMissing: (String) -> Unit,
+    onOpenInternalVideo: (String, String, String) -> Unit,
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -402,54 +465,69 @@ private fun HistoryItem(
     var showPlayerChooser by rememberSaveable { mutableStateOf(false) }
     var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
     var showVideoSegments by rememberSaveable { mutableStateOf(false) }
-    val report = reports.firstOrNull {
-        it.outcome == com.nanzhufeng.videodownloader.core.model.TransferReportOutcome.COMPLETED &&
-            it.networkBytes > 0L
-    }
-        ?: reports.firstOrNull()
+    var showImageGallery by rememberSaveable { mutableStateOf(false) }
     val playable = item.fileExists && item.outputUri != null
-    val mediaMetadata by produceState<HistoryMediaMetadata?>(
-        initialValue = null,
-        key1 = item.taskId,
-        key2 = item.outputUri,
-        key3 = item.fileSize,
-    ) {
-        value = if (playable) {
+    var mediaMetadata by remember(item.taskId, item.outputUri, item.fileSize) {
+        mutableStateOf<HistoryMediaMetadata?>(null)
+    }
+    LaunchedEffect(item.taskId, item.outputUri, item.outputUris, item.fileSize, playable) {
+        val inspected = if (playable) {
             readHistoryMediaMetadata(context, item)
         } else {
             HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
         }
+        mediaMetadata = inspected
+        if (playable && inspected.readableUris.isEmpty()) {
+            onMediaMissing(item.taskId)
+        }
     }
     val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
+    val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
+    val readableUris = mediaMetadata?.readableUris.orEmpty()
+    val contentAvailable = playable && readableUris.isNotEmpty()
+    val inspectionPending = playable && mediaMetadata == null
+    val mediaMissing = !inspectionPending && !contentAvailable
     val playItem: () -> Unit = {
-        if (shouldUseInternalAudioPlayer(item)) {
-            showInternalAudioPlayer = true
-        } else if (item.outputUris.size > 1) {
-            showVideoSegments = true
-        } else {
-            openWithDefaultPlayer(context, item).onFailure {
-                Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
+        when (mediaKind) {
+            HistoryMediaKind.AUDIO -> showInternalAudioPlayer = true
+            HistoryMediaKind.IMAGE -> showImageGallery = true
+            HistoryMediaKind.VIDEO -> {
+                if (readableUris.size > 1) {
+                    showVideoSegments = true
+                } else {
+                    readableUris.firstOrNull()?.let { uri ->
+                        onOpenInternalVideo(item.taskId, uri, item.title)
+                    }
+                }
             }
         }
         Unit
     }
+    val choosePlayer: () -> Unit = {
+        if (contentAvailable) {
+            showPlayerChooser = true
+        } else {
+            handleMediaOpenResult(MediaOpenResult.MissingMedia, item, context, onMediaMissing)
+        }
+    }
     val listDurationText = when {
-        playable && mediaMetadata == null -> "读取中…"
+        inspectionPending -> "读取中…"
+        mediaKind == HistoryMediaKind.IMAGE && contentAvailable -> "图片 ${readableUris.size}/${mediaMetadata?.totalFileCount ?: readableUris.size} 张"
         mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
-        playable -> "无法读取"
+        contentAvailable -> "无法读取"
         else -> "文件不可用"
     }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
-                .width(48.dp)
-                .height(if (expanded) 72.dp else 58.dp),
+                .width(if (expanded) 42.dp else 40.dp)
+                .height(if (expanded) 60.dp else 54.dp),
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .width(1.dp)
-                    .height(if (expanded) 16.dp else 10.dp)
+                    .height(if (expanded) 12.dp else 8.dp)
                     .background(Color(0xFFD4E7DA)),
             )
             if (selectionMode) {
@@ -457,7 +535,7 @@ private fun HistoryItem(
                     onClick = onSelectionChange,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(if (expanded) 44.dp else 40.dp)
+                        .size(if (expanded) 40.dp else 36.dp)
                         .testTag("history-select-${item.taskId}"),
                 ) {
                     Icon(
@@ -476,7 +554,7 @@ private fun HistoryItem(
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         },
-                        modifier = Modifier.size(if (expanded) 30.dp else 28.dp),
+                        modifier = Modifier.size(if (expanded) 28.dp else 26.dp),
                     )
                 }
             } else {
@@ -486,14 +564,14 @@ private fun HistoryItem(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .size(if (expanded) 26.dp else 24.dp),
+                    .size(if (expanded) 24.dp else 22.dp),
                 )
             }
             Text(
                 formatHistoryClock(item.completedAt),
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .offset(y = if (expanded) 27.dp else 24.dp),
+                    .offset(y = if (expanded) 23.dp else 21.dp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall,
             )
@@ -506,20 +584,21 @@ private fun HistoryItem(
                     if (selectionMode) onSelectionChange() else showDetails = true
                 }
                 .testTag("history-card-${item.taskId}"),
-            contentPadding = PaddingValues(if (expanded) 16.dp else 8.dp),
+            contentPadding = PaddingValues(if (expanded) 12.dp else 8.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HistoryThumbnail(
                     item = item,
                     expanded = expanded,
+                    mediaMetadata = mediaMetadata,
                     onPlay = {
                         if (selectionMode) onSelectionChange() else playItem()
                     },
                 )
-                Spacer(Modifier.width(if (expanded) 12.dp else 8.dp))
+                Spacer(Modifier.width(8.dp))
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(if (expanded) 6.dp else 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (expanded) 4.dp else 2.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         PlatformIcon(
@@ -528,7 +607,29 @@ private fun HistoryItem(
                         modifier = Modifier.size(if (expanded) 20.dp else 18.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text(item.platform.label(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (mediaMissing) {
+                        Icon(
+                            Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(if (expanded) 18.dp else 16.dp),
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "${historyKindLabel(mediaKind)}已不存在",
+                            modifier = Modifier.testTag("history-missing-media-${item.taskId}"),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1,
+                        )
+                    } else {
+                        Text(
+                            item.platform.label(),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Spacer(Modifier.weight(1f))
                     if (!selectionMode) {
                         Box {
@@ -541,20 +642,16 @@ private fun HistoryItem(
                             Icon(Icons.Outlined.MoreVert, contentDescription = "更多操作")
                         }
                         DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                            if (item.fileExists && item.outputUri != null) {
+                            if (contentAvailable && mediaKind == HistoryMediaKind.VIDEO) {
                                 DropdownMenuItem(
                                     text = {
                                         Text(
-                                            if (shouldUseInternalAudioPlayer(item)) {
-                                                "选择外部播放器"
-                                            } else {
-                                                "选择播放器"
-                                            },
+                                            "用外部播放器打开",
                                         )
                                     },
                                     onClick = {
                                         menuExpanded = false
-                                        showPlayerChooser = true
+                                        choosePlayer()
                                     },
                                 )
                             }
@@ -603,36 +700,30 @@ private fun HistoryItem(
                 }
                     Text(
                     item.title,
-                    maxLines = if (expanded) 2 else 1,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = if (expanded) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleSmall,
+                    style = if (expanded) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                     Text(
-                    item.creator,
-                    style = if (expanded) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                    Text(
                     buildString {
+                        append(item.creator)
+                        append(" · ")
                         append(item.resolution.label())
-                        if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
-                        append("  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}")
+                        if (inspectionPending) {
+                            append("  ·  正在读取本地文件…")
+                        } else if (mediaKind == HistoryMediaKind.IMAGE && contentAvailable) {
+                            append("  ·  $listDurationText  ·  ${formatBytes(displayedSize)}")
+                        } else if (contentAvailable) {
+                            if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
+                            append("  ·  时长 $listDurationText  ·  ${formatBytes(displayedSize)}")
+                        }
                     },
-                    style = if (expanded) MaterialTheme.typography.bodySmall else MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                    if (report != null) {
-                        Text(
-                        "${report.connectionMode.label(report.connectionCount)}  ·  平均 ${formatSpeed(report.averageBytesPerSecond)}  ·  峰值 ${formatSpeed(report.peakBytesPerSecond)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        )
-                    }
                 }
             }
         }
@@ -644,10 +735,13 @@ private fun HistoryItem(
             mediaMetadata = mediaMetadata,
             hasThroughputReport = reports.isNotEmpty(),
             onDismiss = { showDetails = false },
-            onPlay = playItem,
+            onPlay = {
+                showDetails = false
+                playItem()
+            },
             onChoosePlayer = {
                 showDetails = false
-                showPlayerChooser = true
+                choosePlayer()
             },
             onCopyLink = {
                 clipboard.setText(AnnotatedString(item.originalUrl))
@@ -662,8 +756,16 @@ private fun HistoryItem(
 
     if (showInternalAudioPlayer) {
         InternalAudioPlayerDialog(
-            item = item,
+            item = item.copy(outputUri = readableUris.firstOrNull(), outputUris = readableUris),
             onDismiss = { showInternalAudioPlayer = false },
+        )
+    }
+
+    if (showImageGallery) {
+        InternalImageGalleryDialog(
+            title = item.title,
+            imageUris = readableUris,
+            onDismiss = { showImageGallery = false },
         )
     }
 
@@ -671,16 +773,9 @@ private fun HistoryItem(
         VideoSegmentPlayerDialog(
             item = item,
             onDismiss = { showVideoSegments = false },
-            onPlay = { index, uri ->
-                openWithDefaultPlayer(
-                    context,
-                    item.copy(
-                        outputUri = uri,
-                        outputUris = listOf(uri),
-                    ),
-                ).onFailure {
-                    Toast.makeText(context, "没有可用的视频播放器", Toast.LENGTH_SHORT).show()
-                }
+            onPlay = { _, uri ->
+                showVideoSegments = false
+                onOpenInternalVideo(item.taskId, uri, item.title)
             },
         )
     }
@@ -691,15 +786,15 @@ private fun HistoryItem(
             onDismiss = { showPlayerChooser = false },
             onSelected = { option ->
                 showPlayerChooser = false
-                openWithPlayer(context, item, option).onFailure {
-                    Toast.makeText(context, "无法打开 ${option.label}", Toast.LENGTH_SHORT).show()
-                }
+                handleMediaOpenResult(openWithPlayer(context, item, option), item, context, onMediaMissing)
             },
         )
     }
 
     if (showThroughputReport && reports.isNotEmpty()) {
         AlertDialog(
+            containerColor = Color.White,
+            tonalElevation = 0.dp,
             onDismissRequest = { showThroughputReport = false },
             title = { Text("真实吞吐报告") },
             text = {
@@ -743,6 +838,21 @@ private fun HistoryItem(
     }
 }
 
+private fun handleMediaOpenResult(
+    result: MediaOpenResult,
+    item: DownloadHistory,
+    context: android.content.Context,
+    onMediaMissing: (String) -> Unit,
+) {
+    if (result == MediaOpenResult.Opened) return
+    if (result == MediaOpenResult.MissingMedia) onMediaMissing(item.taskId)
+    Toast.makeText(
+        context,
+        mediaOpenMessage(result, isAudio = shouldUseInternalAudioPlayer(item)),
+        Toast.LENGTH_LONG,
+    ).show()
+}
+
 @Composable
 private fun VideoSegmentPlayerDialog(
     item: DownloadHistory,
@@ -751,6 +861,8 @@ private fun VideoSegmentPlayerDialog(
 ) {
     val uris = item.outputUris.ifEmpty { item.outputUri?.let(::listOf).orEmpty() }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("选择视频分段") },
         text = {
@@ -785,21 +897,80 @@ private fun VideoSegmentPlayerDialog(
 private fun HistoryThumbnail(
     item: DownloadHistory,
     expanded: Boolean,
+    mediaMetadata: HistoryMediaMetadata?,
     onPlay: () -> Unit,
 ) {
-    val playable = item.fileExists && item.outputUri != null
+    val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
+    val localImageUri = mediaMetadata?.readableUris?.firstOrNull()
+    val playable = item.fileExists && localImageUri != null
+    val previewSource = remember(
+        item.fileExists,
+        item.outputUri,
+        item.outputUris,
+        item.thumbnailUrl,
+        item.resolution,
+    ) { historyPreviewSource(item) }
+    val context = LocalContext.current
+    var localFrameFailed by remember(previewSource) { mutableStateOf(false) }
+    val localVideoRequest = remember((previewSource as? HistoryPreviewSource.LocalVideo)?.uri) {
+        (previewSource as? HistoryPreviewSource.LocalVideo)?.let { source ->
+            ImageRequest.Builder(context)
+                .data(source.uri)
+                // A short offset avoids a black opening frame on fade-in videos.
+                .videoFrameMillis(750)
+                .crossfade(false)
+                .build()
+        }
+    }
     Box(
         modifier = Modifier
-            .size(width = if (expanded) 104.dp else 76.dp, height = if (expanded) 78.dp else 64.dp)
+            .size(width = if (expanded) 84.dp else 68.dp, height = if (expanded) 62.dp else 52.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(enabled = playable, onClick = onPlay)
             .testTag("history-thumbnail-${item.taskId}"),
         contentAlignment = Alignment.Center,
     ) {
-        if (item.thumbnailUrl.isNotBlank()) {
+        Icon(
+            when (mediaKind) {
+                HistoryMediaKind.AUDIO -> Icons.Filled.MusicNote
+                HistoryMediaKind.IMAGE -> Icons.Outlined.Image
+                HistoryMediaKind.VIDEO -> Icons.Outlined.VideoLibrary
+            },
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(26.dp),
+        )
+        if (mediaKind == HistoryMediaKind.IMAGE && localImageUri != null) {
             AsyncImage(
-                model = item.thumbnailUrl,
+                model = localImageUri,
+                contentDescription = "${item.title} 图片预览图",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else when (previewSource) {
+            is HistoryPreviewSource.LocalVideo -> {
+                if (!localFrameFailed) {
+                    AsyncImage(
+                        model = requireNotNull(localVideoRequest),
+                        contentDescription = "${item.title} 本地视频预览图",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onError = { localFrameFailed = true },
+                    )
+                } else if (previewSource.fallbackArtworkUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = previewSource.fallbackArtworkUrl,
+                        contentDescription = "${item.title} 备用视频预览图",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+
+            is HistoryPreviewSource.RemoteArtwork -> {
+            AsyncImage(
+                    model = previewSource.url,
                 contentDescription = if (shouldUseInternalAudioPlayer(item)) {
                     "${item.title} 音频封面"
                 } else {
@@ -808,25 +979,17 @@ private fun HistoryThumbnail(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
-            Icon(
-                if (shouldUseInternalAudioPlayer(item)) {
-                    Icons.Filled.MusicNote
-                } else {
-                    Icons.Outlined.VideoLibrary
-                },
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(26.dp),
-            )
+            }
+
+            HistoryPreviewSource.None -> Unit
         }
         if (playable) {
             Icon(
-                Icons.Filled.PlayCircle,
-                contentDescription = if (shouldUseInternalAudioPlayer(item)) {
-                    "用内置音频播放器播放"
-                } else {
-                    "用默认视频播放器播放"
+                if (mediaKind == HistoryMediaKind.IMAGE) Icons.Outlined.Image else Icons.Filled.PlayCircle,
+                contentDescription = when (mediaKind) {
+                    HistoryMediaKind.AUDIO -> "用内置音频播放器播放"
+                    HistoryMediaKind.IMAGE -> "查看图片"
+                    HistoryMediaKind.VIDEO -> "用内置视频播放器播放"
                 },
                 tint = Color.White,
                 modifier = Modifier.size(28.dp),
@@ -846,18 +1009,22 @@ private fun HistoryDetailsDialog(
     onCopyLink: () -> Unit,
     onShowReport: () -> Unit,
 ) {
-    val playable = item.fileExists && item.outputUri != null
+    val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
+    val playable = item.fileExists && mediaMetadata?.readableUris?.isNotEmpty() == true
     val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
     val durationText = when {
-        playable && mediaMetadata == null -> "正在读取…"
+        item.fileExists && mediaMetadata == null -> "正在读取…"
+        mediaKind == HistoryMediaKind.IMAGE && playable -> "共 ${mediaMetadata.readableUris.size}/${mediaMetadata.totalFileCount} 张"
         mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
         playable -> "无法读取，请确认文件仍可正常播放"
-        else -> "文件不可用"
+        else -> "${historyKindLabel(mediaKind)}已不存在"
     }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = {
-            Text(if (item.resolution == com.nanzhufeng.videodownloader.core.model.ResolutionPreset.AUDIO_MP3) "音频详情" else "视频详情")
+            Text("${historyKindLabel(mediaKind)}详情")
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -872,7 +1039,7 @@ private fun HistoryDetailsDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "${if (shouldUseInternalAudioPlayer(item)) "音频" else "视频"}时长：$durationText",
+                    if (mediaKind == HistoryMediaKind.IMAGE) "图片：$durationText" else "${historyKindLabel(mediaKind)}时长：$durationText",
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -884,17 +1051,17 @@ private fun HistoryDetailsDialog(
                 if (playable) {
                     TextButton(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            if (shouldUseInternalAudioPlayer(item)) {
-                                "内置播放器播放"
-                            } else {
-                                "默认播放器播放"
+                            when (mediaKind) {
+                                HistoryMediaKind.AUDIO -> "内置播放器播放"
+                                HistoryMediaKind.IMAGE -> "查看图片"
+                                HistoryMediaKind.VIDEO -> "内置播放器播放"
                             },
                         )
                     }
-                    TextButton(onClick = onChoosePlayer, modifier = Modifier.fillMaxWidth()) {
+                    if (mediaKind == HistoryMediaKind.VIDEO) TextButton(onClick = onChoosePlayer, modifier = Modifier.fillMaxWidth()) {
                         Text(
                             if (shouldUseInternalAudioPlayer(item)) {
-                                "选择外部播放器"
+                                "用外部播放器打开"
                             } else {
                                 "选择播放器"
                             },
@@ -926,6 +1093,8 @@ private fun PlayerChooserDialog(
     val context = LocalContext.current
     val players = remember(item.taskId, item.outputUri) { queryMediaPlayers(context, item) }
     AlertDialog(
+        containerColor = Color.White,
+        tonalElevation = 0.dp,
         onDismissRequest = onDismiss,
         title = { Text("选择播放器") },
         text = {

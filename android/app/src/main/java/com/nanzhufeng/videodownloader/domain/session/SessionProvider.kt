@@ -14,7 +14,9 @@ enum class SessionSite(
 ) {
     DOUYIN(
         "抖音",
-        "https://sso.douyin.com/login/?service=https%3A%2F%2Fwww.douyin.com%2F",
+        // This is Douyin's actual login-page entry. The SSO root with a www root
+        // service target redirects mobile WebViews to the desktop-client campaign.
+        "https://www.douyin.com/login_page?service=https%3A%2F%2Fwww.douyin.com%2Fhome",
         "https://www.douyin.com/",
         ".douyin.com",
         listOf(
@@ -50,7 +52,7 @@ enum class SessionSite(
     ),
     TIKTOK(
         "TikTok",
-        "https://www.tiktok.com/login",
+        "https://m.tiktok.com/login/phone-or-email",
         "https://www.tiktok.com/",
         ".tiktok.com",
         listOf(
@@ -95,6 +97,33 @@ enum class SessionSite(
         private fun String.matchesDomain(domain: String): Boolean =
             this == domain || endsWith(".$domain")
     }
+
+    fun isTrustedLoginUrl(url: String): Boolean {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", ignoreCase = true)) return false
+        val host = uri.host.orEmpty().lowercase()
+        return when (this) {
+            DOUYIN -> host.matchesDomain("douyin.com") || host.matchesDomain("iesdouyin.com")
+            YOUTUBE -> host.matchesDomain("youtube.com") || host.matchesDomain("google.com")
+            BILIBILI -> host.matchesDomain("bilibili.com") || host == "b23.tv"
+            TIKTOK -> host.matchesDomain("tiktok.com") || host.matchesDomain("google.com")
+            XIAOHONGSHU -> host.matchesDomain("xiaohongshu.com") || host.matchesDomain("rednote.com")
+        }
+    }
+
+    fun ownsLoginPage(url: String): Boolean {
+        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        return when (this) {
+            DOUYIN -> host.matchesDomain("douyin.com")
+            YOUTUBE -> host.matchesDomain("youtube.com")
+            BILIBILI -> host.matchesDomain("bilibili.com")
+            TIKTOK -> host.matchesDomain("tiktok.com")
+            XIAOHONGSHU -> host.matchesDomain("xiaohongshu.com") || host.matchesDomain("rednote.com")
+        }
+    }
+
+    val requiresThirdPartyCookies: Boolean
+        get() = this == TIKTOK
 }
 
 data class SessionAccess(
@@ -118,7 +147,7 @@ interface SessionProvider {
 
     suspend fun importYoutubeCookies(sourceUri: String): Result<Unit>
 
-    suspend fun exportCookies(destinationUri: String): Result<Int>
+    suspend fun exportCookies(site: SessionSite, destinationUri: String): Result<Int>
 
     suspend fun clear(site: SessionSite): Result<Unit>
 
@@ -135,7 +164,7 @@ object NoOpSessionProvider : SessionProvider {
     override suspend fun importYoutubeCookies(sourceUri: String) = Result.failure<Unit>(
         IllegalStateException("当前环境不支持导入登录信息"),
     )
-    override suspend fun exportCookies(destinationUri: String) = Result.failure<Int>(
+    override suspend fun exportCookies(site: SessionSite, destinationUri: String) = Result.failure<Int>(
         IllegalStateException("当前环境不支持导出登录信息"),
     )
     override suspend fun clear(site: SessionSite) = Result.failure<Unit>(
@@ -163,14 +192,23 @@ internal fun cookieAssignments(header: String): List<String> = header
 class SessionAccessPolicy(
     private val cookieLookup: (SessionSite, String) -> String,
     private val youtubeCookieFile: () -> String?,
+    private val sessionCookieFile: (SessionSite, String) -> String? = { _, _ -> null },
 ) {
     fun accessFor(url: String): SessionAccess = when (SessionSite.fromUrl(url)) {
-        SessionSite.DOUYIN -> SessionAccess(cookieHeader = cookieLookup(SessionSite.DOUYIN, url))
-        SessionSite.TIKTOK -> SessionAccess(cookieHeader = cookieLookup(SessionSite.TIKTOK, url))
-        SessionSite.BILIBILI -> SessionAccess(cookieHeader = cookieLookup(SessionSite.BILIBILI, url))
-        SessionSite.XIAOHONGSHU -> SessionAccess(cookieHeader = cookieLookup(SessionSite.XIAOHONGSHU, url))
+        SessionSite.DOUYIN -> scopedAccess(SessionSite.DOUYIN, url)
+        SessionSite.TIKTOK -> scopedAccess(SessionSite.TIKTOK, url)
+        SessionSite.BILIBILI -> scopedAccess(SessionSite.BILIBILI, url)
+        SessionSite.XIAOHONGSHU -> scopedAccess(SessionSite.XIAOHONGSHU, url)
         SessionSite.YOUTUBE -> SessionAccess(cookieFilePath = youtubeCookieFile())
         null -> SessionAccess()
+    }
+
+    private fun scopedAccess(site: SessionSite, url: String): SessionAccess {
+        val cookies = cookieLookup(site, url)
+        return SessionAccess(
+            cookieHeader = cookies,
+            cookieFilePath = sessionCookieFile(site, cookies),
+        )
     }
 }
 

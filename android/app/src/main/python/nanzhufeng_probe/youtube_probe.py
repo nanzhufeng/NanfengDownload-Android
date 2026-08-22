@@ -2,8 +2,9 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
-from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.error import HTTPError
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yt_dlp
 from yt_dlp import YoutubeDL
@@ -19,6 +20,15 @@ _DESKTOP_USER_AGENT = (
 )
 
 
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_NO_REDIRECT_OPENER = build_opener(_NoRedirect())
+_REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+
+
 def runtime_info() -> str:
     return json.dumps(
         {"python": sys.version.split()[0], "yt_dlp": yt_dlp.version.__version__},
@@ -28,7 +38,9 @@ def runtime_info() -> str:
 
 def _with_session_access(options, cookie_header="", cookie_file=""):
     scoped = dict(options)
-    if cookie_header:
+    # Cookie jars apply host rules on each request. A raw Cookie header does
+    # not, so only legacy callers without a cookie file may use it.
+    if cookie_header and not cookie_file:
         headers = dict(scoped.get("http_headers") or {})
         headers["Cookie"] = cookie_header
         scoped["http_headers"] = headers
@@ -37,15 +49,30 @@ def _with_session_access(options, cookie_header="", cookie_file=""):
     return scoped
 
 
+def _without_credential_headers(headers):
+    """Keep extractor fetch hints, but never treat credentials as generic headers."""
+    return {
+        name: value
+        for name, value in dict(headers or {}).items()
+        if str(name).lower() not in {"cookie", "authorization", "proxy-authorization", "host"}
+    }
+
+
 def _best(items, predicate, score):
     candidates = [item for item in items if predicate(item)]
     return max(candidates, key=score) if candidates else None
+
+
+def _is_direct_media_format(item):
+    protocol = str(item.get("protocol") or "").lower()
+    return protocol not in {"m3u8", "m3u8_native", "http_dash_segments"}
 
 
 def _select_audio(formats):
     def is_audio(item):
         return (
             item.get("url")
+            and _is_direct_media_format(item)
             and item.get("acodec") not in {None, "none"}
             and item.get("vcodec") in {None, "none"}
         )
@@ -84,6 +111,7 @@ def _select_audio_conversion_video(formats, max_short_edge=720):
     def is_progressive(item):
         return (
             item.get("url")
+            and _is_direct_media_format(item)
             and item.get("vcodec") not in {None, "none"}
             and item.get("acodec") not in {None, "none"}
             and item.get("audio_channels") in {None, 1, 2}
@@ -141,37 +169,103 @@ def _select_streams(formats, resolution="UP_TO_720P"):
     if max_short_edge is None:
         raise ValueError(f"不支持的分辨率：{resolution}")
 
-    progressive = _best(
-        formats,
+    def select_video(predicate):
+        candidates = [item for item in formats if predicate(item)]
+        bounded = [item for item in candidates if _short_edge(item) <= max_short_edge]
+        if bounded:
+            return (
+                max(
+                    bounded,
+                    key=lambda item: (
+                        item.get("source_preference") or 0,
+                        _short_edge(item),
+                        item.get("tbr") or 0,
+                    ),
+                ),
+                True,
+            )
+        # Some platforms expose only 540p or 720p for a work. A quality
+        # preset is a preference, not a reason to reject an otherwise valid
+        # download: use the smallest available rendition as the fallback.
+        return (
+            min(
+                candidates,
+                key=lambda item: (_short_edge(item), -(item.get("tbr") or 0)),
+            ) if candidates else None,
+            False,
+        )
+
+    progressive, progressive_fits = select_video(
         lambda item: item.get("url")
+        and _is_direct_media_format(item)
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") not in {None, "none"}
-        and _short_edge(item) <= max_short_edge,
-        lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
-    video = _best(
-        formats,
+    video, video_fits = select_video(
         lambda item: item.get("url")
+        and _is_direct_media_format(item)
         and item.get("ext") == "mp4"
         and item.get("vcodec") not in {None, "none"}
         and item.get("acodec") in {None, "none"}
-        and _short_edge(item) <= max_short_edge,
-        lambda item: (_short_edge(item), (item.get("tbr") or 0)),
     )
-    progressive_edge = _short_edge(progressive or {})
-    if video and audio and _short_edge(video) > progressive_edge:
+
+    # Never let an above-cap fallback displace a stream that actually meets
+    # the selected preset. This matters for platforms that offer 360p video
+    # plus a separate audio track, while their only progressive file is 540p.
+    if progressive_fits or (video_fits and audio):
+        if video_fits and audio and (
+            not progressive_fits or _short_edge(video) > _short_edge(progressive or {})
+        ):
+            return video, audio
+        if progressive_fits:
+            return progressive, None
+        return video, audio
+
+    # Neither form matches the requested cap. Pick the smallest valid
+    # rendition, rather than failing the task solely because the source has
+    # no 360p/720p ladder.
+    if video and audio and (
+        not progressive or _short_edge(video) < _short_edge(progressive)
+    ):
         return video, audio
     if progressive:
         return progressive, None
-    if video and audio:
-        return video, audio
     return None, None
+
+
+def _prefer_xiaohongshu_original_formats(info):
+    formats = [dict(item) for item in info.get("formats") or []]
+    if _platform_name(info) != "xiaohongshu":
+        return formats
+    for item in formats:
+        # yt-dlp labels the verified originVideoKey endpoint as `direct`, but
+        # deliberately leaves codecs unknown. It is a progressive MP4; without
+        # these fields our generic selector would discard it and choose the
+        # platform's watermarked rendition instead.
+        if str(item.get("format_id") or "").lower() == "direct" and item.get("url"):
+            if not item.get("ext"):
+                item["ext"] = "mp4"
+            if str(item.get("vcodec") or "").lower() in {"", "none"}:
+                item["vcodec"] = "avc1"
+            if str(item.get("acodec") or "").lower() in {"", "none"}:
+                item["acodec"] = "mp4a"
+            item["source_preference"] = max(int(item.get("source_preference") or 0), 100)
+    return formats
 
 
 def _host_matches(host, domain):
     host = str(host or "").lower().split(":", 1)[0]
     return host == domain or host.endswith(f".{domain}")
+
+
+def _extractor_args_for(host):
+    # The default web client now requires a PO Token for Google Video Server
+    # requests on many public videos. web_embedded is an official supported
+    # client that provides direct MP4 URLs without that token.
+    if _host_matches(host, "youtube.com") or host == "youtu.be":
+        return {"youtube": {"player_client": ["web_embedded"]}}
+    return None
 
 
 def _request_headers(url, cookie_header=""):
@@ -185,6 +279,8 @@ def _request_headers(url, cookie_header=""):
         headers["Referer"] = "https://www.bilibili.com/"
     elif _host_matches(host, "douyin.com") or _host_matches(host, "iesdouyin.com"):
         headers["Referer"] = "https://www.douyin.com/"
+    elif _host_matches(host, "tiktok.com"):
+        headers["Referer"] = "https://www.tiktok.com/"
     elif (
         _host_matches(host, "xiaohongshu.com")
         or _host_matches(host, "rednote.com")
@@ -198,17 +294,39 @@ def _request_headers(url, cookie_header=""):
 
 
 def _fetch(url, cookie_header="", max_bytes=12 * 1024 * 1024):
-    request = Request(url, headers=_request_headers(url, cookie_header))
-    with urlopen(request, timeout=20) as response:
-        payload = response.read(max_bytes + 1)
-        if len(payload) > max_bytes:
-            raise ValueError("平台页面数据过大，已中止读取")
-        charset = response.headers.get_content_charset() or "utf-8"
-        return payload.decode(charset, errors="replace"), response.geturl()
+    original_host = urlsplit(url).hostname.lower() if urlsplit(url).hostname else ""
+    current_url = url
+    for _ in range(12):
+        parsed = urlsplit(current_url)
+        if parsed.scheme.lower() != "https" or not parsed.hostname:
+            raise ValueError("平台跳转到了非 HTTPS 地址，已拒绝读取")
+        scoped_cookie = cookie_header if parsed.hostname.lower() == original_host else ""
+        request = Request(current_url, headers=_request_headers(current_url, scoped_cookie))
+        try:
+            with _NO_REDIRECT_OPENER.open(request, timeout=20) as response:
+                payload = response.read(max_bytes + 1)
+                if len(payload) > max_bytes:
+                    raise ValueError("平台页面数据过大，已中止读取")
+                charset = response.headers.get_content_charset() or "utf-8"
+                return payload.decode(charset, errors="replace"), current_url
+        except HTTPError as error:
+            if error.code not in _REDIRECT_STATUS_CODES:
+                raise
+            location = error.headers.get("Location")
+            error.close()
+            if not location:
+                raise ValueError("平台跳转缺少目标地址")
+            current_url = urljoin(current_url, location)
+    raise ValueError("平台链接重定向次数过多，已停止读取")
 
 
 def _resolve_known_short_link(url, cookie_header=""):
     host = urlsplit(url).netloc.lower().split(":", 1)[0]
+    path = urlsplit(url).path.lower()
+    is_tiktok_share = (
+        (_host_matches(host, "tiktok.com") and path.startswith("/t/"))
+        or host in {"vm.tiktok.com", "vt.tiktok.com"}
+    )
     if host not in {
         "b23.tv",
         "v.douyin.com",
@@ -216,7 +334,7 @@ def _resolve_known_short_link(url, cookie_header=""):
         "www.xhslink.com",
         "xhslink.cn",
         "www.xhslink.cn",
-    }:
+    } and not is_tiktok_share:
         return url
     _, final_url = _fetch(url, cookie_header, max_bytes=2 * 1024 * 1024)
     final_host = urlsplit(final_url).netloc.lower().split(":", 1)[0]
@@ -228,10 +346,21 @@ def _resolve_known_short_link(url, cookie_header=""):
             or _host_matches(final_host, "iesdouyin.com")
         ):
             raise ValueError("抖音短链接跳转到了非官方域名，已拒绝读取")
-        work_id = re.search(r"/(?:share/)?video/(\d+)", urlsplit(final_url).path)
-        if not work_id:
-            raise ValueError("抖音短链接没有返回可识别的作品地址")
-        return f"https://www.douyin.com/video/{work_id.group(1)}"
+        work_id = re.search(r"/(?:share/)?(video|note)/(\d+)", urlsplit(final_url).path)
+        if work_id:
+            return f"https://www.douyin.com/{work_id.group(1)}/{work_id.group(2)}"
+        # 分享页的路由会随平台变动。只要仍是官方地址，就交给维护中的
+        # extractor 继续判定，不能因本地的路径正则过窄而提前拒绝。
+        return final_url
+    if is_tiktok_share:
+        if not _host_matches(final_host, "tiktok.com"):
+            raise ValueError("TikTok 短链接跳转到了非官方域名，已拒绝读取")
+        work = re.search(r"/@([^/?]+)/video/(\d+)", urlsplit(final_url).path)
+        if work:
+            return f"https://www.tiktok.com/@{work.group(1)}/video/{work.group(2)}"
+        # 允许新的官方分享路由继续由 yt-dlp 处理；安全边界只是不能离开
+        # TikTok 官方域，并非把未知但合法的新路由视为不支持。
+        return final_url
     if host not in {"b23.tv", "v.douyin.com"} and not (
         _host_matches(final_host, "xiaohongshu.com")
         or _host_matches(final_host, "rednote.com")
@@ -416,6 +545,119 @@ def _xiaohongshu_note_state(html):
     raise ValueError("Xiaohongshu initial state missing note data")
 
 
+def _xiaohongshu_scene_is_watermarked(scene):
+    scene = str(scene or "").upper()
+    return (
+        scene == "WM"
+        or "WATERMARK" in scene
+        or "_WM" in scene
+        or scene.startswith("WM_")
+    )
+
+
+def _xiaohongshu_original_image_url(value):
+    """Turn Xiaohongshu's share-image rendition into its original PNG endpoint.
+
+    `H5_DTL` names the page presentation scene, not an image provenance level;
+    it can already have the platform mark baked in. The public web page's
+    `sns-webpic-qc` URL keeps the underlying image key before its `!` rendition
+    suffix. The official image service accepts that key without the share
+    rendition suffix and serves the original PNG.
+    """
+    parsed = urlsplit(str(value or "").strip())
+    if parsed.netloc.lower() != "sns-webpic-qc.xhscdn.com":
+        return ""
+    parts = parsed.path.strip("/").split("/", 2)
+    if len(parts) != 3 or not parts[0].isdigit() or not parts[1]:
+        return ""
+    image_key = parts[2].split("!", 1)[0].strip()
+    if not image_key:
+        return ""
+    # `notes_uhdr` is Xiaohongshu's Ultra HDR / Live Photo still-image key.
+    # That endpoint rejects a PNG conversion with HTTP 400, while its JPEG
+    # rendition is the supported original still. Keep the regular original
+    # images as PNG, which avoids the page's watermarked share rendition.
+    image_format = "jpg" if image_key.startswith("notes_uhdr/") else "png"
+    return f"https://ci.xiaohongshu.com/{image_key}?imageView2/2/w/format/{image_format}"
+
+
+def _xiaohongshu_image_urls(note):
+    return [item["url"] for item in _xiaohongshu_image_items(note)]
+
+
+def _xiaohongshu_live_photo_url(image):
+    """Return the motion MP4 paired with a Xiaohongshu Live Photo, if present.
+
+    Live Photos are not ordinary videos: the note remains a swipeable image
+    collection, while each animated image has a short H.264/H.265 companion
+    stream.  Keep that association instead of flattening the collection into
+    either still images or unrelated video segments.
+    """
+    if not bool(image.get("livePhoto") or image.get("live_photo")):
+        return ""
+    stream_root = image.get("stream") or {}
+    for codec in ("h264", "h265"):
+        for stream in stream_root.get(codec) or []:
+            if not isinstance(stream, dict):
+                continue
+            media_url = str(stream.get("masterUrl") or stream.get("master_url") or "").strip()
+            if media_url:
+                return _secure_media_url(media_url)
+    return ""
+
+
+def _xiaohongshu_image_items(note):
+    """Return original still images with their optional Live Photo motion URL."""
+    items = []
+    for image in note.get("imageList") or note.get("image_list") or []:
+        if not isinstance(image, dict):
+            continue
+        # Do not infer image provenance from H5/WB scene names: those describe
+        # the presentation surface and can still be watermarked. Build the
+        # only verified original endpoint from the share rendition's image key.
+        candidates = [image.get("urlDefault"), image.get("url"), image.get("urlPre")]
+        for item in image.get("infoList") or image.get("info_list") or []:
+            if not isinstance(item, dict):
+                continue
+            scene = str(
+                item.get("imageScene") or item.get("image_scene") or item.get("scene") or ""
+            ).upper()
+            if _xiaohongshu_scene_is_watermarked(scene):
+                continue
+            candidates.extend((item.get("url"), item.get("urlDefault"), item.get("urlPre")))
+        url = next(
+            (
+                original
+                for value in candidates
+                for original in (_xiaohongshu_original_image_url(value),)
+                if original
+            ),
+            "",
+        )
+        if url and url not in {item["url"] for item in items}:
+            items.append(
+                {
+                    "url": url,
+                    "motion_url": _xiaohongshu_live_photo_url(image),
+                }
+            )
+    return items
+
+
+def _xiaohongshu_origin_video_url(note):
+    consumer = (note.get("video") or {}).get("consumer") or {}
+    origin_key = str(consumer.get("originVideoKey") or consumer.get("origin_video_key") or "").strip()
+    return f"https://sns-video-bd.xhscdn.com/{origin_key}" if origin_key else ""
+
+
+def _has_xiaohongshu_original_format(info):
+    return any(
+        str(item.get("format_id") or "").lower() == "direct" and item.get("url")
+        for item in info.get("formats") or []
+        if isinstance(item, dict)
+    )
+
+
 def _xiaohongshu_info(url, cookie_header=""):
     html, final_url = _fetch(url, cookie_header)
     note = _xiaohongshu_note_state(html)
@@ -423,11 +665,50 @@ def _xiaohongshu_info(url, cookie_header=""):
     streams = list(stream_root.get("h264") or [])
     if not streams:
         streams = list(stream_root.get("h265") or [])
-    if str(note.get("type") or "").lower() not in {"video", "normal"} or not streams:
-        raise ValueError("Xiaohongshu image-only note: no video formats")
-
     headers = _request_headers(final_url, cookie_header)
+    user = note.get("user") or {}
+    image_items = _xiaohongshu_image_items(note)
+    image_urls = [item["url"] for item in image_items]
+    common = {
+        "extractor_key": "Xiaohongshu",
+        "id": str(note.get("noteId") or note.get("note_id") or ""),
+        "title": str(note.get("title") or note.get("desc") or "未知标题"),
+        "uploader": str(user.get("nickName") or user.get("nickname") or "未知作者"),
+        "uploader_id": str(user.get("userId") or user.get("user_id") or ""),
+        "webpage_url": final_url,
+        "upload_date": _upload_date(note.get("time")),
+        "thumbnail": str(image_urls[0] if image_urls else ""),
+        "http_headers": headers,
+    }
+    if str(note.get("type") or "").lower() not in {"video", "normal"} or not streams:
+        if image_urls:
+            return {
+                **common,
+                "image_urls": image_urls,
+                "image_items": image_items,
+                "formats": [],
+            }
+        raise ValueError("小红书当前未提供可验证的无水印原图，未生成下载任务")
+
     formats = []
+    origin_video_url = _xiaohongshu_origin_video_url(note)
+    if not origin_video_url:
+        # Do not silently swap to the share rendition: it is the endpoint
+        # where the platform applies the Xiaohongshu watermark.
+        raise ValueError("小红书当前未提供可验证的原始视频，未下载带水印版本")
+    formats.append(
+        {
+            "format_id": "direct",
+            "url": origin_video_url,
+            "ext": "mp4",
+            # The original endpoint is a progressive MP4. Mark it so the
+            # generic selector does not discard it for missing metadata.
+            "vcodec": "avc1",
+            "acodec": "mp4a",
+            "source_preference": 100,
+            "http_headers": headers,
+        }
+    )
     for index, item in enumerate(streams):
         media_url = item.get("masterUrl") or item.get("master_url")
         if not media_url:
@@ -452,21 +733,7 @@ def _xiaohongshu_info(url, cookie_header=""):
     if not formats:
         raise ValueError("Xiaohongshu note data contains no downloadable video URL")
 
-    user = note.get("user") or {}
-    image_list = note.get("imageList") or note.get("image_list") or []
-    thumbnail = str((image_list[0] if image_list else {}).get("url") or "")
-    return {
-        "extractor_key": "Xiaohongshu",
-        "id": str(note.get("noteId") or note.get("note_id") or ""),
-        "title": str(note.get("title") or note.get("desc") or "未知标题"),
-        "uploader": str(user.get("nickName") or user.get("nickname") or "未知作者"),
-        "uploader_id": str(user.get("userId") or user.get("user_id") or ""),
-        "webpage_url": final_url,
-        "upload_date": _upload_date(note.get("time")),
-        "thumbnail": thumbnail,
-        "http_headers": headers,
-        "formats": formats,
-    }
+    return {**common, "formats": formats}
 
 
 def _platform_name(info):
@@ -482,11 +749,62 @@ def _platform_name(info):
     return extractor or "unknown"
 
 
+def _secure_media_url(url):
+    """Upgrade only the official Xiaohongshu CDN's HTTP media URLs to HTTPS.
+
+    Android intentionally blocks cleartext traffic. Some current Xiaohongshu
+    extractor results still advertise an HTTP CDN URL even though the same
+    signed resource is available over HTTPS. Do not rewrite URLs from other
+    hosts: their transport semantics are owned by the platform.
+    """
+    parsed = urlsplit(str(url or ""))
+    if parsed.scheme.lower() == "http" and _host_matches(parsed.netloc, "xhscdn.com"):
+        return urlunsplit(parsed._replace(scheme="https"))
+    return str(url or "")
+
+
 def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
     if info.get("_type") in {"playlist", "multi_video"} or info.get("entries"):
         raise ValueError("单视频探测返回了列表，已中止")
 
-    chosen_video, audio = _select_streams(info.get("formats") or [], resolution)
+    image_urls = [str(url) for url in info.get("image_urls") or [] if str(url or "").strip()]
+    if image_urls:
+        if resolution == "AUDIO_MP3":
+            raise ValueError("图文作品没有音轨，不能转换为 MP3")
+        headers = _without_credential_headers(info.get("http_headers") or {})
+        return {
+            "platform": _platform_name(info),
+            "id": str(info.get("id") or ""),
+            "title": str(info.get("title") or "未知标题"),
+            "creator": str(info.get("channel") or info.get("uploader") or "未知作者"),
+            "creator_id": str(info.get("channel_id") or info.get("uploader_id") or ""),
+            "webpage_url": str(info.get("webpage_url") or info.get("original_url") or ""),
+            "upload_date": str(info.get("upload_date") or ""),
+            "thumbnail": str(info.get("thumbnail") or image_urls[0]),
+            "video_url": "",
+            "audio_url": "",
+            "video_ext": "jpg",
+            "video_size_bytes": 0,
+            "audio_ext": "",
+            "audio_from_video_source": False,
+            "image_urls": [_secure_media_url(url) for url in image_urls],
+            "image_items": [
+                {
+                    "url": _secure_media_url(item.get("url")),
+                    "motion_url": _secure_media_url(item.get("motion_url")),
+                }
+                for item in info.get("image_items") or []
+                if isinstance(item, dict) and str(item.get("url") or "").strip()
+            ],
+            "headers": headers,
+            "video_cookie_header": "",
+            "audio_cookie_header": "",
+        }
+
+    chosen_video, audio = _select_streams(
+        _prefer_xiaohongshu_original_formats(info),
+        resolution,
+    )
     if not chosen_video:
         if resolution == "AUDIO_MP3":
             raise ValueError(
@@ -507,8 +825,7 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
     headers.update(chosen_video.get("http_headers") or {})
     if audio:
         headers.update(audio.get("http_headers") or {})
-    if cookie_header:
-        headers["Cookie"] = cookie_header
+    headers = _without_credential_headers(headers)
 
     return {
         "platform": _platform_name(info),
@@ -519,15 +836,18 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
         "webpage_url": str(info.get("webpage_url") or info.get("original_url") or ""),
         "upload_date": str(info.get("upload_date") or ""),
         "thumbnail": str(info.get("thumbnail") or ""),
-        "video_url": chosen_video["url"],
-        "audio_url": (audio or {}).get("url", ""),
+        "video_url": _secure_media_url(chosen_video["url"]),
+        "audio_url": _secure_media_url((audio or {}).get("url", "")),
         "video_ext": chosen_video.get("ext") or "mp4",
         "video_size_bytes": int(
             chosen_video.get("filesize") or chosen_video.get("filesize_approx") or 0
         ),
         "audio_ext": (audio or {}).get("ext", ""),
         "audio_from_video_source": audio_from_video_source,
+        "image_urls": [],
         "headers": headers,
+        "video_cookie_header": str(info.get("video_cookie_header") or ""),
+        "audio_cookie_header": str(info.get("audio_cookie_header") or ""),
     }
 
 
@@ -539,6 +859,59 @@ def _source_result(info):
         "kind": "creator" if is_creator else "single",
         "url": str(info.get("webpage_url") or info.get("original_url") or ""),
     }
+
+
+def _douyin_gallery_result(detail, page_url):
+    images = detail.get("images") or (detail.get("image_post_info") or {}).get("images") or []
+    if not images:
+        return None
+    clean_urls = []
+    for image in images:
+        url_list = image.get("url_list") or image.get("urlList") or []
+        if not url_list and isinstance(image.get("display_image"), dict):
+            url_list = image["display_image"].get("url_list") or []
+        source = next((
+            str(url) for url in url_list
+            if str(url).startswith("https://")
+            and "tplv-dy-aweme-images" in str(url).lower()
+            and "tplv-dy-water" not in str(url).lower()
+        ), "")
+        if source:
+            clean_urls.append(source)
+    expected_count = len(images)
+    if expected_count <= 0 or len(clean_urls) != expected_count or len(set(clean_urls)) != expected_count:
+        raise ValueError("抖音图文没有返回完整的无水印原图列表")
+    author = detail.get("author") or {}
+    return {
+        "work_id": str(detail.get("aweme_id") or ""),
+        "page_url": page_url,
+        "title": str(detail.get("desc") or "抖音图文"),
+        "creator": str(author.get("nickname") or author.get("unique_id") or "抖音用户"),
+        "creator_id": str(author.get("sec_uid") or author.get("uid") or ""),
+        "thumbnail": clean_urls[0],
+        "image_urls": clean_urls,
+        "expected_count": expected_count,
+    }
+
+
+def extract_douyin_gallery(url: str, cookie_header: str = "") -> str:
+    work = re.search(r"/(?:note|video)/(\d+)", urlsplit(url).path)
+    if not work:
+        raise ValueError("抖音图文地址缺少作品 ID")
+    work_id = work.group(1)
+    api_url = (
+        "https://www.douyin.com/aweme/v1/web/aweme/detail/"
+        f"?aweme_id={quote(work_id)}"
+    )
+    payload, _ = _fetch(api_url, cookie_header, max_bytes=4 * 1024 * 1024)
+    if not payload.strip():
+        raise ValueError("抖音网页会话未返回作品详情，请到设置中重新登录抖音后重试")
+    data = json.loads(payload)
+    detail = data.get("aweme_detail") or {}
+    if str(detail.get("aweme_id") or "") != work_id:
+        raise ValueError("抖音返回的作品与目标不一致，已停止读取")
+    gallery = _douyin_gallery_result(detail, url)
+    return json.dumps(gallery or {}, ensure_ascii=False)
 
 
 def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> str:
@@ -561,6 +934,9 @@ def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> 
         "socket_timeout": 20,
         "retries": 1,
     }
+    extractor_args = _extractor_args_for(host)
+    if extractor_args:
+        options["extractor_args"] = extractor_args
     options = _with_session_access(options, cookie_header, cookie_file)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -794,18 +1170,30 @@ def extract_single(
 ) -> str:
     url = _resolve_known_short_link(url, cookie_header)
     host = urlsplit(url).netloc.lower().split(":", 1)[0]
-    if _host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"):
-        info = _xiaohongshu_info(url, cookie_header)
-        return json.dumps(
-            _media_result(info, cookie_header=cookie_header, resolution=resolution),
-            ensure_ascii=False,
-        )
     if _host_matches(host, "bilibili.com") and urlsplit(url).path.lower().startswith("/video/"):
         info = _bilibili_fallback_info(url, cookie_header)
         return json.dumps(
             _media_result(info, cookie_header=cookie_header, resolution=resolution),
             ensure_ascii=False,
         )
+
+    xiaohongshu_static_error = None
+    if _host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"):
+        try:
+            # Prefer the public note state when it is available: unlike the
+            # maintained extractor's normal rendition, it exposes
+            # originVideoKey and image scene labels needed to avoid platform
+            # watermark variants. Fall back to yt-dlp only when this state is
+            # unavailable because the web page shape changes.
+            info = _xiaohongshu_info(url, cookie_header)
+            if not info.get("image_urls") and not _has_xiaohongshu_original_format(info):
+                raise ValueError("小红书当前未提供可验证的原始媒体，未下载带水印版本")
+            return json.dumps(
+                _media_result(info, cookie_header=cookie_header, resolution=resolution),
+                ensure_ascii=False,
+            )
+        except Exception as error:
+            xiaohongshu_static_error = error
 
     options = {
         "quiet": True,
@@ -819,21 +1207,41 @@ def extract_single(
     try:
         with YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=False)
-            chosen_video, _ = _select_streams(info.get("formats") or [], resolution)
-            extracted_cookie_header = (
+            if (
+                (_host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"))
+                and not info.get("image_urls")
+                and not _has_xiaohongshu_original_format(info)
+            ):
+                raise ValueError("小红书当前未提供可验证的原始媒体，未下载带水印版本")
+            chosen_video, chosen_audio = _select_streams(info.get("formats") or [], resolution)
+            video_cookie_header = (
                 ydl.cookiejar.get_cookie_header(chosen_video["url"])
                 if chosen_video and hasattr(ydl.cookiejar, "get_cookie_header")
                 else ""
             )
+            audio_cookie_header = (
+                ydl.cookiejar.get_cookie_header(chosen_audio["url"])
+                if chosen_audio and hasattr(ydl.cookiejar, "get_cookie_header")
+                else ""
+            )
         result = _media_result(
-            info,
-            cookie_header=extracted_cookie_header or cookie_header,
+            {
+                **info,
+                "video_cookie_header": video_cookie_header,
+                "audio_cookie_header": audio_cookie_header,
+            },
+            cookie_header=cookie_header,
             resolution=resolution,
         )
     except Exception:
-        if not _host_matches(host, "bilibili.com"):
+        if _host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"):
+            if xiaohongshu_static_error is not None:
+                raise xiaohongshu_static_error
+            info = _xiaohongshu_info(url, cookie_header)
+        elif _host_matches(host, "bilibili.com"):
+            info = _bilibili_fallback_info(url, cookie_header)
+        else:
             raise
-        info = _bilibili_fallback_info(url, cookie_header)
         result = _media_result(
             info,
             cookie_header=cookie_header,

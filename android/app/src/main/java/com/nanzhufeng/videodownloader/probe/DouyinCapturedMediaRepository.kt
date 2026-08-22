@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.probe
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 data class DouyinCapturedMedia(
@@ -11,6 +12,9 @@ data class DouyinCapturedMedia(
     val creator: String,
     val thumbnailUrl: String,
     val capturedAtMillis: Long,
+    val imageUrls: List<String> = emptyList(),
+    val imageExpectedCount: Int = 0,
+    val imageSourceVersion: Int = 0,
 )
 
 fun interface DouyinCapturedMediaSource {
@@ -46,7 +50,14 @@ class DouyinCapturedMediaRepository(
     private fun isValid(media: DouyinCapturedMedia): Boolean =
         media.workId.matches(WORK_ID_PATTERN) &&
             DouyinCaptureStore.extractWorkId(media.pageUrl) == media.workId &&
-            DouyinCaptureStore.isMediaUrl(media.mediaUrl)
+            (
+                DouyinCaptureStore.isMediaUrl(media.mediaUrl) ||
+                    DouyinCaptureStore.isVerifiedImageGallery(
+                        imageUrls = media.imageUrls,
+                        expectedCount = media.imageExpectedCount,
+                        sourceVersion = media.imageSourceVersion,
+                    )
+                )
 
     private fun DouyinCapturedMedia.toJson() = JSONObject()
         .put("work_id", workId)
@@ -56,6 +67,9 @@ class DouyinCapturedMediaRepository(
         .put("creator", creator)
         .put("thumbnail_url", thumbnailUrl)
         .put("captured_at_millis", capturedAtMillis)
+        .put("image_urls", JSONArray(imageUrls))
+        .put("image_expected_count", imageExpectedCount)
+        .put("image_source_version", imageSourceVersion)
 
     private fun JSONObject.toCapturedMedia() = DouyinCapturedMedia(
         workId = getString("work_id"),
@@ -65,6 +79,15 @@ class DouyinCapturedMediaRepository(
         creator = optString("creator"),
         thumbnailUrl = optString("thumbnail_url"),
         capturedAtMillis = getLong("captured_at_millis"),
+        imageUrls = optJSONArray("image_urls")?.let { urls ->
+            buildList {
+                for (index in 0 until urls.length()) {
+                    urls.optString(index).takeIf(String::isNotBlank)?.let(::add)
+                }
+            }
+        }.orEmpty(),
+        imageExpectedCount = optInt("image_expected_count"),
+        imageSourceVersion = optInt("image_source_version"),
     )
 
     private companion object {

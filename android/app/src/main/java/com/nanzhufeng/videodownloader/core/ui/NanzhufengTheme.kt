@@ -42,6 +42,16 @@ private val NanzhufengColors = lightColorScheme(
     onSurface = Color(0xFF16231B),
     surfaceVariant = SelectedSage,
     onSurfaceVariant = SecondaryText,
+    // Material dialogs and sheets use the surface-container ladder instead
+    // of `surface`. Keep every elevated container neutral white rather than
+    // inheriting a tinted default surface.
+    surfaceDim = Color.White,
+    surfaceBright = Color.White,
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color.White,
+    surfaceContainer = Color.White,
+    surfaceContainerHigh = Color.White,
+    surfaceContainerHighest = Color.White,
     error = FailureRed,
 )
 

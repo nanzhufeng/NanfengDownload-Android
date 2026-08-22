@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityOptionsCompat
 import android.app.Activity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -67,6 +68,7 @@ import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import com.nanzhufeng.videodownloader.data.settings.SettingsRepository
 import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import com.nanzhufeng.videodownloader.feature.history.HistoryScreen
+import com.nanzhufeng.videodownloader.feature.history.InternalVideoPlayerOverlay
 import com.nanzhufeng.videodownloader.feature.home.HomeScreen
 import com.nanzhufeng.videodownloader.feature.home.HomeViewModel
 import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
@@ -145,6 +147,11 @@ fun NanzhufengApp(
         val navController = rememberNavController()
         var recoveryRequested by remember { mutableStateOf(false) }
         var completionDialog by remember { mutableStateOf<DownloadHistory?>(null) }
+        var activeVideoTaskId by rememberSaveable { mutableStateOf<String?>(null) }
+        var activeVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
+        var activeVideoTitle by rememberSaveable { mutableStateOf("") }
+        var activeVideoPositionMillis by rememberSaveable { mutableStateOf(0L) }
+        var activeVideoPlayWhenReady by rememberSaveable { mutableStateOf(true) }
 
         LaunchedEffect(downloads) {
             var initialized = false
@@ -188,7 +195,10 @@ fun NanzhufengApp(
 
         LaunchedEffect(homeState.douyinCaptureUrl) {
             homeState.douyinCaptureUrl?.let { sourceUrl ->
-                douyinCaptureLauncher.launch(DouyinProbeActivity.createIntent(context, sourceUrl))
+                douyinCaptureLauncher.launch(
+                    DouyinProbeActivity.createIntent(context, sourceUrl),
+                    ActivityOptionsCompat.makeCustomAnimation(context, 0, 0),
+                )
             }
         }
 
@@ -196,6 +206,8 @@ fun NanzhufengApp(
             AlertDialog(
                 modifier = Modifier.testTag("completion-dialog"),
                 onDismissRequest = { completionDialog = null },
+                containerColor = Color.White,
+                tonalElevation = 0.dp,
                 title = { Text("下载成功") },
                 text = {
                     Text("${item.title}\n已保存到系统媒体库。")
@@ -267,11 +279,11 @@ fun NanzhufengApp(
                         onUseSystemStorage = {
                             scope.launch { settings.setCustomTree(null, null) }
                         },
-                        onExportCookies = { destinationUri ->
+                        onExportCookies = { site, destinationUri ->
                             scope.launch {
-                                sessions.exportCookies(destinationUri)
+                                sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 $count 组会话", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
                                     }
                                     .onFailure { error ->
                                         Toast.makeText(
@@ -343,6 +355,19 @@ fun NanzhufengApp(
                         },
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
+                        },
+                        onDeleteMissingHistories = {
+                            scope.launch { downloads.deleteMissingHistoryRecords() }
+                        },
+                        onMediaMissing = { taskId ->
+                            scope.launch { downloads.markHistoryMediaMissing(taskId) }
+                        },
+                        onOpenHistoryVideo = { taskId, uri, title ->
+                            activeVideoTaskId = taskId
+                            activeVideoUri = uri
+                            activeVideoTitle = title
+                            activeVideoPositionMillis = 0L
+                            activeVideoPlayWhenReady = true
                         },
                         expanded = true,
                         networkAvailable = isNetworkAvailable,
@@ -406,11 +431,11 @@ fun NanzhufengApp(
                         onUseSystemStorage = {
                             scope.launch { settings.setCustomTree(null, null) }
                         },
-                        onExportCookies = { destinationUri ->
+                        onExportCookies = { site, destinationUri ->
                             scope.launch {
-                                sessions.exportCookies(destinationUri)
+                                sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 $count 组会话", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
                                     }
                                     .onFailure { error ->
                                         Toast.makeText(
@@ -483,11 +508,48 @@ fun NanzhufengApp(
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
                         },
+                        onDeleteMissingHistories = {
+                            scope.launch { downloads.deleteMissingHistoryRecords() }
+                        },
+                        onMediaMissing = { taskId ->
+                            scope.launch { downloads.markHistoryMediaMissing(taskId) }
+                        },
+                        onOpenHistoryVideo = { taskId, uri, title ->
+                            activeVideoTaskId = taskId
+                            activeVideoUri = uri
+                            activeVideoTitle = title
+                            activeVideoPositionMillis = 0L
+                            activeVideoPlayWhenReady = true
+                        },
                         expanded = false,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.padding(padding),
                     )
                 }
+            }
+
+            activeVideoUri?.let { uri ->
+                val taskId = activeVideoTaskId ?: return@let
+                InternalVideoPlayerOverlay(
+                    playbackSessionId = taskId,
+                    title = activeVideoTitle,
+                    videoUri = uri,
+                    initialPositionMillis = activeVideoPositionMillis,
+                    initialPlayWhenReady = activeVideoPlayWhenReady,
+                    onPlaybackSnapshot = { positionMillis, playWhenReady ->
+                        if (activeVideoTaskId == taskId && activeVideoUri == uri) {
+                            activeVideoPositionMillis = positionMillis
+                            activeVideoPlayWhenReady = playWhenReady
+                        }
+                    },
+                    onDismiss = {
+                        activeVideoTaskId = null
+                        activeVideoUri = null
+                        activeVideoTitle = ""
+                        activeVideoPositionMillis = 0L
+                        activeVideoPlayWhenReady = true
+                    },
+                )
             }
         }
     }
@@ -518,7 +580,7 @@ private fun AppNavHost(
     onFileNameRuleSelected: (FileNameRule) -> Unit,
     onCustomTreeSelected: (String, String) -> Unit,
     onUseSystemStorage: () -> Unit,
-    onExportCookies: (String) -> Unit,
+    onExportCookies: (SessionSite, String) -> Unit,
     onOpenLogin: (SessionSite) -> Unit,
     onImportYoutubeCookies: (String) -> Unit,
     onClearSession: (SessionSite) -> Unit,
@@ -529,6 +591,9 @@ private fun AppNavHost(
     onRetryQueued: (String) -> Unit,
     onDeleteHistory: (String) -> Unit,
     onDeleteHistories: (List<String>) -> Unit,
+    onDeleteMissingHistories: () -> Unit,
+    onMediaMissing: (String) -> Unit,
+    onOpenHistoryVideo: (taskId: String, uri: String, title: String) -> Unit,
     expanded: Boolean,
     networkAvailable: Boolean,
     modifier: Modifier = Modifier,
@@ -575,6 +640,9 @@ private fun AppNavHost(
                 throughputReports = throughputReports,
                 onDeleteRecord = onDeleteHistory,
                 onDeleteRecords = onDeleteHistories,
+                onDeleteMissingRecords = onDeleteMissingHistories,
+                onMediaMissing = onMediaMissing,
+                onOpenInternalVideo = onOpenHistoryVideo,
             )
         }
         composable(AppDestination.SETTINGS.route) {

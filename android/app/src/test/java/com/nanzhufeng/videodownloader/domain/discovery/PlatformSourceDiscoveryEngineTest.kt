@@ -4,6 +4,7 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.probe.ClassifiedSource
 import com.nanzhufeng.videodownloader.probe.CreatorCatalog
 import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
+import com.nanzhufeng.videodownloader.probe.DouyinGalleryInfo
 import com.nanzhufeng.videodownloader.probe.Platform
 import com.nanzhufeng.videodownloader.probe.ResolvedSource
 import com.nanzhufeng.videodownloader.probe.SourceKind
@@ -109,10 +110,89 @@ class PlatformSourceDiscoveryEngineTest {
 
         assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
         assertEquals(
-            "https://v.douyin.com/current/",
+            "https://www.douyin.com/video/7669248142533973995",
             (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
         )
     }
+
+    @Test
+    fun douyinAnimatedNoteUnsupportedByYtDlpRequestsWebViewCapture() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(UnsupportedDouyinNoteGateway())
+            .read("https://v.douyin.com/QnQSvGUXFNg/")
+
+        assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
+        assertEquals(
+            "https://www.douyin.com/note/7674830543565405861",
+            (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
+        )
+    }
+
+    @Test
+    fun douyinNoteUsesCompleteStructuredApiGalleryWithoutOpeningThePage() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(DouyinNoteGalleryGateway())
+            .read("https://v.douyin.com/stHj3vcpv64/")
+
+        assertTrue(result is DiscoveryResult.Single)
+        val item = (result as DiscoveryResult.Single).item
+        assertEquals("7676041925425736777", item.mediaId)
+        assertEquals(2, item.capturedImageExpectedCount)
+        assertEquals(2, item.capturedImageUrls.size)
+    }
+
+    @Test
+    fun douyinNoteFallsBackToStrictPageCaptureWhenApiReturnsAnotherWork() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(MismatchedDouyinGalleryGateway())
+            .read("https://www.douyin.com/note/7670887343922973155")
+
+        assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
+        assertEquals(
+            "https://www.douyin.com/note/7670887343922973155",
+            (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
+        )
+    }
+
+}
+
+private class MismatchedDouyinGalleryGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.DOUYIN, SourceKind.SINGLE_VIDEO, input)
+
+    override fun resolve(url: String): ResolvedSource = error("不应解析直接图文地址")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo = error("不应调用通用解析")
+
+    override fun extractDouyinGallery(url: String): DouyinGalleryInfo? =
+        error("抖音返回的作品与目标不一致，已停止读取")
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
+}
+
+private class DouyinNoteGalleryGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, input)
+
+    override fun resolve(url: String) =
+        ResolvedSource(SourceKind.SINGLE_VIDEO, "https://www.douyin.com/note/7676041925425736777")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo =
+        error("抖音图文不应先调用 yt-dlp")
+
+    override fun extractDouyinGallery(url: String) = DouyinGalleryInfo(
+        workId = "7676041925425736777",
+        pageUrl = url,
+        title = "图文",
+        creator = "作者",
+        creatorId = "creator-id",
+        thumbnail = "https://p3-sign.douyinpic.com/tos/image-0~tplv-dy-aweme-images.webp",
+        imageUrls = List(2) { index ->
+            "https://p3-sign.douyinpic.com/tos/image-$index~tplv-dy-aweme-images.webp"
+        },
+        expectedCount = 2,
+    )
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
 }
 
 private class MissingDouyinFormatsGateway : ProbeDiscoveryGateway {
@@ -124,6 +204,20 @@ private class MissingDouyinFormatsGateway : ProbeDiscoveryGateway {
 
     override fun extractSingle(url: String): YtDlpMediaInfo =
         error("没有找到可下载且具备音频的 MP4 视频流")
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
+}
+
+private class UnsupportedDouyinNoteGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, input)
+
+    override fun resolve(url: String) =
+        ResolvedSource(SourceKind.SINGLE_VIDEO, "https://www.douyin.com/note/7674830543565405861")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo =
+        error("ERROR: Unsupported URL: $url")
 
     override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
         error("不应读取列表")

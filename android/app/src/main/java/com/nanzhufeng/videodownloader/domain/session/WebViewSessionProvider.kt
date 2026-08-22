@@ -23,6 +23,7 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
     private val accessPolicy = SessionAccessPolicy(
         cookieLookup = ::cookiesForSite,
         youtubeCookieFile = { youtubeCookieFile.takeIf(File::isFile)?.absolutePath },
+        sessionCookieFile = ::writeScopedCookieFile,
     )
     private val mutableStates = MutableStateFlow(buildStates())
     override val states: StateFlow<List<SiteSessionState>> = mutableStates.asStateFlow()
@@ -55,44 +56,14 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
         }
     }
 
-    override suspend fun exportCookies(destinationUri: String): Result<Int> = withContext(Dispatchers.IO) {
+    override suspend fun exportCookies(site: SessionSite, destinationUri: String): Result<Int> = withContext(Dispatchers.IO) {
         runCatching {
-            val sections = buildList {
-                if (youtubeCookieFile.isFile && youtubeCookieFile.length() > 0L) {
-                    add(
-                        youtubeCookieFile.readLines()
-                            .filter { line -> line.isNotBlank() && !line.startsWith("# Netscape") }
-                            .joinToString("\n"),
-                    )
-                }
-                listOf(
-                    SessionSite.DOUYIN to ".douyin.com",
-                    SessionSite.TIKTOK to ".tiktok.com",
-                    SessionSite.BILIBILI to ".bilibili.com",
-                    SessionSite.XIAOHONGSHU to ".xiaohongshu.com",
-                ).forEach { (site, domain) ->
-                    cookieManager.getCookie(site.cookieProbeUrl)
-                        .orEmpty()
-                        .split(';')
-                        .map(String::trim)
-                        .filter(String::isNotBlank)
-                        .mapNotNull { cookie ->
-                            val separator = cookie.indexOf('=')
-                            if (separator <= 0) return@mapNotNull null
-                            val name = cookie.substring(0, separator).trim()
-                            val value = cookie.substring(separator + 1)
-                            "$domain\tTRUE\t/\tTRUE\t0\t$name\t$value"
-                        }
-                        .takeIf(List<String>::isNotEmpty)
-                        ?.joinToString("\n")
-                        ?.let(::add)
-                }
-            }.filter(String::isNotBlank)
-            require(sections.isNotEmpty()) { "当前没有可导出的登录会话" }
+            val entries = cookieEntriesFor(site)
+            require(entries.isNotEmpty()) { "${site.label} 当前没有可导出的登录会话" }
             val output = buildString {
                 appendLine("# Netscape HTTP Cookie File")
-                appendLine("# Exported by Nanzhufeng Video Downloader")
-                append(sections.joinToString("\n"))
+                appendLine("# Exported by Nanzhufeng Video Downloader for ${site.label}")
+                append(entries.joinToString("\n"))
                 appendLine()
             }
             requireNotNull(
@@ -100,7 +71,7 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
             ) { "无法打开所选导出文件" }.bufferedWriter(Charsets.UTF_8).use { writer ->
                 writer.write(output)
             }
-            sections.size
+            entries.size
         }
     }
 
@@ -113,6 +84,12 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
             }
         } else {
             withContext(Dispatchers.Main.immediate) { clearWebViewCookies(site) }
+        }
+        withContext(Dispatchers.IO) {
+            val scopedCookieFile = scopedCookieFile(site)
+            if (scopedCookieFile.exists()) {
+                require(scopedCookieFile.delete()) { "无法清除 ${site.label} 下载会话" }
+            }
         }
         refresh()
     }
@@ -150,6 +127,43 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
         }.distinct()
         return mergeCookieHeaders(urls.map { url -> cookieManager.getCookie(url).orEmpty() })
     }
+
+    private fun cookieEntriesFor(site: SessionSite): List<String> = when (site) {
+        SessionSite.YOUTUBE -> youtubeCookieFile
+            .takeIf(File::isFile)
+            ?.readLines()
+            ?.filter { line -> line.isNotBlank() && !line.startsWith("# Netscape") }
+            .orEmpty()
+
+        else -> cookiesForSite(site, site.cookieProbeUrl)
+            .split(';')
+            .map(String::trim)
+            .filter(String::isNotBlank)
+            .mapNotNull { cookie ->
+                val separator = cookie.indexOf('=')
+                if (separator <= 0) return@mapNotNull null
+                val name = cookie.substring(0, separator).trim()
+                val value = cookie.substring(separator + 1).replace(Regex("[\\r\\n]"), "")
+                name.takeIf(String::isNotBlank)?.let {
+                    "${site.cookieDomain}\tTRUE\t/\tTRUE\t0\t$name\t$value"
+                }
+            }
+    }
+
+    private fun writeScopedCookieFile(site: SessionSite, cookieHeader: String): String? {
+        if (cookieHeader.isBlank()) return null
+        val entries = cookieEntriesFor(site)
+        if (entries.isEmpty()) return null
+        val file = scopedCookieFile(site)
+        file.bufferedWriter(Charsets.UTF_8).use { writer ->
+            writer.appendLine("# Netscape HTTP Cookie File")
+            entries.forEach(writer::appendLine)
+        }
+        return file.absolutePath
+    }
+
+    private fun scopedCookieFile(site: SessionSite): File =
+        File(sessionDirectory, "${site.name.lowercase()}-session-cookies.txt")
 
     private suspend fun clearWebViewCookies(site: SessionSite) {
         val preservedScopes = SessionSite.entries

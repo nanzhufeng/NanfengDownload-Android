@@ -56,7 +56,10 @@ class MainActivity : ComponentActivity() {
             this,
             Manifest.permission.POST_NOTIFICATIONS,
         ) == PackageManager.PERMISSION_GRANTED
-        if (NotificationPermissionPolicy.needsRuntimeRequest(Build.VERSION.SDK_INT, granted)) {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            NotificationPermissionPolicy.needsRuntimeRequest(Build.VERSION.SDK_INT, granted)
+        ) {
             requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }

@@ -25,17 +25,22 @@
         android:roundIcon="@mipmap/nanzhufeng_app_icon"
         android:label="@string/app_name"
         android:theme="@style/Theme.NanzhufengVideoDownloader"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="false">
         <activity
             android:name=".probe.DouyinProbeActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.NanzhufengVideoDownloader.BackgroundProbe" />
         <activity
             android:name=".feature.settings.SessionLoginActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.NanzhufengVideoDownloader.Starting">
             <intent-filter>

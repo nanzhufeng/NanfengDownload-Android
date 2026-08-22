@@ -27,15 +27,26 @@ object UserFacingErrorPresenter {
 
             resolvedPlatform == DownloadPlatform.XIAOHONGSHU &&
                 hasAny(lower, "image-only note", "image only note") ->
-                "这是小红书图文笔记，没有可下载的视频。" +
-                    "解决办法：请选择带视频播放内容的笔记，再复制最新分享链接。"
+                "小红书图文没有返回可下载的原图地址。" +
+                    "解决办法：请在小红书 App 中重新打开笔记后复制最新分享链接，再智能读取。"
 
             resolvedPlatform == DownloadPlatform.XIAOHONGSHU &&
                 hasAny(lower, "xsec_token", "initial state", "note data") ->
                 "小红书分享链接的访问凭证已失效或页面未返回视频数据。" +
                     "解决办法：请在小红书 App 中重新复制该视频的最新分享链接；仍失败请登录后重试。"
 
-            hasAny(lower, "login required", "sign in to confirm", "confirm you're not a bot", "cookies are no longer valid") ->
+            resolvedPlatform == DownloadPlatform.TIKTOK &&
+                hasAny(lower, "may not be comfortable for some audiences", "log in for access") ->
+                "这条 TikTok 作品被平台标记为受限内容，游客无法读取；普通公开视频不需要登录。" +
+                    "解决办法：请先在 TikTok 中确认该作品可公开播放；若要读取此作品，请到“设置 → 账号与权限 → TikTok”登录后重新智能读取。"
+
+            hasAny(
+                lower,
+                "login required",
+                "sign in to confirm",
+                "confirm you're not a bot",
+                "cookies are no longer valid",
+            ) ->
                 "平台要求验证登录信息。解决办法：${loginAction(resolvedPlatform)}"
 
             hasHttpStatus(lower, 401) || hasHttpStatus(lower, 403) || lower.contains("forbidden") -> {

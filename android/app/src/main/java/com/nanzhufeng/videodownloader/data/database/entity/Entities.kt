@@ -23,6 +23,9 @@ data class MediaItemEntity(
     val creatorId: String,
     val publishDate: String,
     val thumbnailUrl: String,
+    val capturedImageUrlsJson: String = "[]",
+    val capturedImageExpectedCount: Int = 0,
+    val capturedImageSourceVersion: Int = 0,
     val discoveredAt: Long,
 )
 
@@ -98,6 +101,8 @@ data class DownloadHistoryEntity(
     val errorSummary: String? = null,
     val outputUrisJson: String = "[]",
     val audioSegmentCount: Int = 1,
+    val capturedImageExpectedCount: Int = 0,
+    val capturedImageSourceVersion: Int = 0,
 )
 
 data class DownloadHistoryWithThumbnail(

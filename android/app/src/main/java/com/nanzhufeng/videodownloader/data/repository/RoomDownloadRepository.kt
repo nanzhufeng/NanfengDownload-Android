@@ -24,6 +24,7 @@ import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskWithMedia
 import com.nanzhufeng.videodownloader.data.database.entity.MediaItemEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputReportEntity
+import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -60,17 +61,70 @@ class RoomDownloadRepository(
     ): List<String> = database.withTransaction {
         if (items.isEmpty()) return@withTransaction emptyList()
 
-        val existingMediaKeys = buildSet {
-            addAll(taskDao.getDownloadListMediaKeys())
-            addAll(historyDao.getCompletedMediaKeys())
-        }
-        val normalized = items
+        val activeMediaKeys = taskDao.getDownloadListMediaKeys().toSet()
+        val completedMediaKeys = historyDao.getCompletedMediaKeys().toSet()
+        val normalizedItems = items
             .map(MediaItem::normalized)
             .distinctBy(MediaItem::mediaKey)
-            .filterNot { it.mediaKey in existingMediaKeys }
-        if (normalized.isEmpty()) return@withTransaction emptyList()
+        if (normalizedItems.isEmpty()) return@withTransaction emptyList()
+
+        val knownMediaKeys = activeMediaKeys + completedMediaKeys
+        val existingMediaByKey = normalizedItems.asSequence()
+            .filter { media ->
+                media.mediaKey in knownMediaKeys &&
+                    media.platform == DownloadPlatform.DOUYIN &&
+                    media.hasVerifiedCapturedGallery()
+            }
+            .associate { media ->
+                media.mediaKey to database.mediaItemDao().getByKey(media.mediaKey)
+            }
+        val completedHistoryByKey = normalizedItems.asSequence()
+            .filter { media ->
+                media.mediaKey in completedMediaKeys && media.hasVerifiedCapturedGallery()
+            }
+            .associate { media ->
+                media.mediaKey to historyDao.getLatestCompleted(
+                    platform = media.platform.name,
+                    contentId = media.contentId,
+                )
+            }
+        val normalized = normalizedItems.filter { media ->
+            when {
+                media.mediaKey in activeMediaKeys -> false
+                media.mediaKey !in completedMediaKeys -> true
+                else -> media.platform == DownloadPlatform.DOUYIN && (
+                    isCapturedGallerySourceUpgrade(
+                        existing = existingMediaByKey[media.mediaKey],
+                        incoming = media,
+                    ) || needsVerifiedGalleryRedownload(
+                        completed = completedHistoryByKey[media.mediaKey],
+                        incoming = media,
+                    )
+                )
+            }
+        }
 
         val now = clock()
+        // Refresh media metadata even when the task itself remains a duplicate.
+        // Older Douyin tasks can otherwise retain the yt-dlp/one-slide source
+        // forever and never receive the complete structured gallery captured by
+        // a newer app version.
+        val mediaItemsToRefresh = normalizedItems.filter { media ->
+            media.mediaKey !in knownMediaKeys ||
+                (media.platform == DownloadPlatform.DOUYIN && media.hasVerifiedCapturedGallery())
+        }
+        database.mediaItemDao().upsertAll(mediaItemsToRefresh.map { it.toEntity(now) })
+        val reactivatedTaskIds = normalizedItems.mapNotNull { media ->
+            if (media.mediaKey !in activeMediaKeys || !media.hasVerifiedCapturedGallery()) {
+                return@mapNotNull null
+            }
+            val activeTaskId = taskDao.getActiveTaskId(media.mediaKey) ?: return@mapNotNull null
+            activeTaskId.takeIf {
+                taskDao.requeueTerminalForVerifiedSource(activeTaskId, now) == 1
+            }
+        }
+        if (normalized.isEmpty()) return@withTransaction reactivatedTaskIds
+
         val firstSortOrder = taskDao.nextSortOrder()
         val tasks = normalized.mapIndexed { index, media ->
             DownloadTaskEntity(
@@ -95,9 +149,8 @@ class RoomDownloadRepository(
             )
         }
 
-        database.mediaItemDao().upsertAll(normalized.map { it.toEntity(now) })
         taskDao.upsertAll(tasks)
-        tasks.map(DownloadTaskEntity::taskId)
+        reactivatedTaskIds + tasks.map(DownloadTaskEntity::taskId)
     }
 
     override suspend fun setSelected(taskId: String, selected: Boolean) {
@@ -181,6 +234,12 @@ class RoomDownloadRepository(
         if (uniqueIds.isEmpty()) return 0
         return historyDao.deleteByIds(uniqueIds)
     }
+
+    override suspend fun deleteMissingHistoryRecords(): Int =
+        historyDao.deleteMissingMedia()
+
+    override suspend fun markHistoryMediaMissing(taskId: String): Boolean =
+        historyDao.markMediaMissing(taskId) == 1
 
     override suspend fun recoverInterruptedTasks(): Int = taskDao.recoverQueueAfterProcessDeath(clock())
 
@@ -297,6 +356,68 @@ private fun MediaItem.normalized(): MediaItem = copy(
     mediaKey = "${platform.name}:$contentId",
 )
 
+internal fun isCapturedGallerySourceUpgrade(
+    existing: MediaItemEntity?,
+    incoming: MediaItem,
+): Boolean = isCapturedGallerySourceUpgrade(
+    existingUrls = existing?.capturedImageUrlsJson?.toStringList().orEmpty(),
+    existingExpectedCount = existing?.capturedImageExpectedCount ?: 0,
+    existingSourceVersion = existing?.capturedImageSourceVersion ?: 0,
+    incoming = incoming,
+)
+
+internal fun isCapturedGallerySourceUpgrade(
+    existingUrls: List<String>,
+    existingExpectedCount: Int,
+    existingSourceVersion: Int,
+    incoming: MediaItem,
+): Boolean {
+    if (!incoming.hasVerifiedCapturedGallery()) return false
+    if (!DouyinCaptureStore.isVerifiedImageGallery(
+            imageUrls = existingUrls,
+            expectedCount = existingExpectedCount,
+            sourceVersion = existingSourceVersion,
+        )
+    ) {
+        return true
+    }
+    val incomingUrls = incoming.capturedImageUrls
+    return existingUrls.map(String::stableCapturedImageIdentity) !=
+        incomingUrls.map(String::stableCapturedImageIdentity)
+}
+
+internal fun needsVerifiedGalleryRedownload(
+    completed: DownloadHistoryEntity?,
+    incoming: MediaItem,
+): Boolean = needsVerifiedGalleryRedownload(
+    completedExpectedCount = completed?.capturedImageExpectedCount ?: 0,
+    completedSourceVersion = completed?.capturedImageSourceVersion ?: 0,
+    completedOutputCount = completed?.outputUrisJson?.toStringList()?.size ?: 0,
+    incoming = incoming,
+)
+
+internal fun needsVerifiedGalleryRedownload(
+    completedExpectedCount: Int,
+    completedSourceVersion: Int,
+    completedOutputCount: Int,
+    incoming: MediaItem,
+): Boolean = incoming.hasVerifiedCapturedGallery() && (
+    completedExpectedCount != incoming.capturedImageExpectedCount ||
+        completedSourceVersion != incoming.capturedImageSourceVersion ||
+        completedOutputCount != incoming.capturedImageExpectedCount
+    )
+
+private fun MediaItem.hasVerifiedCapturedGallery(): Boolean =
+    DouyinCaptureStore.isVerifiedImageGallery(
+        imageUrls = capturedImageUrls,
+        expectedCount = capturedImageExpectedCount,
+        sourceVersion = capturedImageSourceVersion,
+    )
+
+private fun String.stableCapturedImageIdentity(): String = runCatching {
+    java.net.URI(this).path.orEmpty()
+}.getOrDefault(substringBefore('?'))
+
 private fun MediaItem.toEntity(discoveredAt: Long) = MediaItemEntity(
     mediaKey = mediaKey,
     platform = platform.name,
@@ -308,6 +429,9 @@ private fun MediaItem.toEntity(discoveredAt: Long) = MediaItemEntity(
     creatorId = creatorId,
     publishDate = publishDate,
     thumbnailUrl = thumbnailUrl,
+    capturedImageUrlsJson = JSONArray(capturedImageUrls).toString(),
+    capturedImageExpectedCount = capturedImageExpectedCount,
+    capturedImageSourceVersion = capturedImageSourceVersion,
     discoveredAt = discoveredAt,
 )
 
@@ -350,8 +474,17 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         creatorId = media.creatorId,
         publishDate = media.publishDate,
         thumbnailUrl = media.thumbnailUrl,
+        capturedImageUrls = media.capturedImageUrlsJson.toStringList(),
+        capturedImageExpectedCount = media.capturedImageExpectedCount,
+        capturedImageSourceVersion = media.capturedImageSourceVersion,
     ),
 )
+
+private fun String.toStringList(): List<String> = runCatching {
+    val array = JSONArray(this)
+    List(array.length()) { index -> array.optString(index).trim() }
+        .filter(String::isNotBlank)
+}.getOrDefault(emptyList())
 
 private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     taskId = taskId,
@@ -370,6 +503,8 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     errorSummary = errorSummary,
     outputUrisJson = JSONArray(outputUris).toString(),
     audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
+    capturedImageExpectedCount = capturedImageExpectedCount,
+    capturedImageSourceVersion = capturedImageSourceVersion,
 )
 
 private fun QueuedDownload.toHistory(
@@ -389,6 +524,8 @@ private fun QueuedDownload.toHistory(
     fileExists = false,
     completedAt = completedAt,
     audioSegmentCount = task.audioSegmentCount.coerceIn(1, 20),
+    capturedImageExpectedCount = media.capturedImageExpectedCount,
+    capturedImageSourceVersion = media.capturedImageSourceVersion,
 )
 
 private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
@@ -408,6 +545,8 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     errorSummary = errorSummary,
     outputUris = decodeOutputUris(outputUrisJson, outputUri),
     audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
+    capturedImageExpectedCount = capturedImageExpectedCount,
+    capturedImageSourceVersion = capturedImageSourceVersion,
 )
 
 private fun DownloadHistoryWithThumbnail.toDomain() = history.toDomain().copy(

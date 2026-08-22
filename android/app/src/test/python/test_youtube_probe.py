@@ -1,6 +1,6 @@
 import unittest
 
-from nanzhufeng_probe.youtube_probe import _media_result, _select_streams
+from nanzhufeng_probe.youtube_probe import _extractor_args_for, _media_result, _select_streams
 
 
 class StreamSelectionTest(unittest.TestCase):
@@ -30,6 +30,50 @@ class StreamSelectionTest(unittest.TestCase):
         self.assertEqual("360", video["format_id"])
         self.assertEqual("audio", audio["format_id"])
 
+    def test_360_preset_uses_smallest_valid_rendition_when_platform_has_no_360p(self):
+        formats = [
+            self._progressive("540", 960, 540, 900),
+            self._progressive("720", 1280, 720, 1200),
+        ]
+
+        video, audio = _select_streams(formats, "UP_TO_360P")
+
+        self.assertEqual("540", video["format_id"])
+        self.assertIsNone(audio)
+
+    def test_360_preset_keeps_fitting_separate_video_and_audio_over_540p_fallback(self):
+        formats = [
+            self._video("360-video", 640, 360, 600),
+            self._progressive("540-progressive", 960, 540, 900),
+            {
+                "format_id": "audio",
+                "url": "https://media.test/audio",
+                "ext": "m4a",
+                "vcodec": "none",
+                "acodec": "mp4a",
+                "abr": 128,
+            },
+        ]
+
+        video, audio = _select_streams(formats, "UP_TO_360P")
+
+        self.assertEqual("360-video", video["format_id"])
+        self.assertEqual("audio", audio["format_id"])
+
+    def test_hls_format_is_never_selected_as_a_download_file(self):
+        formats = [
+            {
+                **self._progressive("hls", 1280, 720, 1800),
+                "protocol": "m3u8_native",
+            },
+            self._progressive("direct", 640, 360, 600),
+        ]
+
+        video, audio = _select_streams(formats, "UP_TO_720P")
+
+        self.assertEqual("direct", video["format_id"])
+        self.assertIsNone(audio)
+
     def test_1080_preset_selects_1080_stream(self):
         video, _ = _select_streams(self.formats, "UP_TO_1080P")
         self.assertEqual("1080", video["format_id"])
@@ -37,6 +81,17 @@ class StreamSelectionTest(unittest.TestCase):
     def test_best_preset_has_no_resolution_cap(self):
         video, _ = _select_streams(self.formats, "BEST")
         self.assertEqual("2160", video["format_id"])
+
+    def test_youtube_uses_web_embedded_client_to_avoid_gvs_po_token_requirement(self):
+        self.assertEqual(
+            {"youtube": {"player_client": ["web_embedded"]}},
+            _extractor_args_for("www.youtube.com"),
+        )
+        self.assertEqual(
+            {"youtube": {"player_client": ["web_embedded"]}},
+            _extractor_args_for("youtu.be"),
+        )
+        self.assertIsNone(_extractor_args_for("www.tiktok.com"))
 
     def test_audio_preset_returns_audio_as_primary_stream(self):
         primary, secondary = _select_streams(self.formats, "AUDIO_MP3")

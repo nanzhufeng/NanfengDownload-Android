@@ -57,6 +57,27 @@ class SessionAccessPolicyTest {
     }
 
     @Test
+    fun webViewCookiesBecomeAPlatformScopedCookieJarForYtDlp() {
+        val generatedFor = mutableListOf<SessionSite>()
+        val policy = SessionAccessPolicy(
+            cookieLookup = { site, _ -> "sessionid=${site.name.lowercase()}" },
+            youtubeCookieFile = { null },
+            sessionCookieFile = { site, _ ->
+                generatedFor += site
+                "/private/${site.name.lowercase()}-cookies.txt"
+            },
+        )
+
+        val tiktok = policy.accessFor("https://www.tiktok.com/@creator/video/2")
+        val bilibili = policy.accessFor("https://www.bilibili.com/video/BV1bK411W797")
+
+        assertEquals("sessionid=tiktok", tiktok.cookieHeader)
+        assertEquals("/private/tiktok-cookies.txt", tiktok.cookieFilePath)
+        assertEquals("/private/bilibili-cookies.txt", bilibili.cookieFilePath)
+        assertEquals(listOf(SessionSite.TIKTOK, SessionSite.BILIBILI), generatedFor)
+    }
+
+    @Test
     fun unrelatedUrlGetsNoAuthorizationMaterial() {
         val policy = SessionAccessPolicy(
             cookieLookup = { _, _ -> "secret" },

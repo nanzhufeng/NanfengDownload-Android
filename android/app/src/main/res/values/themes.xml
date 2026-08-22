@@ -12,4 +12,21 @@
         <item name="windowSplashScreenAnimatedIcon">@drawable/nanzhufeng_splash_icon</item>
         <item name="postSplashScreenTheme">@style/Theme.NanzhufengVideoDownloader</item>
     </style>
+
+    <!-- 抖音媒体读取只用于受控 WebView 网络捕获；保持当前首页可见，不能闪出平台网页。 -->
+    <style name="Theme.NanzhufengVideoDownloader.BackgroundProbe" parent="Theme.NanzhufengVideoDownloader">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowDisablePreview">true</item>
+        <item name="android:windowAnimationStyle">@style/Animation.NanzhufengVideoDownloader.NoAnimation</item>
+    </style>
+
+    <style name="Animation.NanzhufengVideoDownloader.NoAnimation" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/nanfeng_no_animation</item>
+        <item name="android:activityOpenExitAnimation">@anim/nanfeng_no_animation</item>
+        <item name="android:activityCloseEnterAnimation">@anim/nanfeng_no_animation</item>
+        <item name="android:activityCloseExitAnimation">@anim/nanfeng_no_animation</item>
+    </style>
 </resources>

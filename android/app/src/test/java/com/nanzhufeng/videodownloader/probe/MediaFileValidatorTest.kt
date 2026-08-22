@@ -37,6 +37,20 @@ class MediaFileValidatorTest {
     }
 
     @Test
+    fun acceptsJpegAboveTheImageMinimumSize() {
+        val payload = ByteArray(2 * 1024).also {
+            byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte()).copyInto(it)
+        }
+
+        assertTrue(
+            MediaFileValidator.isLikelyMedia(
+                input = ByteArrayInputStream(payload),
+                length = payload.size.toLong(),
+            ),
+        )
+    }
+
+    @Test
     fun rejectsSmallFtypPayload() {
         val payload = ByteArray(2 * 1024).also {
             byteArrayOf(

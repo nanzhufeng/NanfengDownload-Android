@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader.domain.download
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadFailureType
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadProcessingStage
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTask
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
@@ -13,6 +14,7 @@ import com.nanzhufeng.videodownloader.data.repository.DownloadRepository
 import java.io.File
 import java.net.UnknownHostException
 import com.nanzhufeng.videodownloader.probe.HttpDownloadException
+import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -69,6 +71,58 @@ class DownloadTaskRunnerTest {
         assertEquals(1, outputStore.publishCalls)
         assertEquals(DownloadTaskStatus.COMPLETED, repository.archived.single().finalStatus)
         assertEquals("content://media/new-copy", repository.archived.single().outputUri)
+    }
+
+    @Test
+    fun verifiedGalleryIgnoresLegacyCompletedHistoryAndDownloadsANewCopy() = runBlocking {
+        val queued = verifiedGalleryQueued(14)
+        val repository = RunnerRepository(
+            initial = queued,
+            completedHistory = completedHistory(queued),
+        )
+        val resolver = SuccessfulResolver()
+        val transfer = SuccessfulTransfer()
+        val outputStore = RepublishOutputStore()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = transfer,
+            outputStore = outputStore,
+            clock = { 260L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Completed, result)
+        assertEquals(1, resolver.calls)
+        assertEquals(1, transfer.calls)
+        assertEquals(0, outputStore.findExistingCalls)
+        assertEquals(DownloadTaskStatus.COMPLETED, repository.archived.single().finalStatus)
+        assertEquals(14, repository.archived.single().capturedImageExpectedCount)
+    }
+
+    @Test
+    fun certifiedCompleteGalleryHistoryStillSkipsDuplicateNetworkWork() = runBlocking {
+        val queued = verifiedGalleryQueued(14)
+        val completed = completedHistory(queued).copy(
+            outputUris = List(14) { index -> "content://media/gallery/$index" },
+            capturedImageExpectedCount = 14,
+            capturedImageSourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+        )
+        val repository = RunnerRepository(queued, completed)
+        val resolver = RecordingResolver()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = FailingTransfer(),
+            outputStore = ExistingOutputStore(),
+            clock = { 270L },
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Skipped, result)
+        assertEquals(0, resolver.calls)
     }
 
     @Test
@@ -158,6 +212,31 @@ class DownloadTaskRunnerTest {
         assertEquals(DownloadTaskStatus.COMPLETED, repository.archived.single().finalStatus)
     }
 
+    @Test
+    fun publishingReportsRealProgressAndStillCompletes() = runBlocking {
+        val repository = RunnerRepository(queued())
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = SuccessfulResolver(),
+            transfer = SuccessfulTransfer(),
+            outputStore = ProgressPublishingOutputStore(),
+        )
+
+        val result = runner.runNext()
+
+        assertEquals(TaskRunResult.Completed, result)
+        assertTrue(
+            repository.processingUpdates.contains(
+                DownloadProcessingStage.PUBLISHING to 50,
+            ),
+        )
+        assertTrue(
+            repository.processingUpdates.contains(
+                DownloadProcessingStage.PUBLISHING to 100,
+            ),
+        )
+    }
+
     private fun queued() = QueuedDownload(
         task = DownloadTask(
             taskId = "task-one",
@@ -190,6 +269,28 @@ class DownloadTaskRunnerTest {
         ),
     )
 
+    private fun verifiedGalleryQueued(count: Int): QueuedDownload {
+        val contentId = "7670887343922973155"
+        val mediaKey = "DOUYIN:$contentId"
+        return queued().let { queued ->
+            queued.copy(
+                task = queued.task.copy(mediaKey = mediaKey),
+                media = queued.media.copy(
+                    mediaKey = mediaKey,
+                    platform = DownloadPlatform.DOUYIN,
+                    contentId = contentId,
+                    originalUrl = "https://www.douyin.com/note/$contentId",
+                    capturedImageUrls = List(count) { index ->
+                        "https://p3-sign.douyinpic.com/tos/image-$index~tplv-dy-aweme-images.webp"
+                    },
+                    capturedImageExpectedCount = count,
+                    capturedImageSourceVersion =
+                        DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+                ),
+            )
+        }
+    }
+
     private fun completedHistory(queued: QueuedDownload) = DownloadHistory(
         taskId = "completed-task",
         platform = queued.media.platform,
@@ -212,6 +313,7 @@ private class RunnerRepository(
 ) : DownloadRepository {
     var current = initial
     val archived = mutableListOf<DownloadHistory>()
+    val processingUpdates = mutableListOf<Pair<DownloadProcessingStage, Int>>()
     override val activeTasks: Flow<List<QueuedDownload>> = MutableStateFlow(listOf(initial))
     override val history: Flow<List<DownloadHistory>> = MutableStateFlow(emptyList())
 
@@ -229,6 +331,20 @@ private class RunnerRepository(
         speedBytesPerSecond: Long,
         remainingSeconds: Long?,
     ) = Unit
+
+    override suspend fun updateProcessing(
+        taskId: String,
+        stage: DownloadProcessingStage,
+        progressPercent: Int,
+    ) {
+        processingUpdates += stage to progressPercent
+        current = current.copy(
+            task = current.task.copy(
+                processingStage = stage,
+                processingProgressPercent = progressPercent,
+            ),
+        )
+    }
 
     override suspend fun transition(taskId: String, to: DownloadTaskStatus) {
         current = current.copy(task = current.task.copy(status = to))
@@ -393,4 +509,30 @@ private class PublishingOutputStore : DownloadOutputStore {
         resolution: ResolutionPreset,
         prepared: PreparedMedia,
     ): StoredMedia = StoredMedia("content://media/refreshed", prepared.file.length())
+}
+
+private class ProgressPublishingOutputStore : DownloadOutputStore {
+    override suspend fun findExisting(media: MediaItem, resolution: ResolutionPreset): StoredMedia? = null
+
+    override suspend fun uriExists(uri: String): Boolean = false
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+    ): StoredMedia = StoredMedia("content://media/progress", prepared.file.length())
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+        saveTreeUri: String?,
+        fileNameRule: com.nanzhufeng.videodownloader.data.settings.FileNameRule,
+        audioSegmentCount: Int,
+        onProgress: suspend (Long, Long) -> Unit,
+    ): StoredMedia {
+        onProgress(50L, 100L)
+        onProgress(100L, 100L)
+        return StoredMedia("content://media/progress", prepared.file.length())
+    }
 }
