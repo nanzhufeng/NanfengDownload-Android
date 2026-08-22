@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.app.ActivityOptionsCompat
 import android.app.Activity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -194,7 +195,10 @@ fun NanzhufengApp(
 
         LaunchedEffect(homeState.douyinCaptureUrl) {
             homeState.douyinCaptureUrl?.let { sourceUrl ->
-                douyinCaptureLauncher.launch(DouyinProbeActivity.createIntent(context, sourceUrl))
+                douyinCaptureLauncher.launch(
+                    DouyinProbeActivity.createIntent(context, sourceUrl),
+                    ActivityOptionsCompat.makeCustomAnimation(context, 0, 0),
+                )
             }
         }
 

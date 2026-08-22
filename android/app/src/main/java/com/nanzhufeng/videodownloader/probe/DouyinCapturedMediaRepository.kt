@@ -13,6 +13,8 @@ data class DouyinCapturedMedia(
     val thumbnailUrl: String,
     val capturedAtMillis: Long,
     val imageUrls: List<String> = emptyList(),
+    val imageExpectedCount: Int = 0,
+    val imageSourceVersion: Int = 0,
 )
 
 fun interface DouyinCapturedMediaSource {
@@ -50,7 +52,11 @@ class DouyinCapturedMediaRepository(
             DouyinCaptureStore.extractWorkId(media.pageUrl) == media.workId &&
             (
                 DouyinCaptureStore.isMediaUrl(media.mediaUrl) ||
-                    (media.imageUrls.isNotEmpty() && media.imageUrls.all(DouyinCaptureStore::isImageUrl))
+                    DouyinCaptureStore.isVerifiedImageGallery(
+                        imageUrls = media.imageUrls,
+                        expectedCount = media.imageExpectedCount,
+                        sourceVersion = media.imageSourceVersion,
+                    )
                 )
 
     private fun DouyinCapturedMedia.toJson() = JSONObject()
@@ -62,6 +68,8 @@ class DouyinCapturedMediaRepository(
         .put("thumbnail_url", thumbnailUrl)
         .put("captured_at_millis", capturedAtMillis)
         .put("image_urls", JSONArray(imageUrls))
+        .put("image_expected_count", imageExpectedCount)
+        .put("image_source_version", imageSourceVersion)
 
     private fun JSONObject.toCapturedMedia() = DouyinCapturedMedia(
         workId = getString("work_id"),
@@ -78,6 +86,8 @@ class DouyinCapturedMediaRepository(
                 }
             }
         }.orEmpty(),
+        imageExpectedCount = optInt("image_expected_count"),
+        imageSourceVersion = optInt("image_source_version"),
     )
 
     private companion object {

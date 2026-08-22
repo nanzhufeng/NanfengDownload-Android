@@ -38,6 +38,16 @@ class UrlClassifierTest {
     }
 
     @Test
+    fun douyinNoteIsAcceptedAsSingleWork() {
+        val source = UrlClassifier.extractAndClassify(
+            "https://www.douyin.com/note/7670887343922973155",
+        )
+
+        assertEquals(Platform.DOUYIN, source.platform)
+        assertEquals(SourceKind.SINGLE_VIDEO, source.kind)
+    }
+
+    @Test
     fun youtubeChannelIsNotSingleVideo() {
         val source = UrlClassifier.extractAndClassify("https://www.youtube.com/@example/videos")
 
@@ -83,11 +93,15 @@ class UrlClassifierTest {
         val video = UrlClassifier.extractAndClassify(
             "https://www.iesdouyin.com/share/video/7669248142533973995/",
         )
+        val note = UrlClassifier.extractAndClassify(
+            "https://www.iesdouyin.com/share/note/7670887343922973155/",
+        )
         val creator = UrlClassifier.extractAndClassify(
             "https://www.iesdouyin.com/share/user/MS4wLjABAAAAcurrent/",
         )
 
         assertEquals(SourceKind.SINGLE_VIDEO, video.kind)
+        assertEquals(SourceKind.SINGLE_VIDEO, note.kind)
         assertEquals(SourceKind.CHANNEL_OR_PLAYLIST, creator.kind)
     }
 

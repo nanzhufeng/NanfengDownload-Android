@@ -998,7 +998,9 @@ private fun queueStatusText(queued: QueuedDownload): String = when (queued.task.
     DownloadTaskStatus.PAUSED -> "已暂停"
     DownloadTaskStatus.WAITING_NETWORK ->
         "等待网络：${UserFacingErrorPresenter.message(queued.task.errorSummary, queued.media.platform)}"
-    DownloadTaskStatus.VALIDATING -> if (queued.task.resolution == ResolutionPreset.AUDIO_MP3) {
+    DownloadTaskStatus.VALIDATING -> mediaTaskPhaseText(queued.task) ?: if (
+        queued.task.resolution == ResolutionPreset.AUDIO_MP3
+    ) {
         "正在校验 MP3 文件"
     } else {
         "正在校验文件"
@@ -1041,6 +1043,22 @@ internal fun audioTaskPhaseText(task: DownloadTask): String? {
 }
 
 internal fun mediaTaskPhaseText(task: DownloadTask): String? {
+    if (
+        task.status == DownloadTaskStatus.VALIDATING &&
+        task.processingStage == DownloadProcessingStage.PUBLISHING
+    ) {
+        return "正在保存到系统媒体库 ${task.processingProgressPercent.coerceIn(0, 100)}%"
+    }
+    if (
+        task.status == DownloadTaskStatus.VALIDATING &&
+        task.processingStage == DownloadProcessingStage.VALIDATING
+    ) {
+        return if (task.resolution == ResolutionPreset.AUDIO_MP3) {
+            "正在快速校验 MP3 文件"
+        } else {
+            "正在快速校验文件"
+        }
+    }
     if (
         task.status == DownloadTaskStatus.DOWNLOADING &&
         task.resolution == ResolutionPreset.UP_TO_360P &&

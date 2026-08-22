@@ -9,6 +9,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.io.path.createTempDirectory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
@@ -67,6 +69,56 @@ class StreamDownloadCoordinatorTest {
             assertTrue(files.all(File::isFile))
             assertEquals(1_000L, progress.last().downloadedBytes)
             assertEquals(1_000L, progress.last().totalBytes)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun limitsGalleryStreamsWithoutReturningThemOutOfOrder() = runBlocking {
+        val directory = createTempDirectory("limited-gallery-streams-").toFile()
+        val firstWaveStarted = CountDownLatch(3)
+        val releaseFirstWave = CountDownLatch(1)
+        val active = AtomicInteger(0)
+        val peakActive = AtomicInteger(0)
+        val downloader = FileDownloader { request, _, onProgress ->
+            val currentActive = active.incrementAndGet()
+            peakActive.updateAndGet { previous -> maxOf(previous, currentActive) }
+            try {
+                firstWaveStarted.countDown()
+                releaseFirstWave.await(2, TimeUnit.SECONDS)
+                request.target.writeBytes(ByteArray(100))
+                onProgress(100L, 100L)
+                request.target
+            } finally {
+                active.decrementAndGet()
+            }
+        }
+
+        try {
+            val requests = List(5) { index ->
+                DirectDownloadRequest(
+                    url = "https://example.invalid/image/$index",
+                    headers = emptyMap(),
+                    target = File(directory, "image-$index.webp"),
+                )
+            }
+            val operation = async(Dispatchers.Default) {
+                StreamDownloadCoordinator(downloader, isComplete = { false }).download(
+                    requests = requests,
+                    cancelled = AtomicBoolean(false),
+                    maxConcurrentStreams = 3,
+                    onProgress = {},
+                )
+            }
+
+            assertTrue("前三张图片应立即并行开始", firstWaveStarted.await(2, TimeUnit.SECONDS))
+            assertEquals(3, peakActive.get())
+            releaseFirstWave.countDown()
+            val files = withTimeout(3_000) { operation.await() }
+
+            assertEquals(3, peakActive.get())
+            assertEquals(requests.map { it.target }, files)
         } finally {
             directory.deleteRecursively()
         }

@@ -40,7 +40,11 @@ internal suspend fun readHistoryMediaMetadata(
     val readable = metadata.filter(HistorySingleMediaMetadata::readable)
     val readableDurations = readable.mapNotNull(HistorySingleMediaMetadata::durationMillis)
     val readableSizes = metadata.map(HistorySingleMediaMetadata::fileSize)
-    val kind = historyMediaKind(item.resolution, metadata.map(HistorySingleMediaMetadata::mimeType))
+    val kind = historyMediaKind(
+        resolution = item.resolution,
+        mimeTypes = metadata.map(HistorySingleMediaMetadata::mimeType),
+        hasDynamicImageGallery = metadata.any(HistorySingleMediaMetadata::isDynamicImage),
+    )
     HistoryMediaMetadata(
         durationMillis = readableDurations.sum().takeIf { readableDurations.size == uris.size },
         fileSize = readableSizes.sum()
@@ -57,6 +61,7 @@ private data class HistorySingleMediaMetadata(
     val durationMillis: Long?,
     val fileSize: Long,
     val mimeType: String,
+    val isDynamicImage: Boolean,
     val readable: Boolean,
 )
 
@@ -70,22 +75,25 @@ private fun readSingleMetadata(
         } == true
     }.getOrDefault(false)
     val mimeType = runCatching { context.contentResolver.getType(uri).orEmpty() }.getOrDefault("")
-    val actualSize = if (readable) runCatching {
+    val documentMetadata = if (readable) runCatching {
         context.contentResolver.query(
             uri,
-            arrayOf(OpenableColumns.SIZE),
+            arrayOf(OpenableColumns.SIZE, OpenableColumns.DISPLAY_NAME),
             null,
             null,
             null,
         )?.use { cursor ->
             val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+            val displayNameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             if (sizeIndex >= 0 && cursor.moveToFirst() && !cursor.isNull(sizeIndex)) {
-                cursor.getLong(sizeIndex)
+                cursor.getLong(sizeIndex) to
+                    if (displayNameIndex >= 0) cursor.getString(displayNameIndex).orEmpty() else ""
             } else {
-                null
+                0L to ""
             }
         }
-    }.getOrNull()?.takeIf { it > 0L } ?: 0L else 0L
+    }.getOrNull() ?: (0L to "") else 0L to ""
+    val actualSize = documentMetadata.first
 
     val durationMillis = if (readable && !mimeType.startsWith("image/")) runCatching {
         MediaMetadataRetriever().use { retriever ->
@@ -101,6 +109,7 @@ private fun readSingleMetadata(
         durationMillis = durationMillis,
         fileSize = actualSize,
         mimeType = mimeType,
+        isDynamicImage = documentMetadata.second.contains("（动态）"),
         readable = readable,
     )
 }
@@ -114,8 +123,10 @@ internal fun historyKindLabel(kind: HistoryMediaKind): String = when (kind) {
 internal fun historyMediaKind(
     resolution: ResolutionPreset,
     mimeTypes: List<String>,
+    hasDynamicImageGallery: Boolean = false,
 ): HistoryMediaKind = when {
     resolution == ResolutionPreset.AUDIO_MP3 -> HistoryMediaKind.AUDIO
+    hasDynamicImageGallery -> HistoryMediaKind.IMAGE
     mimeTypes.any { it.startsWith("image/") } -> HistoryMediaKind.IMAGE
     else -> HistoryMediaKind.VIDEO
 }

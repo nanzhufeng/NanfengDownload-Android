@@ -17,6 +17,19 @@ class DouyinCaptureStoreTest {
     }
 
     @Test
+    fun capturesAnimatedNoteMediaOnlyFromTheTargetNotePage() {
+        val pageUrl = "https://www.douyin.com/note/7674830543565405861"
+        DouyinCaptureStore.begin(pageUrl)
+        DouyinCaptureStore.capture(
+            pageUrl = pageUrl,
+            requestUrl = "https://v26-web.douyinvod.com/video/tos/cn/tos-cn-ve-15/animated-note?mime_type=video_mp4",
+        )
+
+        assertTrue(DouyinCaptureStore.latestMediaUrl?.contains("animated-note") == true)
+        assertTrue(DouyinCaptureStore.latestPageUrl == pageUrl)
+    }
+
+    @Test
     fun rejectsMediaFromAnotherWorkPage() {
         DouyinCaptureStore.begin("https://www.douyin.com/video/7315041660419853608")
         DouyinCaptureStore.capture(
@@ -93,6 +106,54 @@ class DouyinCaptureStoreTest {
                 pageUrl = "https://www.douyin.com/video/7659318944100076999",
                 requestUrl = "https://p3-sign.douyinpic.com/tos-cn-i-0813/other.webp?x-expires=1",
             ).isEmpty(),
+        )
+    }
+
+    @Test
+    fun retainsTargetPageImagesCapturedBeforeTheDomIsReady() {
+        val pageUrl = "https://www.douyin.com/note/7659318944100076838"
+        val imageUrl = "https://p3-sign.douyinpic.com/tos-cn-i-0813/note.webp?x-expires=1"
+        DouyinCaptureStore.begin(pageUrl)
+
+        DouyinCaptureStore.captureImage(pageUrl, imageUrl)
+
+        assertTrue(DouyinCaptureStore.capturedImageUrls() == listOf(imageUrl))
+    }
+
+    @Test
+    fun verifiedGalleryRequiresVersionExactCountAndOriginalTemplate() {
+        val clean = List(14) { index ->
+            "https://p3-sign.douyinpic.com/tos/image-$index~tplv-dy-aweme-images.webp"
+        }
+
+        assertTrue(
+            DouyinCaptureStore.isVerifiedImageGallery(
+                imageUrls = clean,
+                expectedCount = 14,
+                sourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+            ),
+        )
+        assertFalse(
+            DouyinCaptureStore.isVerifiedImageGallery(
+                imageUrls = clean.take(2),
+                expectedCount = 14,
+                sourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+            ),
+        )
+        assertFalse(
+            DouyinCaptureStore.isVerifiedImageGallery(
+                imageUrls = clean,
+                expectedCount = 14,
+                sourceVersion = 0,
+            ),
+        )
+        assertFalse(
+            DouyinCaptureStore.isVerifiedImageGallery(
+                imageUrls = clean.dropLast(1) +
+                    "https://p3-sign.douyinpic.com/tos/water~tplv-dy-water-v2.webp",
+                expectedCount = 14,
+                sourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+            ),
         )
     }
 }

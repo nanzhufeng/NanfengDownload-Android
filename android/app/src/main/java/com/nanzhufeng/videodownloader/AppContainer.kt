@@ -53,6 +53,9 @@ class AppContainer private constructor(
                 NanzhufengMigrations.MIGRATION_3_4,
                 NanzhufengMigrations.MIGRATION_4_5,
                 NanzhufengMigrations.MIGRATION_5_6,
+                NanzhufengMigrations.MIGRATION_6_7,
+                NanzhufengMigrations.MIGRATION_7_8,
+                NanzhufengMigrations.MIGRATION_8_9,
             )
                 .build()
             val downloads = RoomDownloadRepository(database)

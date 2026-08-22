@@ -4,14 +4,55 @@ from unittest.mock import patch
 
 from nanzhufeng_probe.youtube_probe import (
     _bilibili_fallback_info,
+    _douyin_gallery_result,
     _media_result,
     _request_headers,
     _resolve_known_short_link,
+    _xiaohongshu_image_items,
     _xiaohongshu_image_urls,
     _xiaohongshu_info,
     _xiaohongshu_note_state,
     extract_single,
 )
+
+
+class DouyinGalleryContractTest(unittest.TestCase):
+    def test_uses_every_clean_url_list_image_and_ignores_download_renditions(self):
+        images = []
+        for index in range(14):
+            images.append({
+                "url_list": [
+                    f"https://p3-sign.douyinpic.com/tos/image-{index}~tplv-dy-aweme-images.webp",
+                ],
+                "download_url_list": [
+                    f"https://p3-sign.douyinpic.com/tos/image-{index}~tplv-dy-water-v2.webp",
+                ],
+            })
+        result = _douyin_gallery_result({
+            "aweme_id": "7670887343922973155",
+            "desc": "图文",
+            "author": {"nickname": "作者"},
+            "images": images,
+        }, "https://www.douyin.com/note/7670887343922973155")
+
+        self.assertEqual(14, result["expected_count"])
+        self.assertEqual(14, len(result["image_urls"]))
+        self.assertTrue(all("tplv-dy-aweme-images" in url for url in result["image_urls"]))
+        self.assertTrue(all("tplv-dy-water" not in url for url in result["image_urls"]))
+
+    def test_rejects_partial_clean_gallery(self):
+        with self.assertRaisesRegex(ValueError, "完整"):
+            _douyin_gallery_result({
+                "aweme_id": "7670887343922973155",
+                "images": [
+                    {"url_list": [
+                        "https://p3-sign.douyinpic.com/tos/clean~tplv-dy-aweme-images.webp",
+                    ]},
+                    {"url_list": [
+                        "https://p3-sign.douyinpic.com/tos/water~tplv-dy-water-v2.webp",
+                    ]},
+                ],
+            }, "https://www.douyin.com/note/7670887343922973155")
 
 
 class BilibiliFallbackTest(unittest.TestCase):
@@ -149,6 +190,49 @@ class XiaohongshuStateTest(unittest.TestCase):
         self.assertEqual(
             ["https://ci.xiaohongshu.com/image-key?imageView2/2/w/format/png"],
             _xiaohongshu_image_urls(note),
+        )
+
+    def test_image_collection_uses_jpeg_for_ultra_hdr_original(self):
+        note = {
+            "imageList": [
+                {
+                    "url": (
+                        "https://sns-webpic-qc.xhscdn.com/12345/abc123/"
+                        "notes_uhdr/image-key!nd_dft_wlteh_webp_3_0.jpg"
+                    )
+                }
+            ]
+        }
+
+        self.assertEqual(
+            ["https://ci.xiaohongshu.com/notes_uhdr/image-key?imageView2/2/w/format/jpg"],
+            _xiaohongshu_image_urls(note),
+        )
+
+    def test_live_photo_keeps_original_image_and_paired_motion_stream(self):
+        note = {
+            "imageList": [
+                {
+                    "url": (
+                        "https://sns-webpic-qc.xhscdn.com/12345/abc123/"
+                        "notes_uhdr/live-image!nd_dft_wlteh_webp_3_0.jpg"
+                    ),
+                    "livePhoto": True,
+                    "stream": {
+                        "h264": [{"masterUrl": "http://sns-video-v6.xhscdn.com/live.mp4"}]
+                    },
+                }
+            ]
+        }
+
+        self.assertEqual(
+            [
+                {
+                    "url": "https://ci.xiaohongshu.com/notes_uhdr/live-image?imageView2/2/w/format/jpg",
+                    "motion_url": "https://sns-video-v6.xhscdn.com/live.mp4",
+                }
+            ],
+            _xiaohongshu_image_items(note),
         )
 
     def test_image_collection_refuses_when_only_watermark_scene_is_available(self):
@@ -417,6 +501,16 @@ class DouyinShortLinkTest(unittest.TestCase):
             self.assertEqual(
                 final_url,
                 _resolve_known_short_link("https://v.douyin.com/current/", ""),
+            )
+
+    def test_douyin_note_share_is_resolved_to_canonical_note_before_background_probe(self):
+        with patch(
+            "nanzhufeng_probe.youtube_probe._fetch",
+            return_value=("", "https://www.douyin.com/share/note/7670887343922973155/?region=CN"),
+        ):
+            self.assertEqual(
+                "https://www.douyin.com/note/7670887343922973155",
+                _resolve_known_short_link("https://v.douyin.com/YlKVJsJRtvc/", ""),
             )
 
 

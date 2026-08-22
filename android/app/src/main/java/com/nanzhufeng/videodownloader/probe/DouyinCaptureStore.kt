@@ -8,18 +8,31 @@ object DouyinCaptureStore {
         val mediaUrl: String,
         val pageUrl: String,
         val imageUrls: List<String> = emptyList(),
+        val imageExpectedCount: Int = 0,
+        val imageSourceVersion: Int = 0,
     )
 
     private val captured = AtomicReference<CapturedMedia?>(null)
     private val capturedImages = AtomicReference<List<String>>(emptyList())
     private val targetWorkId = AtomicReference<String?>(null)
-    private val workIdPattern = Regex("/video/(\\d+)")
+    // 抖音会把实况图/动态图片作品放在 `/note/<id>`，但页面实际播放的
+    // 仍是受签名保护的 MP4 流。`video` 与 `note` 必须使用同一作品 ID
+    // 边界，避免把相邻推荐流误捕获为当前下载任务。
+    private val workIdPattern = Regex("/(?:video|note)/(\\d+)")
 
     val latestMediaUrl: String?
         get() = captured.get()?.mediaUrl
 
     val latestPageUrl: String?
         get() = captured.get()?.pageUrl
+
+    /**
+     * Network interception may see a note image before the WebView exposes it
+     * in the DOM.  Keep this private-session snapshot available to the probe,
+     * but never treat it as a completed capture by itself: a note can still
+     * declare a video element after its preview image has arrived.
+     */
+    internal fun capturedImageUrls(): List<String> = capturedImages.get()
 
     fun begin(sourceUrl: String) {
         captured.set(null)
@@ -99,4 +112,21 @@ object DouyinCaptureStore {
             lower.contains(".png") || lower.contains(".webp")
         return lower.startsWith("https://") && trustedImageHost && imagePath && !isMediaUrl(url)
     }
+
+    internal fun isVerifiedImageGallery(
+        imageUrls: List<String>,
+        expectedCount: Int,
+        sourceVersion: Int,
+    ): Boolean = sourceVersion == STRUCTURED_GALLERY_SOURCE_VERSION &&
+        expectedCount > 0 &&
+        imageUrls.size == expectedCount &&
+        imageUrls.distinct().size == expectedCount &&
+        imageUrls.all { url ->
+            val lower = url.lowercase()
+            isImageUrl(url) &&
+                "tplv-dy-aweme-images" in lower &&
+                "tplv-dy-water" !in lower
+        }
+
+    const val STRUCTURED_GALLERY_SOURCE_VERSION = 1
 }

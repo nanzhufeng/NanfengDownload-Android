@@ -15,6 +15,7 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import com.nanzhufeng.videodownloader.probe.HttpDownloadException
+import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import java.util.concurrent.CancellationException
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.sync.Mutex
@@ -23,6 +24,8 @@ import kotlinx.coroutines.sync.withLock
 data class ResolvedImage(
     val url: String,
     val extension: String = "jpg",
+    val motionUrl: String? = null,
+    val motionExtension: String = "mp4",
 )
 
 data class ResolvedMedia(
@@ -43,6 +46,7 @@ data class PreparedMedia(
     val file: File,
     val mimeType: String,
     val additionalFiles: List<File> = emptyList(),
+    val galleryItemCount: Int = 0,
 ) {
     val files: List<File>
         get() = listOf(file) + additionalFiles
@@ -101,6 +105,27 @@ interface DownloadOutputStore {
         fileNameRule: FileNameRule,
         audioSegmentCount: Int = 1,
     ): StoredMedia = publish(media, resolution, prepared)
+
+    suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
+        audioSegmentCount: Int = 1,
+        onProgress: suspend (publishedBytes: Long, totalBytes: Long) -> Unit,
+    ): StoredMedia {
+        val stored = publish(
+            media,
+            resolution,
+            prepared,
+            saveTreeUri,
+            fileNameRule,
+            audioSegmentCount,
+        )
+        onProgress(stored.fileSize, stored.fileSize)
+        return stored
+    }
 }
 
 sealed interface TaskRunResult {
@@ -128,12 +153,15 @@ class DownloadTaskRunner(
             repository.transition(next.task.taskId, DownloadTaskStatus.PARSING)
             next
         } ?: return TaskRunResult.Idle
-        val completed = repository.findCompleted(
+        val completedCandidate = repository.findCompleted(
             queued.media.platform,
             queued.media.contentId,
             queued.task.resolution,
             queued.task.audioSegmentCount,
         )
+        val completed = completedCandidate?.takeIf { history ->
+            !queued.media.hasVerifiedCapturedGallery() || history.certifies(queued.media)
+        }
         val completedUris = completed?.outputUris.orEmpty()
         var completedFilesExist = completedUris.isNotEmpty()
         for (uri in completedUris) {
@@ -238,7 +266,18 @@ class DownloadTaskRunner(
                     queued.task.saveTreeUri,
                     queued.task.fileNameRule,
                     queued.task.audioSegmentCount,
-                )
+                ) { publishedBytes, totalBytes ->
+                    val percent = if (totalBytes > 0L) {
+                        (publishedBytes * 100L / totalBytes).toInt().coerceIn(0, 100)
+                    } else {
+                        0
+                    }
+                    repository.updateProcessing(
+                        queued.task.taskId,
+                        DownloadProcessingStage.PUBLISHING,
+                        percent,
+                    )
+                }
             }
             repository.transition(queued.task.taskId, DownloadTaskStatus.COMPLETED)
             repository.updateProcessing(
@@ -311,7 +350,21 @@ class DownloadTaskRunner(
         errorSummary = errorSummary,
         outputUris = stored?.uris.orEmpty(),
         audioSegmentCount = task.audioSegmentCount.coerceIn(1, 20),
+        capturedImageExpectedCount = media.capturedImageExpectedCount,
+        capturedImageSourceVersion = media.capturedImageSourceVersion,
     )
+
+    private fun MediaItem.hasVerifiedCapturedGallery(): Boolean =
+        DouyinCaptureStore.isVerifiedImageGallery(
+            imageUrls = capturedImageUrls,
+            expectedCount = capturedImageExpectedCount,
+            sourceVersion = capturedImageSourceVersion,
+        )
+
+    private fun DownloadHistory.certifies(media: MediaItem): Boolean =
+        capturedImageExpectedCount == media.capturedImageExpectedCount &&
+            capturedImageSourceVersion == media.capturedImageSourceVersion &&
+            outputUris.size == media.capturedImageExpectedCount
 
     private fun DownloadTaskStatus.toFailureType(): DownloadFailureType = when (this) {
         DownloadTaskStatus.PARSING -> DownloadFailureType.SOURCE

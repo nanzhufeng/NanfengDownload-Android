@@ -27,7 +27,8 @@ object UrlClassifier {
                     path.startsWith("/channel/") || path.startsWith("/c/")) ->
                 ClassifiedSource(Platform.YOUTUBE, SourceKind.CHANNEL_OR_PLAYLIST, raw)
 
-            host.matchesDomain("douyin.com") && path.startsWith("/video/") ->
+            host.matchesDomain("douyin.com") &&
+                (path.startsWith("/video/") || path.startsWith("/note/")) ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.SINGLE_VIDEO, raw)
 
             host.matchesDomain("douyin.com") && path.startsWith("/user/") ->
@@ -36,7 +37,8 @@ object UrlClassifier {
             host == "v.douyin.com" ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, raw)
 
-            host.matchesDomain("iesdouyin.com") && path.startsWith("/share/video/") ->
+            host.matchesDomain("iesdouyin.com") &&
+                (path.startsWith("/share/video/") || path.startsWith("/share/note/")) ->
                 ClassifiedSource(Platform.DOUYIN, SourceKind.SINGLE_VIDEO, raw)
 
             host.matchesDomain("iesdouyin.com") && path.startsWith("/share/user/") ->

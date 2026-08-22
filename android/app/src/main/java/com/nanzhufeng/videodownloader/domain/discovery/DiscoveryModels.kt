@@ -17,6 +17,9 @@ data class DiscoveredMedia(
     val publishedAt: String,
     val thumbnailUrl: String,
     val defaultResolution: ResolutionPreset,
+    val capturedImageUrls: List<String> = emptyList(),
+    val capturedImageExpectedCount: Int = 0,
+    val capturedImageSourceVersion: Int = 0,
 )
 
 sealed interface DiscoveryResult {

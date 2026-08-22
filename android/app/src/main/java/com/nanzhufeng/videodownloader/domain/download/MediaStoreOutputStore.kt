@@ -12,6 +12,7 @@ import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import com.nanzhufeng.videodownloader.probe.MediaFileValidator
 import java.io.File
+import java.io.OutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -86,8 +87,27 @@ class MediaStoreOutputStore(
         saveTreeUri: String?,
         fileNameRule: FileNameRule,
         audioSegmentCount: Int,
+    ): StoredMedia = publish(
+        media = media,
+        resolution = resolution,
+        prepared = prepared,
+        saveTreeUri = saveTreeUri,
+        fileNameRule = fileNameRule,
+        audioSegmentCount = audioSegmentCount,
+        onProgress = { _, _ -> },
+    )
+
+    override suspend fun publish(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        prepared: PreparedMedia,
+        saveTreeUri: String?,
+        fileNameRule: FileNameRule,
+        audioSegmentCount: Int,
+        onProgress: suspend (publishedBytes: Long, totalBytes: Long) -> Unit,
     ): StoredMedia = outputMutex.withLock { withContext(Dispatchers.IO) {
         val files = prepared.files
+        val totalBytes = files.sumOf(File::length).coerceAtLeast(1L)
         val requestedPaths = outputPaths(media, resolution, fileNameRule, audioSegmentCount, prepared)
         require(files.size == requestedPaths.size) {
             "待保存媒体分段数量与任务设置不一致：${files.size}/${requestedPaths.size}"
@@ -97,6 +117,7 @@ class MediaStoreOutputStore(
                 treeUri = Uri.parse(saveTreeUri),
                 relativePaths = requestedPaths.map { it.substringAfter('/') },
                 prepared = prepared,
+                onProgress = onProgress,
             )
         }
         require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -104,25 +125,34 @@ class MediaStoreOutputStore(
         }
         require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
 
-        val collection = collectionFor(prepared.mimeType)
         val paths = uniqueMediaStorePaths(requestedPaths)
         val createdUris = mutableListOf<Uri>()
         val stored = mutableListOf<StoredMedia>()
+        var publishedBytes = 0L
         try {
-            files.zip(paths).forEach { (file, relativePath) ->
+            for ((file, relativePath) in files.zip(paths)) {
+                val mimeType = file.outputMimeType(prepared.mimeType)
                 val values = ContentValues().apply {
                     put(MediaStore.MediaColumns.DISPLAY_NAME, relativePath.substringAfterLast('/'))
-                    put(MediaStore.MediaColumns.MIME_TYPE, file.outputMimeType(prepared.mimeType))
+                    put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
                     put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath.substringBeforeLast('/') + "/")
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
-                val uri = requireNotNull(resolver.insert(collection, values)) {
+                val uri = requireNotNull(resolver.insert(collectionFor(mimeType), values)) {
                     "无法在系统媒体库创建输出文件"
                 }
                 createdUris += uri
                 requireNotNull(resolver.openOutputStream(uri, "w")) {
                     "无法打开系统媒体库输出流"
-                }.use { output -> file.inputStream().use { input -> input.copyTo(output) } }
+                }.use { output ->
+                    publishedBytes += copyToOutput(
+                        file = file,
+                        output = output,
+                        alreadyPublishedBytes = publishedBytes,
+                        totalBytes = totalBytes,
+                        onProgress = onProgress,
+                    )
+                }
                 values.clear()
                 values.put(MediaStore.MediaColumns.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
@@ -142,18 +172,21 @@ class MediaStoreOutputStore(
         }
     } }
 
-    private fun publishToTree(
+    private suspend fun publishToTree(
         treeUri: Uri,
         relativePaths: List<String>,
         prepared: PreparedMedia,
+        onProgress: suspend (publishedBytes: Long, totalBytes: Long) -> Unit,
     ): StoredMedia {
         val files = prepared.files
+        val totalBytes = files.sumOf(File::length).coerceAtLeast(1L)
         require(files.size == relativePaths.size) { "自定义目录的媒体分段数量不一致" }
         require(files.all(MediaFileValidator::isLikelyMedia)) { "待保存文件包含无效媒体分段" }
         val createdDocuments = mutableListOf<Uri>()
         val stored = mutableListOf<StoredMedia>()
+        var publishedBytes = 0L
         try {
-            files.zip(relativePaths).forEach { (file, relativePath) ->
+            for ((file, relativePath) in files.zip(relativePaths)) {
                 val parts = relativePath.split('/').filter(String::isNotBlank)
                 require(parts.size >= 2) { "自定义保存路径无效" }
                 var parent = DocumentsContract.buildDocumentUriUsingTree(
@@ -178,7 +211,15 @@ class MediaStoreOutputStore(
                 createdDocuments += destination
                 requireNotNull(resolver.openOutputStream(destination, "wt")) {
                     "无法写入所选文件夹"
-                }.use { output -> file.inputStream().use { input -> input.copyTo(output) } }
+                }.use { output ->
+                    publishedBytes += copyToOutput(
+                        file = file,
+                        output = output,
+                        alreadyPublishedBytes = publishedBytes,
+                        totalBytes = totalBytes,
+                        onProgress = onProgress,
+                    )
+                }
                 val item = StoredMedia(destination.toString(), file.length())
                 require(isValid(item)) { "写入自定义文件夹后校验失败：$displayName" }
                 stored += item
@@ -191,6 +232,33 @@ class MediaStoreOutputStore(
             }
             throw error
         }
+    }
+
+    private suspend fun copyToOutput(
+        file: File,
+        output: OutputStream,
+        alreadyPublishedBytes: Long,
+        totalBytes: Long,
+        onProgress: suspend (publishedBytes: Long, totalBytes: Long) -> Unit,
+    ): Long {
+        val buffer = ByteArray(COPY_BUFFER_BYTES)
+        var copiedBytes = 0L
+        var lastReportedPercent = -1
+        file.inputStream().buffered(COPY_BUFFER_BYTES).use { input ->
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                output.write(buffer, 0, count)
+                copiedBytes += count
+                val publishedBytes = alreadyPublishedBytes + copiedBytes
+                val percent = (publishedBytes * 100L / totalBytes).toInt().coerceIn(0, 100)
+                if (percent != lastReportedPercent) {
+                    lastReportedPercent = percent
+                    onProgress(publishedBytes, totalBytes)
+                }
+            }
+        }
+        return copiedBytes
     }
 
     private fun findTreeDocument(treeUri: Uri, relativePath: String): Uri? {
@@ -347,12 +415,20 @@ class MediaStoreOutputStore(
         if (prepared?.mimeType?.startsWith("image/") == true) {
             val directory = "Pictures" + base.substringBeforeLast('/').removePrefix("Movies")
             val baseName = base.substringAfterLast('/').substringBeforeLast('.')
-            val count = prepared.files.size
+            val count = prepared.galleryItemCount.takeIf { it > 0 } ?: prepared.files.size
             return prepared.files.mapIndexed { index, file ->
                 val extension = file.extension.lowercase().takeIf { it.matches(Regex("[a-z0-9]{1,8}")) }
                     ?: "jpg"
-                val suffix = if (count == 1) "" else "（第${(index + 1).toString().padStart(2, '0')}张，共${count}张）"
-                "$directory/$baseName$suffix.$extension"
+                val itemIndex = file.name.substringAfter('-', "").substringBefore('.').toIntOrNull()
+                    ?: index + 1
+                val isMotion = file.outputMimeType(prepared.mimeType).startsWith("video/")
+                val suffix = if (count == 1) "" else "（第${itemIndex.toString().padStart(2, '0')}张，共${count}张）"
+                if (isMotion) {
+                    val videoDirectory = "Movies" + base.substringBeforeLast('/').removePrefix("Movies")
+                    "$videoDirectory/$baseName$suffix（动态）.$extension"
+                } else {
+                    "$directory/$baseName$suffix.$extension"
+                }
             }
         }
         val segmentCount = requestedSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
@@ -374,7 +450,16 @@ class MediaStoreOutputStore(
     }
 
     private fun File.outputMimeType(fallback: String): String =
-        detectImageMediaFormat()?.mimeType ?: fallback
+        detectImageMediaFormat()?.mimeType ?: when (extension.lowercase()) {
+            "mp4", "m4v" -> "video/mp4"
+            "webm" -> "video/webm"
+            "mov" -> "video/quicktime"
+            "gif" -> "image/gif"
+            "webp" -> "image/webp"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            else -> fallback
+        }
 
     private data class IndexedMedia(
         val relativePath: String,
@@ -386,5 +471,6 @@ class MediaStoreOutputStore(
         const val MIN_CONTAINER_BYTES = 64 * 1024L
         const val MAX_MEDIA_SEGMENTS = 20
         const val MAX_COPY_INDEX = 10_000
+        const val COPY_BUFFER_BYTES = 1024 * 1024
     }
 }

@@ -30,7 +30,8 @@
         android:usesCleartextTraffic="false">
         <activity
             android:name=".probe.DouyinProbeActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.NanzhufengVideoDownloader.BackgroundProbe" />
         <activity
             android:name=".feature.settings.SessionLoginActivity"
             android:exported="false"

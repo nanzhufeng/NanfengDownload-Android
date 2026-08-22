@@ -112,6 +112,16 @@ data class MediaItem(
     val creatorId: String,
     val publishDate: String,
     val thumbnailUrl: String,
+    /**
+     * A verified image gallery captured from the target page.  Unlike generic
+     * extractors this is persisted with the task, so a later download cannot
+     * silently replace it with a platform's watermarked rendition.
+     */
+    val capturedImageUrls: List<String> = emptyList(),
+    /** Declared image count from the target work's structured page payload. */
+    val capturedImageExpectedCount: Int = 0,
+    /** Versioned trust contract. Legacy rows default to 0 and must never download as galleries. */
+    val capturedImageSourceVersion: Int = 0,
 )
 
 data class DownloadTask(
@@ -166,4 +176,8 @@ data class DownloadHistory(
     val outputUris: List<String> = outputUri?.let(::listOf).orEmpty(),
     /** Requested output segment count; the stored column keeps its legacy name. */
     val audioSegmentCount: Int = 1,
+    /** Certified complete-gallery output count; legacy history is zero/unverified. */
+    val capturedImageExpectedCount: Int = 0,
+    /** Source contract used to produce the stored gallery; legacy history is zero. */
+    val capturedImageSourceVersion: Int = 0,
 )

@@ -3,7 +3,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from urllib.error import HTTPError
-from urllib.parse import parse_qs, urlencode, urljoin, urlsplit, urlunsplit
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yt_dlp
@@ -346,9 +346,9 @@ def _resolve_known_short_link(url, cookie_header=""):
             or _host_matches(final_host, "iesdouyin.com")
         ):
             raise ValueError("抖音短链接跳转到了非官方域名，已拒绝读取")
-        work_id = re.search(r"/(?:share/)?video/(\d+)", urlsplit(final_url).path)
+        work_id = re.search(r"/(?:share/)?(video|note)/(\d+)", urlsplit(final_url).path)
         if work_id:
-            return f"https://www.douyin.com/video/{work_id.group(1)}"
+            return f"https://www.douyin.com/{work_id.group(1)}/{work_id.group(2)}"
         # 分享页的路由会随平台变动。只要仍是官方地址，就交给维护中的
         # extractor 继续判定，不能因本地的路径正则过窄而提前拒绝。
         return final_url
@@ -573,11 +573,42 @@ def _xiaohongshu_original_image_url(value):
     image_key = parts[2].split("!", 1)[0].strip()
     if not image_key:
         return ""
-    return f"https://ci.xiaohongshu.com/{image_key}?imageView2/2/w/format/png"
+    # `notes_uhdr` is Xiaohongshu's Ultra HDR / Live Photo still-image key.
+    # That endpoint rejects a PNG conversion with HTTP 400, while its JPEG
+    # rendition is the supported original still. Keep the regular original
+    # images as PNG, which avoids the page's watermarked share rendition.
+    image_format = "jpg" if image_key.startswith("notes_uhdr/") else "png"
+    return f"https://ci.xiaohongshu.com/{image_key}?imageView2/2/w/format/{image_format}"
 
 
 def _xiaohongshu_image_urls(note):
-    urls = []
+    return [item["url"] for item in _xiaohongshu_image_items(note)]
+
+
+def _xiaohongshu_live_photo_url(image):
+    """Return the motion MP4 paired with a Xiaohongshu Live Photo, if present.
+
+    Live Photos are not ordinary videos: the note remains a swipeable image
+    collection, while each animated image has a short H.264/H.265 companion
+    stream.  Keep that association instead of flattening the collection into
+    either still images or unrelated video segments.
+    """
+    if not bool(image.get("livePhoto") or image.get("live_photo")):
+        return ""
+    stream_root = image.get("stream") or {}
+    for codec in ("h264", "h265"):
+        for stream in stream_root.get(codec) or []:
+            if not isinstance(stream, dict):
+                continue
+            media_url = str(stream.get("masterUrl") or stream.get("master_url") or "").strip()
+            if media_url:
+                return _secure_media_url(media_url)
+    return ""
+
+
+def _xiaohongshu_image_items(note):
+    """Return original still images with their optional Live Photo motion URL."""
+    items = []
     for image in note.get("imageList") or note.get("image_list") or []:
         if not isinstance(image, dict):
             continue
@@ -603,9 +634,14 @@ def _xiaohongshu_image_urls(note):
             ),
             "",
         )
-        if url and url not in urls:
-            urls.append(url)
-    return urls
+        if url and url not in {item["url"] for item in items}:
+            items.append(
+                {
+                    "url": url,
+                    "motion_url": _xiaohongshu_live_photo_url(image),
+                }
+            )
+    return items
 
 
 def _xiaohongshu_origin_video_url(note):
@@ -631,7 +667,8 @@ def _xiaohongshu_info(url, cookie_header=""):
         streams = list(stream_root.get("h265") or [])
     headers = _request_headers(final_url, cookie_header)
     user = note.get("user") or {}
-    image_urls = _xiaohongshu_image_urls(note)
+    image_items = _xiaohongshu_image_items(note)
+    image_urls = [item["url"] for item in image_items]
     common = {
         "extractor_key": "Xiaohongshu",
         "id": str(note.get("noteId") or note.get("note_id") or ""),
@@ -645,7 +682,12 @@ def _xiaohongshu_info(url, cookie_header=""):
     }
     if str(note.get("type") or "").lower() not in {"video", "normal"} or not streams:
         if image_urls:
-            return {**common, "image_urls": image_urls, "formats": []}
+            return {
+                **common,
+                "image_urls": image_urls,
+                "image_items": image_items,
+                "formats": [],
+            }
         raise ValueError("小红书当前未提供可验证的无水印原图，未生成下载任务")
 
     formats = []
@@ -746,6 +788,14 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
             "audio_ext": "",
             "audio_from_video_source": False,
             "image_urls": [_secure_media_url(url) for url in image_urls],
+            "image_items": [
+                {
+                    "url": _secure_media_url(item.get("url")),
+                    "motion_url": _secure_media_url(item.get("motion_url")),
+                }
+                for item in info.get("image_items") or []
+                if isinstance(item, dict) and str(item.get("url") or "").strip()
+            ],
             "headers": headers,
             "video_cookie_header": "",
             "audio_cookie_header": "",
@@ -809,6 +859,59 @@ def _source_result(info):
         "kind": "creator" if is_creator else "single",
         "url": str(info.get("webpage_url") or info.get("original_url") or ""),
     }
+
+
+def _douyin_gallery_result(detail, page_url):
+    images = detail.get("images") or (detail.get("image_post_info") or {}).get("images") or []
+    if not images:
+        return None
+    clean_urls = []
+    for image in images:
+        url_list = image.get("url_list") or image.get("urlList") or []
+        if not url_list and isinstance(image.get("display_image"), dict):
+            url_list = image["display_image"].get("url_list") or []
+        source = next((
+            str(url) for url in url_list
+            if str(url).startswith("https://")
+            and "tplv-dy-aweme-images" in str(url).lower()
+            and "tplv-dy-water" not in str(url).lower()
+        ), "")
+        if source:
+            clean_urls.append(source)
+    expected_count = len(images)
+    if expected_count <= 0 or len(clean_urls) != expected_count or len(set(clean_urls)) != expected_count:
+        raise ValueError("抖音图文没有返回完整的无水印原图列表")
+    author = detail.get("author") or {}
+    return {
+        "work_id": str(detail.get("aweme_id") or ""),
+        "page_url": page_url,
+        "title": str(detail.get("desc") or "抖音图文"),
+        "creator": str(author.get("nickname") or author.get("unique_id") or "抖音用户"),
+        "creator_id": str(author.get("sec_uid") or author.get("uid") or ""),
+        "thumbnail": clean_urls[0],
+        "image_urls": clean_urls,
+        "expected_count": expected_count,
+    }
+
+
+def extract_douyin_gallery(url: str, cookie_header: str = "") -> str:
+    work = re.search(r"/(?:note|video)/(\d+)", urlsplit(url).path)
+    if not work:
+        raise ValueError("抖音图文地址缺少作品 ID")
+    work_id = work.group(1)
+    api_url = (
+        "https://www.douyin.com/aweme/v1/web/aweme/detail/"
+        f"?aweme_id={quote(work_id)}"
+    )
+    payload, _ = _fetch(api_url, cookie_header, max_bytes=4 * 1024 * 1024)
+    if not payload.strip():
+        raise ValueError("抖音网页会话未返回作品详情，请到设置中重新登录抖音后重试")
+    data = json.loads(payload)
+    detail = data.get("aweme_detail") or {}
+    if str(detail.get("aweme_id") or "") != work_id:
+        raise ValueError("抖音返回的作品与目标不一致，已停止读取")
+    gallery = _douyin_gallery_result(detail, url)
+    return json.dumps(gallery or {}, ensure_ascii=False)
 
 
 def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> str:

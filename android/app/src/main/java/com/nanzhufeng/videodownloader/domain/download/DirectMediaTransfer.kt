@@ -120,49 +120,71 @@ class DirectMediaTransfer(
                     DownloadProcessingStage.NETWORK_MEDIA,
                     0,
                 )
-                var completedBytes = 0L
-                val images = buildList {
-                    source.imageUrls.forEachIndexed { index, image ->
-                        val label = "图片 ${index + 1}/${source.imageUrls.size}"
-                        val target = File(
-                            directory,
-                            "image-${(index + 1).toString().padStart(2, '0')}.${image.extension.safeExtension("jpg")}",
-                        )
-                        val request = DirectDownloadRequest(
-                            url = image.url,
-                            headers = source.headers,
-                            target = target,
-                            taskId = task.task.taskId,
-                            platform = task.media.platform,
-                            streamLabel = label,
-                            transferPolicy = PlatformTransferPolicy.forImage(task.media.platform),
-                            reprobeCount = source.reprobeCount,
-                            onModeResolved = modeObserver(label),
-                        )
-                        val downloaded = downloadStreams(task, listOf(request), cancelled) {
-                            downloadedBytes, totalBytes, speedBytesPerSecond, remainingSeconds ->
-                            val total = if (totalBytes > 0L) completedBytes + totalBytes else 0L
-                            onProgress(
-                                completedBytes + downloadedBytes,
-                                total,
-                                speedBytesPerSecond,
-                                remainingSeconds,
+                val galleryRequests = source.imageUrls.flatMapIndexed { index, image ->
+                    buildList {
+                        val itemNumber = (index + 1).toString().padStart(2, '0')
+                        image.motionUrl?.takeIf(String::isNotBlank)?.let { motionUrl ->
+                            add(
+                                DirectDownloadRequest(
+                                    url = motionUrl,
+                                    headers = source.headers,
+                                    target = File(
+                                        directory,
+                                        "motion-$itemNumber.${image.motionExtension.safeExtension("mp4")}",
+                                    ),
+                                    taskId = task.task.taskId,
+                                    platform = task.media.platform,
+                                    streamLabel = "动态图片 ${index + 1}/${source.imageUrls.size}",
+                                    transferPolicy = PlatformTransferPolicy.forPlatform(task.media.platform),
+                                    reprobeCount = source.reprobeCount,
+                                    onModeResolved = modeObserver("动态图片 ${index + 1}/${source.imageUrls.size}"),
+                                ),
                             )
-                        }.single()
-                        require(MediaFileValidator.isLikelyMedia(downloaded)) {
-                            "下载结果不是有效图片文件：${downloaded.name}"
-                        }
-                        val imageFile = downloaded.withDetectedImageExtension()
-                        completedBytes += imageFile.length()
-                        add(imageFile)
+                        } ?: add(
+                            DirectDownloadRequest(
+                                url = image.url,
+                                headers = source.headers,
+                                target = File(directory, "image-$itemNumber.${image.extension.safeExtension("jpg")}"),
+                                taskId = task.task.taskId,
+                                platform = task.media.platform,
+                                streamLabel = "图片 ${index + 1}/${source.imageUrls.size}",
+                                transferPolicy = PlatformTransferPolicy.forImage(task.media.platform),
+                                reprobeCount = source.reprobeCount,
+                                onModeResolved = modeObserver("图片 ${index + 1}/${source.imageUrls.size}"),
+                            ),
+                        )
                     }
                 }
-                require(images.isNotEmpty()) { "图文作品未返回可下载图片" }
-                onProgress(completedBytes, completedBytes, 0L, null)
+                // The downloader already learns the byte length while opening a stream.
+                // A separate serial 1-byte probe for every image made a 14-image gallery
+                // wait for 14 additional round trips before downloading anything.
+                val downloadedFiles = downloadStreams(
+                    task = task,
+                    requests = galleryRequests,
+                    cancelled = cancelled,
+                    onProgress = onProgress,
+                    maxConcurrentStreams = MAX_PARALLEL_GALLERY_STREAMS,
+                )
+                require(downloadedFiles.size == source.imageUrls.size) {
+                    "图文作品下载数量不完整：${downloadedFiles.size}/${source.imageUrls.size}"
+                }
+                val galleryFiles = downloadedFiles.mapIndexed { index, downloaded ->
+                    val image = source.imageUrls[index]
+                    val isMotion = !image.motionUrl.isNullOrBlank()
+                    require(MediaFileValidator.isLikelyMedia(downloaded)) {
+                        "下载结果不是有效${if (isMotion) "动态图片" else "图片"}文件：${downloaded.name}"
+                    }
+                    if (isMotion) downloaded else downloaded.withDetectedImageExtension()
+                }
+                require(galleryFiles.isNotEmpty()) { "图文作品未返回可下载图片" }
                 return@withContext PreparedMedia(
-                    file = images.first(),
-                    mimeType = images.first().imageMimeType(),
-                    additionalFiles = images.drop(1),
+                    file = galleryFiles.first(),
+                    // A gallery can start with a Live Photo MP4. Keep the
+                    // gallery publication policy even when it has no still
+                    // frame, while MediaStore still selects each real MIME.
+                    mimeType = "image/jpeg",
+                    additionalFiles = galleryFiles.drop(1),
+                    galleryItemCount = source.imageUrls.size,
                 )
             }
             val isAudioOnly = task.task.resolution == ResolutionPreset.AUDIO_MP3
@@ -558,15 +580,16 @@ class DirectMediaTransfer(
         requests: List<DirectDownloadRequest>,
         cancelled: AtomicBoolean,
         onProgress: suspend (Long, Long, Long, Long?) -> Unit,
+        maxConcurrentStreams: Int = requests.size,
     ): List<File> = measureDownloadStage(
         taskId = task.task.taskId,
         stage = "network_transfer",
         reporter = performanceReporter,
         nowNanos = monotonicNanos,
     ) {
-        val activeStreamCount = requests.count { request ->
+        val activeStreamCount = minOf(maxConcurrentStreams, requests.count { request ->
             !MediaFileValidator.isLikelyMedia(request.target)
-        }.coerceAtLeast(1)
+        }.coerceAtLeast(1))
         val reports = ConcurrentLinkedQueue<DownloadThroughputReport>()
         try {
             streamDownloadCoordinator.download(
@@ -586,6 +609,7 @@ class DirectMediaTransfer(
                     )
                 },
                 cancelled = cancelled,
+                maxConcurrentStreams = maxConcurrentStreams,
                 onProgress = { progress -> progress.forwardTo(onProgress) },
             )
         } finally {
@@ -689,6 +713,7 @@ class DirectMediaTransfer(
         const val MAX_AUDIO_SEGMENTS = 20
         const val MAX_MEDIA_SEGMENTS = 20
         const val VIDEO_SEGMENT_STREAM_LABEL = "视频本机分段"
+        const val MAX_PARALLEL_GALLERY_STREAMS = 3
     }
 }
 

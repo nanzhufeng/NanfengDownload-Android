@@ -84,7 +84,7 @@ class HomeViewModel(
             }
 
             is DiscoveryResult.Single -> {
-                val addedCount = enqueue(listOf(result.item), DownloadSourceKind.SINGLE_VIDEO)
+                val addedCount = enqueue(listOf(result.item.toMediaItem(DownloadSourceKind.SINGLE_VIDEO)))
                 mutableUiState.update {
                     it.copy(
                         isReading = false,
@@ -104,13 +104,13 @@ class HomeViewModel(
                 it.copy(
                     isReading = true,
                     sourceInput = input,
-                    notice = "正在通过抖音页面读取视频，请稍候…",
+                    notice = "正在通过抖音页面读取媒体，请稍候…",
                     douyinCaptureUrl = result.sourceUrl,
                 )
             }
 
             is DiscoveryResult.Collection -> {
-                val addedCount = enqueue(result.items, DownloadSourceKind.CREATOR)
+                val addedCount = enqueue(result.items.map { it.toMediaItem(DownloadSourceKind.CREATOR) })
                 val skippedCount = (result.items.size - addedCount).coerceAtLeast(0)
                 mutableUiState.update {
                     it.copy(
@@ -146,21 +146,22 @@ class HomeViewModel(
         }
         val addedCount = enqueue(
             listOf(
-                DiscoveredMedia(
-                    sourceUrl = media.pageUrl,
+                MediaItem(
+                    mediaKey = "",
                     platform = DownloadPlatform.DOUYIN,
-                    mediaId = media.workId,
+                    contentId = media.workId,
+                    originalUrl = media.pageUrl,
+                    sourceKind = DownloadSourceKind.SINGLE_VIDEO,
                     title = media.title,
-                    creator = com.nanzhufeng.videodownloader.domain.discovery.CreatorIdentity(
-                        media.creator,
-                        "",
-                    ),
-                    publishedAt = "",
+                    creator = media.creator,
+                    creatorId = "",
+                    publishDate = "",
                     thumbnailUrl = media.thumbnailUrl,
-                    defaultResolution = com.nanzhufeng.videodownloader.core.model.ResolutionPreset.UP_TO_720P,
+                    capturedImageUrls = media.imageUrls,
+                    capturedImageExpectedCount = media.imageExpectedCount,
+                    capturedImageSourceVersion = media.imageSourceVersion,
                 ),
             ),
-            DownloadSourceKind.SINGLE_VIDEO,
         )
         mutableUiState.update {
             it.copy(
@@ -178,11 +179,11 @@ class HomeViewModel(
         }
     }
 
-    private suspend fun enqueue(items: List<DiscoveredMedia>, sourceKind: DownloadSourceKind): Int {
+    private suspend fun enqueue(items: List<MediaItem>): Int {
         if (items.isEmpty()) return 0
         val defaults = settings.settings.first()
         return downloads.enqueue(
-            items = items.map { it.toMediaItem(sourceKind) },
+            items = items,
             resolution = defaults.defaultResolution,
             saveTreeUri = defaults.customTreeUri,
             fileNameRule = defaults.fileNameRule,
@@ -212,4 +213,7 @@ private fun DiscoveredMedia.toMediaItem(sourceKind: DownloadSourceKind) = MediaI
     creatorId = creator.id,
     publishDate = publishedAt,
     thumbnailUrl = thumbnailUrl,
+    capturedImageUrls = capturedImageUrls,
+    capturedImageExpectedCount = capturedImageExpectedCount,
+    capturedImageSourceVersion = capturedImageSourceVersion,
 )

@@ -44,6 +44,17 @@ interface DownloadTaskDao {
     )
     suspend fun getDownloadListMediaKeys(): List<String>
 
+    @Query(
+        """
+        SELECT taskId FROM download_tasks
+        WHERE mediaKey = :mediaKey
+          AND status NOT IN ('COMPLETED', 'CANCELLED')
+        ORDER BY sortOrder DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getActiveTaskId(mediaKey: String): String?
+
     @Query("SELECT * FROM download_tasks WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadTaskEntity?
 
@@ -259,6 +270,28 @@ interface DownloadTaskDao {
     @Query(
         """
         UPDATE download_tasks
+        SET selected = 1,
+            downloadedBytes = 0,
+            totalBytes = 0,
+            speedBytesPerSecond = 0,
+            remainingSeconds = NULL,
+            connectionMode = 'UNKNOWN',
+            connectionCount = 0,
+            processingStage = 'NONE',
+            processingProgressPercent = 0,
+            status = 'WAITING',
+            failureType = NULL,
+            errorSummary = NULL,
+            updatedAt = :updatedAt
+        WHERE taskId = :taskId
+          AND status IN ('FAILED', 'SKIPPED')
+        """,
+    )
+    suspend fun requeueTerminalForVerifiedSource(taskId: String, updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
         SET status = 'WAITING', updatedAt = :updatedAt
         WHERE status IN ('PARSING', 'DOWNLOADING', 'VALIDATING')
         """,
@@ -315,6 +348,19 @@ interface DownloadHistoryDao {
         """,
     )
     suspend fun getCompletedMediaKeys(): List<String>
+
+    @Query(
+        """
+        SELECT * FROM download_history
+        WHERE platform = :platform
+          AND contentId = :contentId
+          AND finalStatus = 'COMPLETED'
+          AND fileExists = 1
+        ORDER BY completedAt DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestCompleted(platform: String, contentId: String): DownloadHistoryEntity?
 
     @Query("UPDATE download_history SET fileExists = 0 WHERE taskId = :taskId AND fileExists = 1")
     suspend fun markMediaMissing(taskId: String): Int

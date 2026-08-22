@@ -14,6 +14,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 internal data class TransferProgress(
     val downloadedBytes: Long,
@@ -72,11 +74,14 @@ internal class StreamDownloadCoordinator(
     suspend fun download(
         requests: List<DirectDownloadRequest>,
         cancelled: AtomicBoolean,
+        maxConcurrentStreams: Int = Int.MAX_VALUE,
         onProgress: suspend (TransferProgress) -> Unit,
     ): List<File> = coroutineScope {
         require(requests.isNotEmpty()) { "下载流不能为空" }
+        require(maxConcurrentStreams > 0) { "并行下载数必须大于 0" }
         val pending = requests.filterNot { isComplete(it.target) }
         if (pending.isEmpty()) return@coroutineScope requests.map { it.target }
+        val downloadSlots = Semaphore(minOf(maxConcurrentStreams, pending.size))
 
         val completedBytes = requests
             .asSequence()
@@ -96,14 +101,16 @@ internal class StreamDownloadCoordinator(
         try {
             val downloads = pending.mapIndexed { index, request ->
                 async(Dispatchers.IO) {
-                    try {
-                        downloader.download(request, cancelled) { downloaded, total ->
-                            if (parentJob?.isActive == false) cancelled.set(true)
-                            aggregator.update(index, downloaded, total)?.let(progressChannel::trySend)
+                    downloadSlots.withPermit {
+                        try {
+                            downloader.download(request, cancelled) { downloaded, total ->
+                                if (parentJob?.isActive == false) cancelled.set(true)
+                                aggregator.update(index, downloaded, total)?.let(progressChannel::trySend)
+                            }
+                        } catch (error: Throwable) {
+                            cancelled.set(true)
+                            throw error
                         }
-                    } catch (error: Throwable) {
-                        cancelled.set(true)
-                        throw error
                     }
                 }
             }

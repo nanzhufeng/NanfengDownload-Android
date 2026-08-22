@@ -14,6 +14,7 @@ import com.nanzhufeng.videodownloader.domain.discovery.DiscoveredMedia
 import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import com.nanzhufeng.videodownloader.probe.DouyinCapturedMedia
+import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
@@ -126,8 +127,39 @@ class HomeViewModelTest {
         )
 
         assertEquals("7669248142533973995", downloads.enqueued.single().single().contentId)
+        assertTrue(downloads.enqueued.single().single().capturedImageUrls.isEmpty())
         assertTrue(!viewModel.uiState.value.isReading)
         assertTrue(viewModel.uiState.value.notice.contains("已通过抖音页面读取"))
+    }
+
+    @Test
+    fun douyinGalleryIsEnqueuedWithTheExactCapturedImageList() = runBlocking {
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+        val imageUrls = listOf("https://p3-sign.douyinpic.com/original~tplv-dy-aweme-images.webp")
+
+        viewModel.completeDouyinCapture(
+            DouyinCapturedMedia(
+                workId = "7676041925425736777",
+                pageUrl = "https://www.douyin.com/note/7676041925425736777",
+                mediaUrl = "",
+                title = "图文",
+                creator = "作者",
+                thumbnailUrl = "",
+                capturedAtMillis = 1L,
+                imageUrls = imageUrls,
+                imageExpectedCount = imageUrls.size,
+                imageSourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+            ),
+        )
+
+        val enqueued = downloads.enqueued.single().single()
+        assertEquals(imageUrls, enqueued.capturedImageUrls)
+        assertEquals(imageUrls.size, enqueued.capturedImageExpectedCount)
+        assertEquals(
+            DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+            enqueued.capturedImageSourceVersion,
+        )
     }
 }
 

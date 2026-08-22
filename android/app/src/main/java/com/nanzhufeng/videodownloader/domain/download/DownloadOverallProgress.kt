@@ -34,7 +34,8 @@ object DownloadOverallProgress {
                 LOCAL_PROCESSING_SPAN * task.processingProgressPercent.coerceIn(0, 100) / 100f
 
             DownloadProcessingStage.VALIDATING -> VALIDATING_PROGRESS
-            DownloadProcessingStage.PUBLISHING -> PUBLISHING_PROGRESS
+            DownloadProcessingStage.PUBLISHING -> PUBLISHING_START +
+                PUBLISHING_SPAN * task.processingProgressPercent.coerceIn(0, 100) / 100f
         }
         return value.coerceIn(0f, LAST_UNFINISHED_PROGRESS)
     }
@@ -76,6 +77,7 @@ object DownloadOverallProgress {
     private const val LOCAL_PROCESSING_START = 0.82f
     private const val LOCAL_PROCESSING_SPAN = 0.13f
     private const val VALIDATING_PROGRESS = 0.96f
-    private const val PUBLISHING_PROGRESS = 0.98f
+    private const val PUBLISHING_START = 0.96f
+    private const val PUBLISHING_SPAN = 0.03f
     private const val LAST_UNFINISHED_PROGRESS = 0.99f
 }

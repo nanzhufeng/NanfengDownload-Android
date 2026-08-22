@@ -28,4 +28,33 @@ class HistoryMediaKindTest {
             historyMediaKind(ResolutionPreset.UP_TO_720P, listOf("video/mp4")),
         )
     }
+
+    @Test
+    fun pairedImageAndMotionVideoStayOneSwipeableLivePhoto() {
+        assertEquals(
+            listOf(
+                HistoryGalleryPage.LivePhoto("still", "motion"),
+                HistoryGalleryPage.Image("static"),
+            ),
+            buildHistoryGalleryPages(
+                listOf(
+                    HistoryGalleryMedia("still", "image/jpeg"),
+                    HistoryGalleryMedia("motion", "video/mp4"),
+                    HistoryGalleryMedia("static", "image/png"),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun motionOnlyImageGalleryStillUsesTheSwipeableGallery() {
+        assertEquals(
+            HistoryMediaKind.IMAGE,
+            historyMediaKind(
+                ResolutionPreset.UP_TO_720P,
+                listOf("video/mp4", "video/mp4"),
+                hasDynamicImageGallery = true,
+            ),
+        )
+    }
 }

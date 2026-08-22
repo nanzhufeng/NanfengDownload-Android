@@ -8,6 +8,8 @@ import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
 import com.nanzhufeng.videodownloader.probe.Platform
 import com.nanzhufeng.videodownloader.probe.SourceKind
 import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
+import com.nanzhufeng.videodownloader.probe.DouyinGalleryInfo
+import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -42,10 +44,26 @@ class PlatformSourceDiscoveryEngine(
             val classified = gateway.classify(input)
             source = classified
             val resolved = classified.resolveIfNeeded()
+            source = classified.copy(kind = resolved.kind, url = resolved.url)
             when (resolved.kind) {
-                SourceKind.SINGLE_VIDEO -> DiscoveryResult.Single(
-                    gateway.extractSingle(resolved.url).toDiscoveredMedia(),
-                )
+                SourceKind.SINGLE_VIDEO -> {
+                    // A Douyin note is an image work even when yt-dlp reports
+                    // it as a successful gallery.  That gallery contains the
+                    // platform's watermarked rendition, so do not let a
+                    // nominally-successful generic parse bypass the target
+                    // page capture.  The capture supplies every urlList item
+                    // before the task is created.
+                    if (classified.platform == Platform.DOUYIN && resolved.url.isDouyinNoteUrl()) {
+                        resolved.readDouyinGalleryOrCapture()
+                    } else {
+                        val media = gateway.extractSingle(resolved.url)
+                        if (classified.platform == Platform.DOUYIN && media.hasImageGallery()) {
+                            resolved.readDouyinGalleryOrCapture()
+                        } else {
+                            DiscoveryResult.Single(media.toDiscoveredMedia())
+                        }
+                    }
+                }
 
                 SourceKind.CHANNEL_OR_PLAYLIST -> resolved.readCollection(page)
                 SourceKind.UNKNOWN_DOUYIN_SHARE,
@@ -71,8 +89,38 @@ class PlatformSourceDiscoveryEngine(
         return evidence.contains("没有找到可下载") ||
             evidence.contains("no video formats") ||
             evidence.contains("no formats found") ||
-            evidence.contains("requested format is not available")
+            evidence.contains("requested format is not available") ||
+            // 新版抖音 `/note/` 动态图片页会被 yt-dlp 直接标为
+            // Unsupported URL；它不是用户输入格式错误，应进入已受限域名
+            // 和同作品 ID 校验保护的 WebView 捕获链路。
+            evidence.contains("unsupported url")
     }
+
+    private fun String.isDouyinNoteUrl(): Boolean =
+        contains("douyin.com/note/", ignoreCase = true)
+
+    private fun YtDlpMediaInfo.hasImageGallery(): Boolean =
+        imageItems.isNotEmpty() || imageUrls.isNotEmpty()
+
+    private fun ClassifiedSource.readDouyinGalleryOrCapture(): DiscoveryResult {
+        val gallery = runCatching { gateway.extractDouyinGallery(url) }.getOrNull()
+            ?: return DiscoveryResult.DouyinCaptureRequired(url)
+        return DiscoveryResult.Single(gallery.toDiscoveredMedia())
+    }
+
+    private fun DouyinGalleryInfo.toDiscoveredMedia() = DiscoveredMedia(
+        sourceUrl = pageUrl,
+        platform = DownloadPlatform.DOUYIN,
+        mediaId = workId,
+        title = title,
+        creator = CreatorIdentity(creator, creatorId),
+        publishedAt = "",
+        thumbnailUrl = thumbnail,
+        defaultResolution = ResolutionPreset.UP_TO_720P,
+        capturedImageUrls = imageUrls,
+        capturedImageExpectedCount = expectedCount,
+        capturedImageSourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+    )
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {
         if (
