@@ -51,6 +51,26 @@ class MediaFileValidatorTest {
     }
 
     @Test
+    fun rejectsTruncatedWebpWhoseRiffHeaderDeclaresMoreBytes() {
+        val payload = ByteArray(2 * 1024).also { bytes ->
+            "RIFF".toByteArray().copyInto(bytes)
+            val declaredLength = 8 * 1024 - 8
+            bytes[4] = declaredLength.toByte()
+            bytes[5] = (declaredLength ushr 8).toByte()
+            bytes[6] = (declaredLength ushr 16).toByte()
+            bytes[7] = (declaredLength ushr 24).toByte()
+            "WEBP".toByteArray().copyInto(bytes, destinationOffset = 8)
+        }
+
+        assertFalse(
+            MediaFileValidator.isLikelyMedia(
+                input = ByteArrayInputStream(payload),
+                length = payload.size.toLong(),
+            ),
+        )
+    }
+
+    @Test
     fun rejectsSmallFtypPayload() {
         val payload = ByteArray(2 * 1024).also {
             byteArrayOf(

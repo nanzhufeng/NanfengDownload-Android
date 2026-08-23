@@ -30,6 +30,85 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 
 class HttpFileDownloaderTest {
     @Test
+    fun finalUrlValidatorSeesTheActualResponseUrlBeforeWritingBytes() {
+        val server = MockWebServer().apply {
+            enqueue(MockResponse().setResponseCode(200).setBody(Buffer().write(fakeMp4Payload())))
+            start()
+        }
+        val directory = createTempDirectory("download-final-url-").toFile()
+        try {
+            var finalUrl = ""
+            HttpFileDownloader(retryDelayMillis = 0).download(
+                DirectDownloadRequest(
+                    url = server.url("/original.webp").toString(),
+                    headers = emptyMap(),
+                    target = File(directory, "image.webp"),
+                    transferPolicy = TransferPolicy(
+                        platform = "TEST",
+                        maxConnections = 1,
+                        segmentedThresholdBytes = Long.MAX_VALUE,
+                    ),
+                    finalUrlValidator = { url -> finalUrl = url },
+                ),
+                AtomicBoolean(false),
+            ) { _, _ -> }
+
+            assertEquals(server.url("/original.webp").toString(), finalUrl)
+        } finally {
+            server.shutdown()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun continuesAPartial206ResponseUntilTheDeclaredFileIsComplete() {
+        val payload = fakeMp4Payload(size = 96 * 1024)
+        val firstSliceEnd = 7 * 1024 - 1
+        val requestedRanges = CopyOnWriteArrayList<String?>()
+        val server = MockWebServer().apply {
+            dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    val range = request.getHeader("Range")
+                    requestedRanges += range
+                    val start = range
+                        ?.removePrefix("bytes=")
+                        ?.substringBefore('-')
+                        ?.toIntOrNull()
+                        ?: 0
+                    val end = if (range == null) firstSliceEnd else payload.lastIndex
+                    return MockResponse()
+                        .setResponseCode(206)
+                        .setHeader("Content-Range", "bytes $start-$end/${payload.size}")
+                        .setBody(Buffer().write(payload.copyOfRange(start, end + 1)))
+                }
+            }
+            start()
+        }
+        val directory = createTempDirectory("download-initial-206-").toFile()
+        try {
+            val result = HttpFileDownloader(retryDelayMillis = 0).download(
+                DirectDownloadRequest(
+                    url = server.url("/image.webp").toString(),
+                    headers = emptyMap(),
+                    target = File(directory, "image.webp"),
+                    transferPolicy = TransferPolicy(
+                        platform = "TEST",
+                        maxConnections = 1,
+                        segmentedThresholdBytes = Long.MAX_VALUE,
+                    ),
+                ),
+                AtomicBoolean(false),
+            ) { _, _ -> }
+
+            assertArrayEquals(payload, result.readBytes())
+            assertEquals(listOf(null, "bytes=${firstSliceEnd + 1}-"), requestedRanges.toList())
+        } finally {
+            server.shutdown()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun credentialHeadersAreScopedToTheExactMediaHost() {
         val request = DirectDownloadRequest(
             url = "https://media.example/video.mp4",

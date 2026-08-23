@@ -41,17 +41,6 @@ data class ResolvedSource(
     val url: String,
 )
 
-data class DouyinGalleryInfo(
-    val workId: String,
-    val pageUrl: String,
-    val title: String,
-    val creator: String,
-    val creatorId: String,
-    val thumbnail: String,
-    val imageUrls: List<String>,
-    val expectedCount: Int,
-)
-
 data class CreatorVideoEntry(
     val id: String,
     val title: String,
@@ -176,31 +165,6 @@ class YtDlpProbe {
             imageUrls = imageUrls,
             imageItems = imageItems,
             headers = headers,
-        )
-    }
-
-    fun extractDouyinGallery(
-        url: String,
-        access: SessionAccess = SessionAccess(),
-    ): DouyinGalleryInfo? {
-        val json = JSONObject(
-            module.callAttr(
-                "extract_douyin_gallery",
-                url,
-                access.cookieHeader,
-            ).toString(),
-        )
-        if (json.length() == 0) return null
-        val urls = json.getJSONArray("image_urls")
-        return DouyinGalleryInfo(
-            workId = json.getString("work_id"),
-            pageUrl = json.getString("page_url"),
-            title = json.getString("title"),
-            creator = json.getString("creator"),
-            creatorId = json.getString("creator_id"),
-            thumbnail = json.getString("thumbnail"),
-            imageUrls = List(urls.length()) { index -> urls.getString(index) },
-            expectedCount = json.getInt("expected_count"),
         )
     }
 

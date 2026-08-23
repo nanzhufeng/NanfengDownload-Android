@@ -3,7 +3,6 @@ package com.nanzhufeng.videodownloader.domain.discovery
 import com.nanzhufeng.videodownloader.probe.ClassifiedSource
 import com.nanzhufeng.videodownloader.probe.BilibiliShortLinkResolver
 import com.nanzhufeng.videodownloader.probe.CreatorCatalog
-import com.nanzhufeng.videodownloader.probe.DouyinGalleryInfo
 import com.nanzhufeng.videodownloader.probe.ResolvedSource
 import com.nanzhufeng.videodownloader.probe.ShortLinkResolver
 import com.nanzhufeng.videodownloader.probe.UrlClassifier
@@ -18,8 +17,6 @@ interface ProbeDiscoveryGateway {
     fun resolve(url: String): ResolvedSource
 
     fun extractSingle(url: String): YtDlpMediaInfo
-
-    fun extractDouyinGallery(url: String): DouyinGalleryInfo? = null
 
     fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog
 }
@@ -38,9 +35,6 @@ class ChaquopyProbeDiscoveryGateway(
 
     override fun extractSingle(url: String): YtDlpMediaInfo =
         probe.extractSingle(url, access = sessions.accessFor(url))
-
-    override fun extractDouyinGallery(url: String): DouyinGalleryInfo? =
-        probe.extractDouyinGallery(url, access = sessions.accessFor(url))
 
     override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
         probe.extractCreator(url, start, pageSize, sessions.accessFor(url))

@@ -49,6 +49,8 @@ data class DirectDownloadRequest(
     val streamLabel: String = "媒体",
     val transferPolicy: TransferPolicy? = null,
     val reprobeCount: Int = 0,
+    /** Called with the actual post-redirect URL before any response bytes are saved. */
+    val finalUrlValidator: (String) -> Unit = {},
     val onModeResolved: (DownloadConnectionMode, Int) -> Unit = { _, _ -> },
     val onReport: (DownloadThroughputReport) -> Unit = {},
 )
@@ -458,23 +460,35 @@ class HttpFileDownloader(
         onProgress: (downloaded: Long, total: Long) -> Unit,
         meter: TransferMeter,
     ) {
-        val existing = partial.takeIf(File::exists)?.length() ?: 0L
-        execute(
-            request,
-            range = if (existing > 0L) "bytes=$existing-" else null,
-        ).use { response ->
+        var existing = partial.takeIf(File::exists)?.length() ?: 0L
+        repeat(MAX_SINGLE_CONNECTION_RESPONSES) {
+            val requestedStart = existing
+            var resume = false
+            execute(
+                request,
+                range = if (requestedStart > 0L) "bytes=$requestedStart-" else null,
+            ).use { response ->
             val responseCode = response.code
             if (responseCode !in 200..299) {
                 throw HttpDownloadException(responseCode)
             }
-            val append = existing > 0L && responseCode == HTTP_PARTIAL
-            val start = if (append) existing else 0L
+                val partialRange = if (responseCode == HTTP_PARTIAL) {
+                    parseContentRange(response.header("Content-Range"))
+                        ?: throw IOException("Range 响应缺少有效 Content-Range")
+                } else {
+                    null
+                }
+                if (partialRange != null && partialRange.start != requestedStart) {
+                    throw IOException("Range 响应起点异常：${partialRange.start}/$requestedStart")
+                }
+            val append = partialRange != null && requestedStart > 0L
+            val start = if (append) requestedStart else 0L
             if (!append && partial.exists()) {
                 partial.delete()
             }
             val body = response.body ?: throw IOException("下载响应缺少内容")
             val bodyLength = body.contentLength().coerceAtLeast(0L)
-            val total = if (bodyLength > 0L) start + bodyLength else 0L
+                val total = partialRange?.totalBytes ?: if (bodyLength > 0L) start + bodyLength else 0L
             var downloaded = start
 
             body.byteStream().use { input ->
@@ -493,9 +507,36 @@ class HttpFileDownloader(
                     }
                 }
             }
+                if (downloaded == start) {
+                    throw IOException("媒体响应为空，未保存任何字节")
+                }
+                if (total > 0L && downloaded > total) {
+                    throw IOException("下载响应长度超过声明总长度：$downloaded/$total 字节")
+                }
             if (total > 0L && downloaded < total) {
+                    if (partialRange == null) {
                 throw IOException("下载连接提前结束：$downloaded/$total 字节")
             }
+                    // Some image CDNs return a valid 206 slice even when the
+                    // initial request did not ask for Range. Continue from the
+                    // declared boundary instead of publishing the first slice
+                    // as a complete WebP/JPEG file.
+                    existing = downloaded
+                    resume = true
+                }
+            }
+            if (!resume) return
+        }
+        throw IOException("单连接 Range 响应次数过多，已停止保存不完整媒体")
+    }
+
+    private fun parseContentRange(value: String?): ResponseRange? {
+        val match = CONTENT_RANGE_PATTERN.matchEntire(value?.trim().orEmpty()) ?: return null
+        val start = match.groupValues[1].toLongOrNull() ?: return null
+        val end = match.groupValues[2].toLongOrNull() ?: return null
+        val total = match.groupValues[3].toLongOrNull() ?: return null
+        return ResponseRange(start, end, total).takeIf {
+            it.start >= 0L && it.end >= it.start && it.totalBytes > it.end
         }
     }
 
@@ -510,7 +551,15 @@ class HttpFileDownloader(
             builder.header("Accept-Encoding", "identity")
             range?.let { builder.header("Range", it) }
             val response = httpClient.newCall(builder.build()).execute()
-            if (!response.isRedirect) return response
+            if (!response.isRedirect) {
+                try {
+                    request.finalUrlValidator(response.request.url.toString())
+                    return response
+                } catch (error: Throwable) {
+                    response.close()
+                    throw error
+                }
+            }
             val redirectedUrl = response.header("Location")
                 ?.let(url::resolve)
                 ?: return response
@@ -568,6 +617,12 @@ class HttpFileDownloader(
     )
 
     private data class ByteRange(val start: Long, val endInclusive: Long)
+
+    private data class ResponseRange(
+        val start: Long,
+        val end: Long,
+        val totalBytes: Long,
+    )
 
     private data class RangePlan(val totalBytes: Long, val segmentCount: Int) {
         fun ranges(): List<ByteRange> {
@@ -696,6 +751,8 @@ class HttpFileDownloader(
             Thread(runnable, "nanzhufeng-range-download").apply { isDaemon = true }
         }
         const val MAX_REDIRECTS = 12
+        const val MAX_SINGLE_CONNECTION_RESPONSES = 128
+        val CONTENT_RANGE_PATTERN = Regex("bytes\\s+(\\d+)-(\\d+)/(\\d+)", RegexOption.IGNORE_CASE)
     }
 }
 
@@ -735,7 +792,8 @@ object MediaFileValidator {
         val isWebp = bytes.size >= 12 &&
             bytes.copyOfRange(0, 4).toString(Charsets.US_ASCII) == "RIFF" &&
             bytes.copyOfRange(8, 12).toString(Charsets.US_ASCII) == "WEBP"
-        if (isJpeg || isPng || isGif || isWebp) return length >= MIN_IMAGE_BYTES
+        if (isWebp) return length >= MIN_IMAGE_BYTES && declaredRiffSize(bytes) == length
+        if (isJpeg || isPng || isGif) return length >= MIN_IMAGE_BYTES
 
         val isIsoBmff = "ftyp" in text
         val isWebM = bytes.startsWith(byteArrayOf(0x1a, 0x45, 0xdf.toByte(), 0xa3.toByte())) ||
@@ -753,6 +811,16 @@ object MediaFileValidator {
             second and 0xe0 == 0xe0 &&
             versionBits != 0x01 &&
             layerBits != 0x00
+    }
+
+    private fun declaredRiffSize(header: ByteArray): Long {
+        if (header.size < 8) return -1L
+        return (
+            (header[4].toLong() and 0xff) or
+                ((header[5].toLong() and 0xff) shl 8) or
+                ((header[6].toLong() and 0xff) shl 16) or
+                ((header[7].toLong() and 0xff) shl 24)
+            ) + 8L
     }
 
     private fun ByteArray.startsWith(prefix: ByteArray): Boolean =

@@ -1,0 +1,4 @@
+interface:
+  display_name: "南枫下载 Android 验证"
+  short_description: "分层选择单测构建模拟器真机与外部服务证据的安全验收流程"
+  default_prompt: "使用 $nanfeng-download-android-testing 为南枫下载 Android 增量设计并执行验证。"

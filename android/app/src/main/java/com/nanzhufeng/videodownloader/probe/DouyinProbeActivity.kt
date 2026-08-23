@@ -94,15 +94,32 @@ class DouyinProbeActivity : Activity() {
                 handler.postDelayed(inspectVideoSource, VIDEO_SOURCE_POLL_MILLIS)
                 return@evaluateJavascript
             }
-            val domImages = imageSources.urls.flatMap { url ->
-                DouyinCaptureStore.captureImage(currentPageUrl.get(), url)
+            // `urls` is the exact target work's complete React Flight
+            // `images[].urlList` projection.  It is already filtered to the
+            // original template by the page script.  Do not round-trip it
+            // through WebView request interception: image CDNs may not issue
+            // a fetch for these URLs before the task is created, which used
+            // to discard a complete structured gallery and end in a timeout.
+            val structuredImages = imageSources.urls.distinct().takeIf {
+                requiresCompleteGallery &&
+                    imageSources.structuredComplete &&
+                    DouyinCaptureStore.isVerifiedImageGallery(
+                        imageUrls = it,
+                        expectedCount = imageSources.expectedCount,
+                        sourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
+                    )
             }
-            val capturedImages = resolveImageCandidates(
-                domImages = domImages,
-                interceptedImages = DouyinCaptureStore.capturedImageUrls(),
-                awaitingStructuredImages = imageSources.awaitingStructuredImages,
-                requiredCount = imageSources.expectedCount.takeIf { requiresCompleteGallery },
-            )
+            val capturedImages = structuredImages ?: run {
+                val domImages = imageSources.urls.flatMap { url ->
+                    DouyinCaptureStore.captureImage(currentPageUrl.get(), url)
+                }
+                resolveImageCandidates(
+                    domImages = domImages,
+                    interceptedImages = DouyinCaptureStore.capturedImageUrls(),
+                    awaitingStructuredImages = imageSources.awaitingStructuredImages,
+                    requiredCount = imageSources.expectedCount.takeIf { requiresCompleteGallery },
+                )
+            }
             if (capturedImages.isNotEmpty()) {
                 completeCapture(
                     DouyinCaptureStore.CapturedMedia(

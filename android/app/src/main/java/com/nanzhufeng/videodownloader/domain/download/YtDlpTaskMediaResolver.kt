@@ -129,7 +129,7 @@ class YtDlpTaskMediaResolver(
             audioExtension = null,
             headers = buildMap {
                 put("Referer", pageUrl)
-                put("User-Agent", DOUYIN_MOBILE_USER_AGENT)
+                put("User-Agent", DOUYIN_PAGE_USER_AGENT)
             },
             imageUrls = imageUrls.map { imageUrl ->
                 ResolvedImage(imageUrl, imageUrl.imageExtension())
@@ -144,7 +144,11 @@ class YtDlpTaskMediaResolver(
         audioExtension = null,
         headers = buildMap {
             put("Referer", originalUrl)
-            put("User-Agent", DOUYIN_MOBILE_USER_AGENT)
+            // The source list was captured from the target page with this
+            // desktop UA.  Do not switch to a mobile representation for the
+            // later byte request: Douyin/CDN can select a different rendition
+            // for a different client profile.
+            put("User-Agent", DOUYIN_PAGE_USER_AGENT)
         },
         imageUrls = capturedImageUrls.map { imageUrl ->
             ResolvedImage(imageUrl, imageUrl.imageExtension())
@@ -152,8 +156,8 @@ class YtDlpTaskMediaResolver(
     )
 
     private companion object {
-        const val DOUYIN_MOBILE_USER_AGENT =
-            "Mozilla/5.0 (Linux; Android 16; Mobile) AppleWebKit/537.36 " +
-                "(KHTML, like Gecko) Chrome/138.0 Mobile Safari/537.36"
+        const val DOUYIN_PAGE_USER_AGENT =
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
     }
 }

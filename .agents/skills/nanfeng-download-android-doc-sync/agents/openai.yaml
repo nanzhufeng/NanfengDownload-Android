@@ -1,0 +1,4 @@
+interface:
+  display_name: "南枫下载 Android 文档同步"
+  short_description: "用代码产物版本与设备证据同步交接验证架构文档的完整流程"
+  default_prompt: "使用 $nanfeng-download-android-doc-sync 同步南枫下载 Android 的交接与验证文档。"

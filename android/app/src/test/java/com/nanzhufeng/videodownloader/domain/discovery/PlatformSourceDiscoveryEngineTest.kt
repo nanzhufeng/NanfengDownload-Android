@@ -4,7 +4,6 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.probe.ClassifiedSource
 import com.nanzhufeng.videodownloader.probe.CreatorCatalog
 import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
-import com.nanzhufeng.videodownloader.probe.DouyinGalleryInfo
 import com.nanzhufeng.videodownloader.probe.Platform
 import com.nanzhufeng.videodownloader.probe.ResolvedSource
 import com.nanzhufeng.videodownloader.probe.SourceKind
@@ -128,15 +127,15 @@ class PlatformSourceDiscoveryEngineTest {
     }
 
     @Test
-    fun douyinNoteUsesCompleteStructuredApiGalleryWithoutOpeningThePage() = runBlocking {
+    fun douyinNoteAlwaysRequestsTargetPageCaptureInsteadOfApiGallery() = runBlocking {
         val result = PlatformSourceDiscoveryEngine(DouyinNoteGalleryGateway())
             .read("https://v.douyin.com/stHj3vcpv64/")
 
-        assertTrue(result is DiscoveryResult.Single)
-        val item = (result as DiscoveryResult.Single).item
-        assertEquals("7676041925425736777", item.mediaId)
-        assertEquals(2, item.capturedImageExpectedCount)
-        assertEquals(2, item.capturedImageUrls.size)
+        assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
+        assertEquals(
+            "https://www.douyin.com/note/7676041925425736777",
+            (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
+        )
     }
 
     @Test
@@ -161,9 +160,6 @@ private class MismatchedDouyinGalleryGateway : ProbeDiscoveryGateway {
 
     override fun extractSingle(url: String): YtDlpMediaInfo = error("不应调用通用解析")
 
-    override fun extractDouyinGallery(url: String): DouyinGalleryInfo? =
-        error("抖音返回的作品与目标不一致，已停止读取")
-
     override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
         error("不应读取列表")
 }
@@ -177,19 +173,6 @@ private class DouyinNoteGalleryGateway : ProbeDiscoveryGateway {
 
     override fun extractSingle(url: String): YtDlpMediaInfo =
         error("抖音图文不应先调用 yt-dlp")
-
-    override fun extractDouyinGallery(url: String) = DouyinGalleryInfo(
-        workId = "7676041925425736777",
-        pageUrl = url,
-        title = "图文",
-        creator = "作者",
-        creatorId = "creator-id",
-        thumbnail = "https://p3-sign.douyinpic.com/tos/image-0~tplv-dy-aweme-images.webp",
-        imageUrls = List(2) { index ->
-            "https://p3-sign.douyinpic.com/tos/image-$index~tplv-dy-aweme-images.webp"
-        },
-        expectedCount = 2,
-    )
 
     override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
         error("不应读取列表")
