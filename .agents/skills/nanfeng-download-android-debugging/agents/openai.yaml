@@ -1,0 +1,4 @@
+interface:
+  display_name: "南枫下载 Android 排错"
+  short_description: "系统定位来源传输输出与历史播放故障的排错流程与证据边界"
+  default_prompt: "使用 $nanfeng-download-android-debugging 诊断南枫下载 Android 下载或媒体问题。"

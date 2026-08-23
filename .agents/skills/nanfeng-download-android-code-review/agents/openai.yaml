@@ -1,0 +1,4 @@
+interface:
+  display_name: "南枫下载 Android 代码审查"
+  short_description: "审查数据来源媒体输出设备安全迁移与验证回归的完整流程"
+  default_prompt: "使用 $nanfeng-download-android-code-review 审查南枫下载 Android 改动。"
