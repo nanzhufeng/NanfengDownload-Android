@@ -1,14 +1,14 @@
 # 南枫下载 Android：ChatGPT 项目开发上下文
 
-更新时间：2026-08-22（Asia/Shanghai）
+更新时间：2026-08-23（Asia/Shanghai）
 用途：让 ChatGPT/Codex 在继续设计、排错、验证或发布前，快速理解当前 Android 项目的事实、验证边界和用户偏好。本文不替代当前源码、正式产物或真实设备证据。
 
 ## 结论先行
 
 - 当前维护对象是 **南枫下载 Android**，不是早期 PySide/Windows 原型；Android 工程入口为 `android/`，应用 ID 为 `com.nanzhufeng.videodownloader`。
 - 用户任务是把合规可访问媒体走完“读取 → 选择 → 下载/转码/合并 → MediaStore → 历史再次打开”。解析成功、文件有名字或界面能打开都不算完成。
-- 当前 Git 基础提交为 `1bdcc115d1ecc1dea4aecde65c6c705f95e13b28`（`v1.2.48`）。工作树在它之上有尚未 checkpoint 的 `v1.2.67 / 10267` 媒体体验增量，不能称为已发布版本。
-- `v1.2.67` 已作为正式同签名 APK 覆盖 OPPO Find N5，安装后设备 `base.apk` 哈希和本地产物一致，首次安装时间与 CE/DE 数据 inode 保持不变。自动门禁和签名已通过；播放中内外屏切换、动态图片的 App 内下载与历史验收，以及这次抖音图文原图下载源固定的用户链接复测仍待用户人工确认，不能宣称已真机通过。
+- 当前基线为 `main` 的 `8149cac`；本轮 `v1.2.82 / 10282` 抖音图集来源与传输完整性修复已进入本地 checkpoint。未授权不得推送或创建 Release。
+- `v1.2.82` 已作为正式同签名 APK 覆盖 OPPO Find N5，安装后设备 `base.apk` 与本地产物哈希一致，首次安装时间与 CE/DE 数据 inode 保持不变。隔离模拟器已按正常 UI 路径完成两个抖音图文样本的 2/2 与 14/14 下载；OPPO 本轮未启动 App 或执行下载，不能称为 OPPO 实际下载闭环。
 - 用户主设备数据优先级最高：永久禁止 `connected*AndroidTest`、Debug/仪器包部署、卸载、清数据和数据库注入。正式覆盖只有在用户明确授权后才可执行。
 
 ## 1. 产品定位与边界
@@ -29,16 +29,16 @@
 
 | 项目 | 当前事实 |
 | --- | --- |
-| Git 基础 | `1bdcc115d1ecc1dea4aecde65c6c705f95e13b28`，`release(android): prepare v1.2.48 downloader fixes` |
-| 当前开发版 | `1.2.67 / 10267`，尚未 checkpoint |
-| 正式 APK | `android/app/build/outputs/formal-release/南枫下载-Android-v1.2.67.apk` |
-| 当前 APK SHA-256 | `6936164033dc9755e2813bc66f077b3a32da100c91f92b2e33c9d8ada9ee7bac` |
+| Git 基础 | `8149cac`，`Merge pull request #1 from nanzhufeng/codex/android-ui-download-core-checkpoint-20260718` |
+| 当前开发版 | `1.2.82 / 10282`，本地 checkpoint 已建立 |
+| 正式 APK | `android/app/build/outputs/apk/release/南枫下载-Android-v1.2.82.apk` |
+| 当前 APK SHA-256 | `758e2cf7260f90501d5dbfb3be1fd4c0f92eb9d116e665bfa8945183e1aac6b7` |
 | 正式证书 SHA-256 | `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547` |
-| 当前自动验证 | Debug/Release JVM 单测、Debug/Release lint、正式 APK 生成已执行；lint 为 0 error，现存 warning 需按既有基线判断 |
-| 当前设备证据 | OPPO Find N5 已从 1.2.66 覆盖至 1.2.67；首次安装时间、CE/DE 数据 inode 未变，回拉 `base.apk` 与本地 APK 字节哈希一致 |
-| 仍待验证 | 1.2.67 播放时内外屏切换、主导航完全被覆盖、同一媒体及进度保持，以及小红书实况图/抖音图文在 App 内的读取、下载、MediaStore 与历史查看，必须由用户操作确认 |
+| 当前自动验证 | 已通过定向 JVM 回归和正式 APK 构建；本次 checkpoint 前将补齐 Debug/Release JVM 单测与 Debug/Release lint，结果以 v1.2.82 验证记录为准 |
+| 当前设备证据 | OPPO Find N5 已从 1.2.81 覆盖至 1.2.82；首次安装时间、CE/DE 数据 inode 未变，回拉 `base.apk` 与本地 APK 字节哈希一致 |
+| 仍待验证 | OPPO 上由用户按真实链接完成抖音图文读取、下载、MediaStore 与历史查看；折叠屏播放器及其他平台体验仍按各自历史增量独立验收 |
 
-当前未冻结工作树的范围：历史媒体存在性、失效记录清理、视频/图片/GIF 内容播放器、图片格式识别与保真、播放根状态所有权、折叠屏恢复以及相应测试/依赖校验。`.playwright-cli/` 是无关本机状态，不能纳入项目提交。
+本轮 checkpoint 只涵盖抖音 `/note/` 图集的来源、传输完整性、版本和对应测试/证据；`.playwright-cli/` 与 `docs/2026-08-23-douyin-gallery-watermark-claude-brief.md` 均不属于本次提交，不能纳入。
 
 2026-08-21 的追加诊断确认：OPPO 当前小红书失败是连续图片中的 `notes_uhdr/` 静帧被错误请求为 PNG，官方原图端点返回 HTTP 400；它不是 OPPO 后台限制。v1.2.58 仅把该类原图改为官方支持的 JPEG，其余图片仍走 PNG 原图。当前分享链接用同一请求头逐张读取为 5/5 有效媒体；OPPO 尚未覆盖或重试，不能把它写成真机下载闭环。
 

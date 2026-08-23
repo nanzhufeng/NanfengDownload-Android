@@ -137,6 +137,7 @@ class DirectMediaTransfer(
                                     streamLabel = "动态图片 ${index + 1}/${source.imageUrls.size}",
                                     transferPolicy = PlatformTransferPolicy.forPlatform(task.media.platform),
                                     reprobeCount = source.reprobeCount,
+                                    finalUrlValidator = douyinImageFinalUrlValidator(task),
                                     onModeResolved = modeObserver("动态图片 ${index + 1}/${source.imageUrls.size}"),
                                 ),
                             )
@@ -150,6 +151,7 @@ class DirectMediaTransfer(
                                 streamLabel = "图片 ${index + 1}/${source.imageUrls.size}",
                                 transferPolicy = PlatformTransferPolicy.forImage(task.media.platform),
                                 reprobeCount = source.reprobeCount,
+                                finalUrlValidator = douyinImageFinalUrlValidator(task),
                                 onModeResolved = modeObserver("图片 ${index + 1}/${source.imageUrls.size}"),
                             ),
                         )
@@ -163,7 +165,16 @@ class DirectMediaTransfer(
                     requests = galleryRequests,
                     cancelled = cancelled,
                     onProgress = onProgress,
-                    maxConcurrentStreams = MAX_PARALLEL_GALLERY_STREAMS,
+                    // Douyin signed image URLs can reply with an empty or
+                    // truncated body when several gallery requests open at
+                    // once.  Preserve every original image by reading that
+                    // gallery serially; other platforms keep parallel image
+                    // transfers.
+                    maxConcurrentStreams = if (task.media.platform == com.nanzhufeng.videodownloader.core.model.DownloadPlatform.DOUYIN) {
+                        1
+                    } else {
+                        MAX_PARALLEL_GALLERY_STREAMS
+                    },
                 )
                 require(downloadedFiles.size == source.imageUrls.size) {
                     "图文作品下载数量不完整：${downloadedFiles.size}/${source.imageUrls.size}"
@@ -629,6 +640,17 @@ class DirectMediaTransfer(
     private fun String.requestHost(): String = runCatching {
         java.net.URI(this).host.orEmpty()
     }.getOrDefault("")
+
+    private fun douyinImageFinalUrlValidator(task: QueuedDownload): (String) -> Unit =
+        if (task.media.platform == com.nanzhufeng.videodownloader.core.model.DownloadPlatform.DOUYIN) {
+            { finalUrl ->
+                require(!finalUrl.contains("tplv-dy-water", ignoreCase = true)) {
+                    "抖音原图请求被重定向为带水印变体，已停止保存；请重新读取作品后重试"
+                }
+            }
+        } else {
+            {}
+        }
 
     private fun File.imageMimeType(): String =
         detectImageMediaFormat()?.mimeType ?: "image/jpeg"

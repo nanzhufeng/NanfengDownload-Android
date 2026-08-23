@@ -8,8 +8,6 @@ import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
 import com.nanzhufeng.videodownloader.probe.Platform
 import com.nanzhufeng.videodownloader.probe.SourceKind
 import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
-import com.nanzhufeng.videodownloader.probe.DouyinGalleryInfo
-import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -102,25 +100,13 @@ class PlatformSourceDiscoveryEngine(
     private fun YtDlpMediaInfo.hasImageGallery(): Boolean =
         imageItems.isNotEmpty() || imageUrls.isNotEmpty()
 
-    private fun ClassifiedSource.readDouyinGalleryOrCapture(): DiscoveryResult {
-        val gallery = runCatching { gateway.extractDouyinGallery(url) }.getOrNull()
-            ?: return DiscoveryResult.DouyinCaptureRequired(url)
-        return DiscoveryResult.Single(gallery.toDiscoveredMedia())
-    }
-
-    private fun DouyinGalleryInfo.toDiscoveredMedia() = DiscoveredMedia(
-        sourceUrl = pageUrl,
-        platform = DownloadPlatform.DOUYIN,
-        mediaId = workId,
-        title = title,
-        creator = CreatorIdentity(creator, creatorId),
-        publishedAt = "",
-        thumbnailUrl = thumbnail,
-        defaultResolution = ResolutionPreset.UP_TO_720P,
-        capturedImageUrls = imageUrls,
-        capturedImageExpectedCount = expectedCount,
-        capturedImageSourceVersion = DouyinCaptureStore.STRUCTURED_GALLERY_SOURCE_VERSION,
-    )
+    private fun ClassifiedSource.readDouyinGalleryOrCapture(): DiscoveryResult =
+        // The detail endpoint can return a representation selected for an API
+        // client rather than the original-image list rendered for this target
+        // work.  A `/note/` must therefore enter the WebView target-page
+        // capture path every time; it is the only source from which the app
+        // accepts React Flight `aweme.detail.images[].urlList`.
+        DiscoveryResult.DouyinCaptureRequired(url)
 
     private fun ClassifiedSource.resolveIfNeeded(): ClassifiedSource {
         if (

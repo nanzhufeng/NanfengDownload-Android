@@ -82,6 +82,11 @@ class YtDlpTaskMediaResolverTest {
         )
 
         assertEquals(originalUrls, result.imageUrls.map(ResolvedImage::url))
+        assertEquals(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36",
+            result.headers["User-Agent"],
+        )
     }
 
     @Test
