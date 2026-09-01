@@ -15,7 +15,7 @@
 - 自动验证：`HistoryDetailsDialogContractTest`、`InternalVideoPlayerChromeContractTest` 的 Debug／Release JVM 回归，以及 Debug／Release lint 均通过；`stageFormalReleaseArtifacts` 的 Release 签名门禁、R8 `verifyReleaseParcelableCreatorRetention` 门禁、正式 APK／AAB 均通过。Gradle 常规依赖校验仍受本地 `junit-bom-5.9.3.module` 缓存与校验元数据哈希不匹配阻断；本轮仅离线使用既有缓存并对构建命令临时关闭该校验，未改动仓库校验文件。
 - 正式 APK：`android/app/build/outputs/formal-release/南枫下载-Android-v1.2.87.apk`，46,055,272 B，SHA-256 `304ced0e2789267887f42cd8be7363321914795cf11a6984eb91b7dbc727f7bc`；包名 `com.nanzhufeng.videodownloader`，版本 `1.2.87 / 10287`，证书 SHA-256 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。
 - 用户授权后已以 `pm install -r --user 0` 覆盖 OPPO 正式包。安装前为 `1.2.86 / 10286`，安装后设备 `base.apk` 与上述本地 APK 的 SHA-256 相同、证书相同；首次安装时间仍为 `2026-08-21 02:04:16`，CE／DE 数据 inode 仍为 `1788131`／`1745695`。未启动 App、未操作用户下载记录、未运行任何 `connected*AndroidTest`；设备和本地临时安装 APK 已清理。
-- 尚未对 v1.2.87 的内外屏详情面板、视频状态栏留黑和双击播放／暂停进行人工视觉／手势确认；未重新执行用户手动冷启动复验，也未创建 GitHub Release。
+- 尚未对 v1.2.87 的内外屏详情面板、视频状态栏留黑和双击播放／暂停进行人工视觉／手势确认；未重新执行用户手动冷启动复验。源码提交 `2130e1b` 与标签 `v1.2.87` 已推送 GitHub；对应 Release 草稿已创建，但 GitHub 附件上传无字节进度后被停止，草稿当前无附件，不能视为下载交付。经核验的 APK 仍保留在 `/Users/nanzhufeng/GitHub/NanfengDownload-Android/NanfengDownload-Android-v1.2.87.apk`，SHA-256 为 `304ced0e2789267887f42cd8be7363321914795cf11a6984eb91b7dbc727f7bc`。
 
 ### 当前增量：设置成对卡片等高与输入计数让位（v1.2.86，已覆盖，2026-09-01）
 
