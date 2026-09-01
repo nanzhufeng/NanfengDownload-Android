@@ -1,11 +1,52 @@
 # 南枫下载 Android 当前交接
 
-更新时间：2026-08-23（Asia/Shanghai）
+更新时间：2026-09-01（Asia/Shanghai）
 当前分支：`main`
 
 ## 当前目标
 
 把 Android 正式工作台完整落地到 OPPO Find N5，并以真实设备上的正式用户路径验收为结束条件。模拟器、构建或 APK 生成不能替代 OPPO 真机结论。
+
+### 当前增量：视频详情操作面板与播放器手势／安全区（v1.2.87，已覆盖，2026-09-01）
+
+- 历史页的“视频详情”不再使用会在展开屏留下大块空白的默认 `AlertDialog`。现在是限宽 600dp、最高 620dp 且内容可滚动的白色详情面板：顶部以媒体类型图标、标题和关闭入口建立层级；作品标题、作者、平台／清晰度、时长和真实文件大小集中在浅色信息面板中。它没有新增或伪造业务数据。
+- 可播放媒体的“内置播放器播放／查看图片”是唯一主操作；视频外部打开、复制原链接、查看吞吐报告均保留原有回调，改为对应的图标浅底按钮。文件不可读时，主播放按钮按原逻辑不显示，复制链接和已有报告入口仍可用。
+- 内置视频播放器接入双击切换播放／暂停；触摸监听把事件继续交回 `PlayerView`，单击控制条、拖动和关闭控制不被吞掉。视频渲染 View 现在应用 `statusBarsPadding()`，根层状态栏区域保持黑底，画面从系统状态栏以下开始；标题控制层仍随 Media3 控制条显隐。
+- 自动验证：`HistoryDetailsDialogContractTest`、`InternalVideoPlayerChromeContractTest` 的 Debug／Release JVM 回归，以及 Debug／Release lint 均通过；`stageFormalReleaseArtifacts` 的 Release 签名门禁、R8 `verifyReleaseParcelableCreatorRetention` 门禁、正式 APK／AAB 均通过。Gradle 常规依赖校验仍受本地 `junit-bom-5.9.3.module` 缓存与校验元数据哈希不匹配阻断；本轮仅离线使用既有缓存并对构建命令临时关闭该校验，未改动仓库校验文件。
+- 正式 APK：`android/app/build/outputs/formal-release/南枫下载-Android-v1.2.87.apk`，46,055,272 B，SHA-256 `304ced0e2789267887f42cd8be7363321914795cf11a6984eb91b7dbc727f7bc`；包名 `com.nanzhufeng.videodownloader`，版本 `1.2.87 / 10287`，证书 SHA-256 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。
+- 用户授权后已以 `pm install -r --user 0` 覆盖 OPPO 正式包。安装前为 `1.2.86 / 10286`，安装后设备 `base.apk` 与上述本地 APK 的 SHA-256 相同、证书相同；首次安装时间仍为 `2026-08-21 02:04:16`，CE／DE 数据 inode 仍为 `1788131`／`1745695`。未启动 App、未操作用户下载记录、未运行任何 `connected*AndroidTest`；设备和本地临时安装 APK 已清理。
+- 尚未对 v1.2.87 的内外屏详情面板、视频状态栏留黑和双击播放／暂停进行人工视觉／手势确认；未重新执行用户手动冷启动复验，也未创建 GitHub Release。
+
+### 当前增量：设置成对卡片等高与输入计数让位（v1.2.86，已覆盖，2026-09-01）
+
+- 展开设置页的前两行改为成对行容器：账号与权限／下载质量、下载规则／保存位置分别以较高卡片的内容高度为整行高度，左右卡片都填满该高度；较矮的一侧仅补白，不删除、截断、折叠或移动任何设置内容。功能审阅仍保留左半列，紧凑单列设置页不变。
+- 账号与权限各平台的“清除”均改为无黑线框的浅灰实底按钮；“导入／登录／继续登录”等绿色主操作不变。
+- 添加任务的字符数从输入框右侧移至输入框下方、右对齐的单独一行。`ReadEntryCard` 同时被展开右栏和紧凑底部入口复用，因此内外屏都释放输入框右侧宽度给链接文字；复制、智能读取、清空、字符上限和键盘避让逻辑不变。
+- 自动验证：`SettingsExpandedCardAlignmentContractTest`、`HomeLayoutResourceTest`、`NavigationRailLayoutContractTest`、`WorkbenchPaletteContractTest` 的 Debug/Release JVM 回归以及 Debug/Release lint 均通过；`stageFormalReleaseArtifacts` 的 Release 签名门禁、R8 冷启动 `CREATOR` 保留门禁、APK/AAB 产物均通过。Gradle 常规依赖校验仍受本地 `junit-bom-5.9.3.module` 缓存与校验元数据哈希不匹配阻断；本轮仅离线使用既有缓存并对构建命令临时关闭该校验，未改动仓库校验文件。
+- 正式 APK：`android/app/build/outputs/formal-release/南枫下载-Android-v1.2.86.apk`，46,038,888 B，SHA-256 `fc0da075cee1b25437ebfcd9af75f851dcc8037a07c3bede3230883241ba0e83`；包名 `com.nanzhufeng.videodownloader`，版本 `1.2.86 / 10286`，证书 SHA-256 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。
+- 用户授权后已以 `pm install -r --user 0` 覆盖 OPPO 正式包。安装后设备 `base.apk` 与上述本地 APK 的 SHA-256 相同，证书相同；首次安装时间仍为 `2026-08-21 02:04:16`，CE/DE 数据 inode 仍为 `1788131`／`1745695`。未启动 App、未操作用户下载记录、未执行任何 `connected*AndroidTest`；设备和本地临时安装 APK 已清理。
+- 尚未对 v1.2.86 的内外屏进行人工视觉确认，也未重新执行用户手动冷启动复验；未创建 GitHub Release。
+
+### 历史增量：侧栏仅在自身栏位内居中（v1.2.85，已覆盖，2026-09-01）
+
+- `NavigationRail` 现在显式固定为 80dp 宽；内部填满容器只会填充这块左栏，三个入口的 `Alignment.Center` 仅相对左栏自身高度生效，右侧页面内容不再被侧栏撑走。顶部应用图标和紧凑布局底部导航不变。
+- v1.2.84 的实现错误地让侧栏内部 `Box.fillMaxSize()` 参与无横向上限的测量，截图已确认它撑满整个屏幕并把入口组置于屏幕中央。原交接中“侧栏居中已完成”的结论已作废；新的布局契约额外锁定 `.width(80.dp)`。
+- 全部最外层白色工作台卡片继续复用 `WorkbenchCard`，已统一移除硬边描边，保留圆角与 1dp 浅阴影。添加任务的链接输入框和“清空”按钮保持无描边浅灰实底；复制、字数、键盘避让、智能读取和清空逻辑不变。
+- 自动验证：`NavigationRailLayoutContractTest`、`WorkbenchPaletteContractTest`、`HomeLayoutResourceTest` 的 Debug/Release JVM 回归与 Debug/Release lint 均通过；`stageFormalReleaseArtifacts` 的 Release 签名门禁、R8 冷启动 `CREATOR` 保留门禁、APK/AAB 产物均通过。Gradle 常规依赖校验受本地 `junit-bom-5.9.3.module` 缓存与校验元数据哈希不匹配阻断；本轮仅离线使用既有缓存并对构建命令临时关闭该校验，未改动仓库校验文件。
+- 正式 APK：`android/app/build/outputs/formal-release/南枫下载-Android-v1.2.85.apk`，46,038,888 B，SHA-256 `4b39df7379f03c51ff396eefa725e34f87d478d120b1c780e339e2cf9dea9b8f`；包名 `com.nanzhufeng.videodownloader`，版本 `1.2.85 / 10285`，证书 SHA-256 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。
+- 用户授权后已以 `pm install -r --user 0` 覆盖 OPPO 正式包。安装后设备 `base.apk` 与上述本地 APK 的 SHA-256 相同，证书相同；首次安装时间仍为 `2026-08-21 02:04:16`，CE/DE 数据 inode 仍为 `1788131`／`1745695`。未启动 App、未操作用户下载记录、未执行任何 `connected*AndroidTest`；设备和本地临时安装 APK 已清理。
+- 尚未做 v1.2.85 的 OPPO 人工视觉验收，也未重新执行用户手动冷启动复验；未创建 GitHub Release。
+
+### 历史增量：工作台表面去硬边与错误侧栏实现（v1.2.84，已被 v1.2.85 修正，2026-09-01）
+
+- v1.2.84 的白卡和添加任务控件材质调整仍保留，但侧栏居中实现因横向测量边界错误而不可用；完整的错误产物、安装回读和限制见 `docs/verification/2026-09-01-android-v1.2.84-workbench-surface-and-oppo-overlay.md` 顶部更正说明。
+
+### 当前增量：冷启动 Compose 状态恢复崩溃（未发布，2026-08-24）
+
+- OPPO 只读系统崩溃记录确认：从 v1.2.57 至 v1.2.82 多次在进程启动约 0.2–0.4 秒后因 `BadParcelableException` 退出；根因是 R8 移除了 `androidx.compose.runtime.ParcelableSnapshotMutableState` 的反射恢复字段 `CREATOR`，冷进程恢复 Compose `rememberSaveable` 状态时触发 `NoSuchFieldException: CREATOR`。这不是下载、Python、Room 或用户数据问题。
+- Release 现在加载 `proguard-android-optimize.txt` 与项目 `proguard-rules.pro`，并精确保留该 Compose 状态类的 `CREATOR`。新增 `verifyReleaseParcelableCreatorRetention`：Release 映射缺少 Creator 初始化路径时，`assembleRelease` 会失败，防止同类冷启动崩溃再次进入正式包。
+- 代码与构建证据见 `docs/verification/2026-08-24-android-cold-start-parcelable-state.md`。Debug/Release JVM 单测、Debug/Release lint、Release R8/签名与门禁均已通过；正式 APK DEX 已直接确认该类含 `public static final Parcelable.Creator CREATOR`。
+- 已在用户授权下以 `pm install -r --user 0` 覆盖到 v1.2.83 / 10283；设备 `base.apk` 与本地正式 APK 的 SHA-256 同为 `bcb77dde446fdb066399f6204a111740a4e3d9cac80213f20d4e666e274236a9`，证书仍为 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。首次安装时间和 CE/DE 数据 inode 仍为既有值。未自动启动或操作 OPPO 用户任务，未运行任何 `connected*AndroidTest`，也未发布 GitHub 新版本；下一步只需用户手动执行“从桌面冷启动 → 返回桌面/等待系统回收 → 再次冷启动”复验。
 
 ### 当前增量：抖音 `/note/` 图集来源与传输完整性（v1.2.82，2026-08-23）
 

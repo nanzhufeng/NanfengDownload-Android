@@ -14,6 +14,11 @@ class InternalVideoPlayerChromeContractTest {
         assertTrue(source.contains("setControllerVisibilityListener"))
         assertTrue(source.contains("controlsVisible = visibility == View.VISIBLE"))
         assertTrue(source.contains("if (controlsVisible)"))
-        assertTrue(source.contains(".statusBarsPadding()"))
+        val playerView = source.substringAfter("AndroidView(").substringBefore("if (controlsVisible)")
+        assertTrue(playerView.contains(".statusBarsPadding()"))
+        assertTrue(source.contains("GestureDetector"))
+        assertTrue(source.contains("override fun onDoubleTap"))
+        assertTrue(source.contains("player.playWhenReady"))
+        assertTrue(source.contains("setOnTouchListener"))
     }
 }

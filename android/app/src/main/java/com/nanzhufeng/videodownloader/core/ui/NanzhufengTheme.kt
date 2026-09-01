@@ -18,7 +18,6 @@ val SelectedSage = Color(0xFFE5F4EA)
 val WarmOrange = Color(0xFFFF5A1F)
 val QualityPurple = Color(0xFF7552B8)
 val StorageOchre = Color(0xFFB96812)
-val WorkbenchBorder = Color(0xFFD7DED9)
 val SecondaryText = Color(0xFF5F6C64)
 
 val PrussianBlue = ForestGreen

@@ -64,6 +64,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,6 +92,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -1357,15 +1359,26 @@ private fun ReadEntryCard(
                         Icon(Icons.Outlined.Link, contentDescription = "复制输入框内容")
                     }
                 },
-                trailingIcon = {
-                    Text(
-                        "${input.length}/1000",
-                        modifier = Modifier.testTag("input-character-count").padding(end = 8.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                },
                 placeholder = { Text("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color(0xFFF1F3F2),
+                    unfocusedContainerColor = Color(0xFFF1F3F2),
+                    disabledContainerColor = Color(0xFFE8EBE9),
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                    errorBorderColor = Color.Transparent,
+                ),
+            )
+            Text(
+                "${input.length}/1000",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("input-character-count"),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.End,
+                maxLines = 1,
             )
             Row(
                 modifier = Modifier
@@ -1386,10 +1399,16 @@ private fun ReadEntryCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isReading) "正在读取" else "智能读取")
                 }
-                OutlinedButton(
+                Button(
                     onClick = { onInputChange("") },
                     enabled = input.isNotEmpty() && !isReading,
                     modifier = Modifier.height(if (dense) 48.dp else 44.dp).testTag("clear-input"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFF1F3F2),
+                        contentColor = ForestGreen,
+                        disabledContainerColor = Color(0xFFE8EBE9),
+                        disabledContentColor = ForestGreen.copy(alpha = 0.38f),
+                    ),
                 ) {
                     Text("清空")
                 }

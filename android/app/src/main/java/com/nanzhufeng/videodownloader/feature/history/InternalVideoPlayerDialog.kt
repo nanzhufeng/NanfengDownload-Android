@@ -1,6 +1,8 @@
 package com.nanzhufeng.videodownloader.feature.history
 
 import android.net.Uri
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -89,10 +91,32 @@ internal fun InternalVideoPlayerOverlay(
                             controlsVisible = visibility == View.VISIBLE
                         },
                     )
+                    val doubleTapDetector = GestureDetector(
+                        viewContext,
+                        object : GestureDetector.SimpleOnGestureListener() {
+                            override fun onDown(event: MotionEvent): Boolean = true
+
+                            override fun onDoubleTap(event: MotionEvent): Boolean {
+                                if (player.playWhenReady) {
+                                    player.pause()
+                                } else {
+                                    player.play()
+                                }
+                                onPlaybackSnapshot(player.currentPosition, player.playWhenReady)
+                                return true
+                            }
+                        },
+                    )
+                    setOnTouchListener { _, event ->
+                        doubleTapDetector.onTouchEvent(event)
+                        false
+                    }
                 }
             },
             update = { it.player = player },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
         )
         if (controlsVisible) {
             Row(

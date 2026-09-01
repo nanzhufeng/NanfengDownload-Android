@@ -1,6 +1,5 @@
 package com.nanzhufeng.videodownloader.core.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,10 +46,9 @@ fun WorkbenchCard(
 ) {
     Surface(
         modifier = modifier,
-        color = Color.White,
+        color = tone.containerColor(),
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.medium,
-        border = BorderStroke(1.dp, tone.borderColor()),
         tonalElevation = 0.dp,
         shadowElevation = 1.dp,
     ) {
@@ -193,5 +191,3 @@ internal val PlatformMarkSize = 24.dp
 internal val DouyinGlyphSize = 12.dp
 
 internal fun AppCardTone.containerColor(): Color = Color.White
-
-internal fun AppCardTone.borderColor(): Color = WorkbenchBorder

@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,16 +25,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as lazyColumnItems
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as lazyGridItems
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
@@ -242,7 +240,7 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Key,
                 accent = ForestGreen,
                 compact = !expanded,
-                modifier = Modifier.testTag("settings-account-card"),
+                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-account-card"),
             ) {
                 Text(
                     "单个公开视频默认无需登录；批量主页、播放列表或受限内容再按提示登录。",
@@ -302,7 +300,7 @@ fun SettingsScreen(
                 accent = QualityPurple,
                 tone = AppCardTone.PURPLE,
                 compact = !expanded,
-                modifier = Modifier.testTag("settings-quality-card"),
+                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-quality-card"),
             ) {
                 ResolutionPreset.entries.forEach { preset ->
                     Row(
@@ -340,7 +338,7 @@ fun SettingsScreen(
                 accent = ForestGreen,
                 tone = AppCardTone.MINT,
                 compact = !expanded,
-                modifier = Modifier.testTag("settings-download-card"),
+                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-download-card"),
             ) {
                 SettingSwitchRow(
                     title = "恢复网络后自动继续",
@@ -372,7 +370,7 @@ fun SettingsScreen(
                 accent = StorageOchre,
                 tone = AppCardTone.OCHRE,
                 compact = !expanded,
-                modifier = Modifier.testTag("settings-storage-card"),
+                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-storage-card"),
             ) {
                 ActionSetting(
                     title = "下载路径",
@@ -398,7 +396,7 @@ fun SettingsScreen(
                 accent = ForestGreen,
                 tone = AppCardTone.MINT,
                 compact = !expanded,
-                modifier = Modifier.testTag("settings-feature-review-card"),
+                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-feature-review-card"),
             ) {
                 Text("图文历史查看 · 保留", fontWeight = FontWeight.Medium)
                 Text(
@@ -426,27 +424,30 @@ fun SettingsScreen(
     )
 
     if (expanded) {
-        Box(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .testTag("settings-screen")
+                .testTag("settings-expanded-grid"),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .testTag("settings-expanded-grid"),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) { SettingsHeader(expanded = true) }
-                lazyGridItems(
-                    items = settingsContent,
-                    key = { it.key },
-                    span = { GridItemSpan(if (it.spansFullWidth) maxLineSpan else 1) },
-                ) { content ->
-                    content.content()
+            item { SettingsHeader(expanded = true) }
+            item {
+                SettingsCardPair(
+                    left = settingsContent[0].content,
+                    right = settingsContent[1].content,
+                )
+            }
+            item {
+                SettingsCardPair(
+                    left = settingsContent[2].content,
+                    right = settingsContent[3].content,
+                )
+            }
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.weight(1f)) { settingsContent[4].content() }
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -477,9 +478,27 @@ private fun SettingsHeader(expanded: Boolean) {
 
 private data class SettingsContent(
     val key: String,
-    val spansFullWidth: Boolean = false,
     val content: @Composable () -> Unit,
 )
+
+private fun Modifier.fillSettingsRowHeightIf(expanded: Boolean): Modifier =
+    if (expanded) fillMaxHeight() else this
+
+@Composable
+private fun SettingsCardPair(
+    left: @Composable () -> Unit,
+    right: @Composable () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) { left() }
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) { right() }
+    }
+}
 
 @Composable
 private fun SettingsCard(
@@ -546,10 +565,14 @@ private fun SessionRow(
         }
         Spacer(Modifier.width(8.dp))
         if (state.hasSavedSession) {
-            OutlinedButton(
+            Button(
                 onClick = onClear,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 modifier = Modifier.width(58.dp).height(34.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFF1F3F2),
+                    contentColor = ForestGreen,
+                ),
             ) { Text("清除", style = MaterialTheme.typography.labelMedium) }
             Spacer(Modifier.width(8.dp))
         }

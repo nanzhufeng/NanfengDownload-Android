@@ -62,8 +62,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10282
-        versionName = "1.2.82"
+        versionCode = 10287
+        versionName = "1.2.87"
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -89,6 +89,10 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
             isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 
@@ -174,6 +178,32 @@ val prohibitConnectedAndroidTests by tasks.registering {
 
 tasks.matching { it.name.startsWith("connected") && it.name.endsWith("AndroidTest") }.configureEach {
     dependsOn(prohibitConnectedAndroidTests)
+}
+
+val verifyReleaseParcelableCreatorRetention by tasks.registering {
+    group = "verification"
+    description = "Verifies R8 keeps Compose saveable-state CREATOR for Android state restoration."
+    dependsOn("minifyReleaseWithR8")
+
+    doLast {
+        val mappingFile = layout.buildDirectory.file("outputs/mapping/release/mapping.txt").get().asFile
+        check(mappingFile.isFile) { "Release R8 mapping is missing: ${mappingFile.absolutePath}" }
+        val composeStateMapping = mappingFile.readText()
+            .substringAfter("androidx.compose.runtime.ParcelableSnapshotMutableState ->", "")
+            .substringBefore("\n\n")
+        check(
+            composeStateMapping.contains(
+                "ParcelableSnapshotMutableState${'$'}Companion${'$'}CREATOR${'$'}1.<init>()",
+            ),
+        ) {
+            "R8 removed ParcelableSnapshotMutableState's CREATOR initialization; " +
+                "cold-start state restoration would crash."
+        }
+    }
+}
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    dependsOn(verifyReleaseParcelableCreatorRetention)
 }
 
 tasks.register<Copy>("stageFormalReleaseArtifacts") {

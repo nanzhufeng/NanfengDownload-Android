@@ -2,7 +2,7 @@
 
 面向 Android 的 YouTube、抖音、TikTok、哔哩哔哩和小红书视频下载工作台。支持公开单视频与已结束直播回放的读取、去重、队列管理、真实下载、音视频合并、MP3 转码、系统媒体库发布、完成历史与永久吞吐报告。
 
-> 当前未发布开发版本为 `v1.2.67`（`versionCode 10267`）；最新已发布正式版仍为 `v1.2.48`。历史媒体现支持 App 内视频、图片、动图及小红书实况图查看；小红书实况图保留其动态媒体，抖音 `/note/` 图文从目标作品的完整公开原图 `urlList` 读取，拒绝带平台水印的 `downloadUrlList`，并将该已验证列表直接传给最终下载，禁止后续解析覆盖。折叠屏播放连续性仍以最新 OPPO 用户验证为准。
+> 当前正式版为 `v1.2.87`（`versionCode 10287`）。历史媒体支持 App 内视频、图片、动图及小红书实况图查看；视频可双击播放／暂停，画面不会进入顶部系统状态栏。抖音 `/note/` 图文从目标作品的完整公开原图 `urlList` 读取，拒绝带平台水印的 `downloadUrlList`，并将该已验证列表直接传给最终下载，禁止后续解析覆盖。
 
 ## 界面预览
 
@@ -10,11 +10,11 @@
 | --- | --- | --- |
 | <img src="docs/screenshots/github-preview/home.png" width="300" alt="南枫下载 Android 首页" /> | <img src="docs/screenshots/github-preview/history.png" width="300" alt="南枫下载 Android 历史" /> | <img src="docs/screenshots/github-preview/settings.png" width="300" alt="南枫下载 Android 设置" /> |
 
-截图来自当前最终 APK 在项目专用 Android 模拟器中的真实运行页面，统一使用 OPPO Find N5 外屏基准 `1140×2616 / 442dpi / font scale 1.0`。每张图片只展示一个页面，不使用旧设计稿或多页面拼接图冒充实际界面。
+截图来自 `v1.2.87` 正式 APK 在项目隔离 Android 15 模拟器的真实运行页面，展开视口为 `1600×1800`、字体比例 `1.0`；内容为空数据，不含用户任务或媒体。每张图片只展示一个页面，不使用旧设计稿或多页面拼接图冒充实际界面。
 
 ## 下载安装
 
-前往 [v1.2.8 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.8) 下载 `NanfengDownload-Android-v1.2.8.apk`。AAB 用于后续应用商店分发，普通安装请选择 APK；校验值见同一 Release 的 `SHA256SUMS.txt`。本地构建仍按约定输出中文名，GitHub Release 因平台会清洗非 ASCII 附件名而使用英文文件名。
+前往 [v1.2.87 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.87) 下载 `NanfengDownload-Android-v1.2.87.apk`。普通安装请选择 APK；本地构建仍按约定输出中文名，GitHub Release 使用稳定英文附件名。
 
 正式版使用长期 Release 签名。项目曾通过 Android v3 签名证书谱系，将指定 OPPO 上的 `0.1.0-probe` Debug 验收版无损迁移到正式签名；其他设备若签名不一致，仍必须停止并先确认迁移或备份方案，不得自动卸载或清除数据。
 
@@ -62,8 +62,8 @@ NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
 构建产物直接命名为：
 
 ```text
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.8.apk
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.8.aab
+android/app/build/outputs/formal-release/南枫下载-Android-v1.2.87.apk
+android/app/build/outputs/formal-release/南枫下载-Android-v1.2.87.aab
 ```
 
 自动化 UI 测试必须绑定项目专用模拟器。OPPO 真机更新固定使用“推送 APK → `pm install -r --user 0`”的同签名覆盖路径，不使用会触发 ColorOS 图形确认页的直接 `adb install`。
@@ -76,4 +76,4 @@ android/app/build/outputs/formal-release/南枫下载-Android-v1.2.8.aab
 
 ## 发布状态
 
-当前仓库明确维护 Android 版。`v1.2.8` 使用既有正式证书生成 APK/AAB，并在 OPPO 完成同签名无损覆盖、数据保留、抖音原问题短链接真实读取与下载；成品已进入 MediaStore 和历史记录。Google Play 上架和签名密钥异地加密备份仍是后续独立任务。
+当前仓库明确维护 Android 版。`v1.2.87` 使用既有正式证书生成 APK/AAB，并在 OPPO 完成同签名覆盖和数据保留核验；抖音图文真实下载闭环已由用户确认。视频详情面板、顶部安全区和双击播放／暂停仍待用户在 OPPO 内外屏手动验收。Google Play 上架和签名密钥异地加密备份仍是后续独立任务。

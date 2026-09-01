@@ -17,19 +17,26 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -38,6 +45,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -45,6 +53,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -59,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -66,6 +76,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
 import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
@@ -1019,69 +1030,191 @@ private fun HistoryDetailsDialog(
         playable -> "无法读取，请确认文件仍可正常播放"
         else -> "${historyKindLabel(mediaKind)}已不存在"
     }
-    AlertDialog(
-        containerColor = Color.White,
-        tonalElevation = 0.dp,
-        onDismissRequest = onDismiss,
-        title = {
-            Text("${historyKindLabel(mediaKind)}详情")
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(item.title, fontWeight = FontWeight.SemiBold)
-                Text(item.creator, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val title = "${historyKindLabel(mediaKind)}详情"
+    val primaryActionLabel = when (mediaKind) {
+        HistoryMediaKind.AUDIO,
+        HistoryMediaKind.VIDEO,
+        -> "内置播放器播放"
+        HistoryMediaKind.IMAGE -> "查看图片"
+    }
+    val mediaIcon = when (mediaKind) {
+        HistoryMediaKind.VIDEO -> Icons.Outlined.VideoLibrary
+        HistoryMediaKind.AUDIO -> Icons.Filled.MusicNote
+        HistoryMediaKind.IMAGE -> Icons.Outlined.Image
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .widthIn(max = 600.dp)
+                .fillMaxWidth()
+                .heightIn(max = 620.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = Color.White,
+            tonalElevation = 0.dp,
+            shadowElevation = 12.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        tonalElevation = 0.dp,
+                    ) {
+                        Icon(
+                            imageVector = mediaIcon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(10.dp).size(24.dp),
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text(
+                            "已保存到本机，可直接播放或查看详情。",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "关闭详情")
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f),
+                    tonalElevation = 0.dp,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            item.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            item.creator,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            buildString {
+                                append("${item.platform.label()}  ·  ${item.resolution.label()}")
+                                if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        HistoryDetailsMetadataRow(
+                            icon = Icons.Filled.PlayCircle,
+                            text = if (mediaKind == HistoryMediaKind.IMAGE) {
+                                "图片：$durationText"
+                            } else {
+                                "${historyKindLabel(mediaKind)}时长：$durationText"
+                            },
+                        )
+                        HistoryDetailsMetadataRow(
+                            icon = Icons.Outlined.Description,
+                            text = "文件大小：${formatBytes(displayedSize)}（${formatExactBytes(displayedSize)} 字节）",
+                        )
+                    }
+                }
+
                 Text(
-                    buildString {
-                        append("${item.platform.label()}  ·  ${item.resolution.label()}")
-                        if (item.audioSegmentCount > 1) append("  ·  共 ${item.audioSegmentCount} 段")
-                    },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    if (mediaKind == HistoryMediaKind.IMAGE) "图片：$durationText" else "${historyKindLabel(mediaKind)}时长：$durationText",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Text(
-                    "文件大小：${formatBytes(displayedSize)}（${formatExactBytes(displayedSize)} 字节）",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.bodyMedium,
+                    "操作",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
                 )
                 if (playable) {
-                    TextButton(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            when (mediaKind) {
-                                HistoryMediaKind.AUDIO -> "内置播放器播放"
-                                HistoryMediaKind.IMAGE -> "查看图片"
-                                HistoryMediaKind.VIDEO -> "内置播放器播放"
-                            },
-                        )
+                    Button(
+                        onClick = onPlay,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Icon(Icons.Filled.PlayCircle, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(primaryActionLabel)
                     }
-                    if (mediaKind == HistoryMediaKind.VIDEO) TextButton(onClick = onChoosePlayer, modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            if (shouldUseInternalAudioPlayer(item)) {
-                                "用外部播放器打开"
-                            } else {
-                                "选择播放器"
-                            },
+                    if (mediaKind == HistoryMediaKind.VIDEO) {
+                        HistoryDetailsActionButton(
+                            icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                            label = if (shouldUseInternalAudioPlayer(item)) "用外部播放器打开" else "选择播放器",
+                            onClick = onChoosePlayer,
                         )
                     }
                 }
-                TextButton(onClick = onCopyLink, modifier = Modifier.fillMaxWidth()) {
-                    Text("复制原链接")
-                }
+                HistoryDetailsActionButton(
+                    icon = Icons.Outlined.ContentCopy,
+                    label = "复制原链接",
+                    onClick = onCopyLink,
+                )
                 if (hasThroughputReport) {
-                    TextButton(onClick = onShowReport, modifier = Modifier.fillMaxWidth()) {
-                        Text("查看吞吐报告")
-                    }
+                    HistoryDetailsActionButton(
+                        icon = Icons.Outlined.Description,
+                        label = "查看吞吐报告",
+                        onClick = onShowReport,
+                    )
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text("关闭")
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
-        },
-    )
+        }
+    }
+}
+
+@Composable
+private fun HistoryDetailsMetadataRow(
+    icon: ImageVector,
+    text: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(text, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun HistoryDetailsActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Icon(icon, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(label)
+    }
 }
 
 @Composable

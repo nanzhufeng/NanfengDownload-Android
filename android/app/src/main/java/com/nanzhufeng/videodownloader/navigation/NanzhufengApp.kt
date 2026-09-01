@@ -7,6 +7,7 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -726,52 +728,62 @@ private fun PrimaryBottomNavigation(navController: NavHostController, currentRou
 private fun PrimaryNavigationRail(navController: NavHostController, currentRoute: String) {
     val appName = stringResource(R.string.app_name)
     NavigationRail(
-        modifier = Modifier.testTag("navigation-rail"),
+        modifier = Modifier
+            .width(80.dp)
+            .fillMaxHeight()
+            .testTag("navigation-rail"),
         containerColor = MaterialTheme.colorScheme.surface,
     ) {
-        Image(
-            painter = painterResource(R.drawable.nanzhufeng_app_icon),
-            contentDescription = appName,
-            modifier = Modifier
-                .padding(12.dp)
-                .size(56.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        AppDestination.entries.forEach { destination ->
-            val selected = currentRoute == destination.route
-            val navigationSurface by animateColorAsState(
-                targetValue = if (selected) SelectedSage else Color.Transparent,
-                animationSpec = tween(
-                    durationMillis = 120,
-                    easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f),
-                ),
-                label = "navigation-selection",
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(R.drawable.nanzhufeng_app_icon),
+                contentDescription = appName,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(12.dp)
+                    .size(56.dp),
             )
             Column(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .width(64.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(navigationSurface)
-                    .clickable { navController.openPrimary(destination) }
-                    .padding(vertical = 12.dp)
-                    .testTag(destination.testTag)
-                    .semantics {
-                        stateDescription = if (selected) "已选中" else "未选中"
-                    },
+                modifier = Modifier.align(Alignment.Center),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                Icon(
-                    destination.icon,
-                    contentDescription = null,
-                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    destination.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                AppDestination.entries.forEach { destination ->
+                    val selected = currentRoute == destination.route
+                    val navigationSurface by animateColorAsState(
+                        targetValue = if (selected) SelectedSage else Color.Transparent,
+                        animationSpec = tween(
+                            durationMillis = 120,
+                            easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f),
+                        ),
+                        label = "navigation-selection",
+                    )
+                    Column(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .width(64.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(navigationSurface)
+                            .clickable { navController.openPrimary(destination) }
+                            .padding(vertical = 12.dp)
+                            .testTag(destination.testTag)
+                            .semantics {
+                                stateDescription = if (selected) "已选中" else "未选中"
+                            },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(5.dp),
+                    ) {
+                        Icon(
+                            destination.icon,
+                            contentDescription = null,
+                            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            destination.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
             }
         }
     }

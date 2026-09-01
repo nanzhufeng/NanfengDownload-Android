@@ -1,23 +1,25 @@
 package com.nanzhufeng.videodownloader.core.ui
 
+import java.io.File
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class WorkbenchPaletteContractTest {
     @Test
-    fun everyWorkbenchCardUsesTheSameWhiteSurfaceAndNeutralBorder() {
+    fun everyWorkbenchCardUsesTheSameWhiteSurfaceWithoutAHardBorder() {
         assertEquals(
             setOf(Color.White),
             AppCardTone.entries.map { it.containerColor() }.toSet(),
         )
-        assertEquals(
-            setOf(Color(0xFFD7DED9)),
-            AppCardTone.entries.map { it.borderColor() }.toSet(),
-        )
+        val source = File("src/main/java/com/nanzhufeng/videodownloader/core/ui/WorkbenchUi.kt").readText()
+
+        assertFalse(source.contains("BorderStroke"))
+        assertFalse(source.contains("border ="))
     }
 
     @Test

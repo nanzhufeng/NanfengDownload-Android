@@ -79,11 +79,17 @@ class HomeLayoutResourceTest {
         assertTrue(readEntry.contains("placeholder ="))
         assertTrue(readEntry.contains("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本"))
         assertTrue(readEntry.contains("!notice.startsWith(\"已加入\")"))
-        assertTrue("字符数必须放在输入框内部", readEntry.contains("trailingIcon ="))
-        assertTrue(readEntry.contains("input.length"))
+        assertFalse("字符数不得占用输入框右侧", readEntry.contains("trailingIcon ="))
+        assertTrue(readEntry.contains("input-character-count"))
+        assertTrue("字符数应在输入框下方独占一行", readEntry.contains("textAlign = TextAlign.End"))
         assertTrue("链接图标必须可复制输入内容", readEntry.contains("copy-input"))
         assertFalse("添加任务标题不再显示加号图标", readEntry.contains("Icons.Outlined.AddCircle"))
-        assertFalse("字符数不再占用输入框下方空间", readEntry.contains("supportingText ="))
+        assertTrue("字符数不应挤占链接文字宽度", readEntry.indexOf("input-character-count") > readEntry.indexOf("OutlinedTextField("))
+        assertTrue("输入框应使用浅灰底", readEntry.contains("focusedContainerColor = Color(0xFFF1F3F2)"))
+        assertTrue("输入框不得保留聚焦黑框", readEntry.contains("focusedBorderColor = Color.Transparent"))
+        assertTrue("输入框不得保留常态黑框", readEntry.contains("unfocusedBorderColor = Color.Transparent"))
+        assertFalse("清空按钮不得保留描边样式", readEntry.contains("OutlinedButton("))
+        assertTrue("清空按钮应使用浅灰底", readEntry.contains("containerColor = Color(0xFFF1F3F2)"))
     }
 
     @Test
