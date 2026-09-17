@@ -1,3 +1,7 @@
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -47,6 +51,8 @@ val releaseSigningValues = listOf(
     releaseKeyPassword,
 )
 val releaseSigningConfigured = releaseSigningValues.all { it != null }
+val aboutBuildTimestamp = ZonedDateTime.now(ZoneId.of("Asia/Shanghai"))
+    .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
 
 check(releaseSigningValues.none { it != null } || releaseSigningConfigured) {
     "Release signing is partially configured. Provide all NANFENG_RELEASE_* environment variables " +
@@ -62,8 +68,9 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10287
-        versionName = "1.2.87"
+        versionCode = 10288
+        versionName = "1.2.88"
+        buildConfigField("String", "BUILD_TIMESTAMP", "\"$aboutBuildTimestamp\"")
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

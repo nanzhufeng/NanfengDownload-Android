@@ -41,6 +41,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
@@ -59,6 +60,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.BuildConfig
 import com.nanzhufeng.videodownloader.core.ui.AppCardTone
 import com.nanzhufeng.videodownloader.core.ui.PlatformIcon
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
@@ -419,6 +421,40 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text("关于与版本信息 · 保留", fontWeight = FontWeight.Medium)
+                Text(
+                    "入口：设置页底部“关于”。仅展示当前 APK 的版本、构建时间、开发者与 GitHub 源码信息，" +
+                        "不收集账号、下载或设备数据。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        SettingsContent(key = "about") {
+            SettingsCard(
+                title = "关于",
+                icon = Icons.Outlined.Info,
+                accent = ForestGreen,
+                tone = AppCardTone.NEUTRAL,
+                compact = !expanded,
+                modifier = Modifier.testTag("settings-about-card"),
+            ) {
+                Text("南枫下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "本机媒体下载与历史管理工作台。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Text("版本信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Android 版 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）")
+                Text("构建时间 ${BuildConfig.BUILD_TIMESTAMP}")
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Text("开发者信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("开发者：席瑞")
+                Text("联系邮箱：nanzhufeng.studio@gmail.com")
+                Text("源码与更新：GitHub · nanzhufeng/NanfengDownload-Android")
+                Text("版权所有 © 2026 席瑞")
             }
         },
     )
@@ -450,6 +486,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
+            item { settingsContent[5].content() }
         }
     } else {
         LazyColumn(
