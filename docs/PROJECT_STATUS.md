@@ -4,7 +4,7 @@
 
 ## Verified
 
-- Last verified: 2026-10-11 14:00 +0800；发布、远端附件和代码清单现场核对，旧测试运行时间仍按报告。
+- Last verified: 2026-10-11 14:12 +0800；本轮单测/宿主回归、冻结源码/APK与文档实际复核；构建/设备旧证据运行时间不刷新。
 - Verified branch: main
 - Code baseline: d0602d13c87411f5225889c04ef9a6f403a2a362
 - Verification scope: COMMIT；Android下载/发现、后台岛、播放记忆、收藏、Room11及对应测试；生产源码内容已在releases/v1.2.146/source-manifest.json冻结。该基线为本轮业务实现提交；后续只调整文档/清单，生产源逐文件哈希与此提交一致。
@@ -21,7 +21,7 @@
 
 ## In Progress
 
-- 无进行中的发布工作；v1.2.146已正式发布，附件/标签/源码及README预览均已回读验证。
+- 本轮本地checkpoint/合同/经验增量已完成验证；无进行中的发布工作。v1.2.146既有正式交付不重复，见本次检查点记录。
 
 ## Blocked
 
@@ -31,9 +31,10 @@
 
 | 检查 | 结论 | 时间 / 平台 / 范围 | 证据 |
 | --- | --- | --- | --- |
-| JVM Debug/Release | PASS | 2026-10-11/macOS JBR/146发布源码，各443，0失败/错误/跳过 | verification/2026-10-11-release-146.md |
+| JVM Debug/Release | PASS | 2026-10-11/macOS JBR/146未变生产源码，本轮实际重跑各443，0失败/错误/跳过 | verification/2026-10-11-checkpoint-experience-increment.md |
 | lint/Release/R8 | PASS | 2026-10-11/146，0错误/33警告/3信息 | 同上 |
-| Python/JavaScript | PASS | 2026-10-11/146工作区，Python120与JS4通过 | verification/2026-10-11-release-146.md |
+| Python/JavaScript | PASS | 2026-10-11/146未变生产源码，本轮实际重跑Python120与JS4 | verification/2026-10-11-checkpoint-experience-increment.md |
+| 冻结/正式沉淀 | PASS | 2026-10-11/479受控源、APK摘要、4个拒绝探针、经验审计/链接检查 | 同上；Skill quick_validate缺PyYAML，标准库审计兜底 |
 | 隔离正常UI | PASS | 2026-10-11/emulator-5580/146，收藏/取消/冷重开/宽窄切换/字体130% | 同上 |
 | OPPO正式覆盖 | PASS | 2026-10-11/140→142，同签名/包SHA/媒体元数据与安装身份 | verification/2026-10-11-oppo-release-142-overlay.md |
 | OPPO业务/长期后台 | NOT RUN | 不主动操作主设备任务 | 覆盖不替代业务结果 |
@@ -48,15 +49,15 @@
 
 ## Sync & Safety
 
-- Sync checked at: 2026-10-11 14:00 +0800；收尾状态文件写入前，main/tag/正式附件已核对。
-- Code / docs sync: OK；README/源码/146发布报告已对齐，旧142/OPPO证据保留其版本边界。
-- Git working tree: DIRTY；本轮源/文档已提交，剩余仅先前本地.sdd报告删除及当前状态增量；浏览器/旧QA图保留且已忽略。
-- Remote sync: PUSHED（代码基线）；origin/main已含该基线与清单修正，v1.2.146标签指向70cbccaf6fad0abe76eec660cfb93a79be3551c1；正式APK/校验文件已发布。本状态收尾文档提交待本轮推送，不改变代码基线。
+- Sync checked at: 2026-10-11 14:12 +0800；写入本状态前，当前HEAD与本地origin/main均为110ccb5e2a509f4d002b3ac2ef321d1480d4e8ad；本轮未刷新远端或附件。
+- Code / docs sync: OK；本轮传输合同、TS封装所有者、历史冲突日期和正式经验增量与冻结生产源对齐；既有签名混配门禁缺口单列。
+- Git working tree: DIRTY；写入时本轮文档/工具待本地提交，另有先前SDD报告删除；最终标记checkpoint/146-final-regression-20261011，原删除不纳入。浏览器/旧QA图保留且已忽略。
+- Remote sync: LOCAL ONLY（本轮checkpoint）；146代码基线及原收尾文档已在origin/main。本轮文档/工具与两个checkpoint标记不推送，不改变v1.2.146标签或正式附件。
 - Rollback point: UNKNOWN；未把当前底层HEAD默认视为业务稳定回滚点。
-- Secrets/config risk: NONE；当前发布范围扫描和图片检查无实际凭据，私有原始证据不上传。
+- Secrets/config risk: REVIEW NEEDED；本轮扫描无实际凭据，但既有签名按字段回退未自动拒绝来源混配；详见经验审计。原正式包身份证据有效，未改冻结源码。
 
 ## Next
 
-1. 按用户新反馈继续检查平台读取/吞吐及主设备业务缺口。
-2. 如用户要求覆盖146，先核对目标设备版本、签名和数据指纹，保数据更新。
-3. 按用户后续实际反馈验证主设备业务与平台性能缺口。
+1. 下次构建配置增量补签名整组取值/混配拒绝回归；不重建本轮冻结包。
+2. 按新样本验证平台吞吐、更多封装格式及读取时延。
+3. 用户明确授权覆盖或业务验收时再核对主设备签名/数据与目标路径。

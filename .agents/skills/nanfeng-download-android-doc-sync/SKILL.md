@@ -11,3 +11,4 @@ description: Synchronize 南枫下载 Android handoff, verification, architectur
 4. When documents conflict, identify the exact stale value, cite the current code/configuration or verification record, and preserve historical documents unless the task explicitly requests their correction.
 5. Do not place secrets, account data, cookies, device identifiers beyond necessary operational evidence, or stale temporary worktree state in permanent documentation.
 6. Before checkpoint, inspect the staged file list, whitespace and sensitive literals. Exclude unrelated/untracked local artifacts; do not push or create a Release unless separately authorized.
+7. When preserving a frozen Android release, run `tools/verify_frozen_release.py` against its release metadata, exact existing APK and verified production commit. This only proves tracked source/byte/archive identity; reuse or rerun the other evidence layers separately. Never rebuild a frozen artifact merely to update documentation.

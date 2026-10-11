@@ -1,29 +1,23 @@
 # 南枫下载 Android 当前交接
 
-2026-10-11（Asia/Shanghai）。当前项目能力、测试与同步快照看 `docs/PROJECT_STATUS.md`，本文件仅留本次发布接续信息。此前播放器/岛与收藏交接保留在docs/archive对应版本文档，不重写历史证据。
+2026-10-11（Asia/Shanghai）。本轮本地检查点、最终回归与正式经验增量已完成；全项目状态看 `docs/PROJECT_STATUS.md`。
 
-## 本次完成
+## 冻结基线与检查点
 
-用户要求“打包上传GitHub”，已上传main并发布正式[v1.2.146](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.146)。业务代码基线 `d0602d13c87411f5225889c04ef9a6f403a2a362`，发布标签指向 `70cbccaf6fad0abe76eec660cfb93a79be3551c1`（仅追加生产源清单修正文档），当前收尾也只改文档，不改变已验证代码。
+生产代码 `d0602d13c87411f5225889c04ef9a6f403a2a362`；增量前HEAD `110ccb5e2a509f4d002b3ac2ef321d1480d4e8ad`，已由本地tag `checkpoint/146-before-doc-solidification-20261011`保全。本轮最终tag `checkpoint/146-final-regression-20261011`包含文档/工具提交，均仅本地，不推送。
 
-复查发现HLS进度回调污染续传检查点，以及连续AVC TS末帧/系统MP4 B帧edit list丢帧。现按已追加片保存检查点、添加TS排空、复用Media3压缩样本封装、明确EOS与样本边界；143/145失败文件/包保留。最终两条146受控成品（含先404后同任务正常UI重试）均30/30帧、131音频帧、全AV解码exit0、逐帧像素与源片一致。
+146/10346、Room11、479受控生产文件与冻结APK摘要现场相同；未改生产源、版本、依赖、签名或正式包。精确产物/证书见 `docs/releases/v1.2.146/artifact.json`。正式GitHub发布及README回读已完成，见 `docs/verification/2026-10-11-release-146.md`，不要重复打包/发布。
 
-JVM Debug/Release各443、Python120、JS4通过，lint0E/33W/3I，Release/R8通过；详见 `docs/verification/2026-10-11-release-146.md`。README三张146正常模拟器截图已远端核对。本机字节码污染候选143包的问题已精确保全/移出构建，146无宿主字节码文件，不重新构建冻结包。
+## 本轮完成
 
-## 精确产物
+实际重跑Debug/Release各443、Python120、JS4，无失败；新冻结检查器核对源码集合/提交/包并拒绝4类坏输入。传输合同补有序提交游标、TS排空、Media3样本边界/EOS及完整性定义；开发档案修正过时所有者/历史声明。
 
-源码146/10346，Room11。APK `android/app/build/outputs/apk/release/南枫下载-Android-v1.2.146.apk`，57,718,955B；SHA256 `a9e63e5564518cb5523dfed0e312d9038a7f4e213f0a637d73a203cabd332075`，证书 `c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547`。正式/冻结/5580安装回拉及GitHub附件完全一致；附件英文名NanfengDownload-Android-v1.2.146.apk，附SHA256SUMS.txt。生产文件清单和摘要见docs/releases/v1.2.146。
+正式经验矩阵与跨项目增量见 `docs/verification/2026-10-11-app-experience-increment-audit.md`；命令/边界见 `docs/verification/2026-10-11-checkpoint-experience-increment.md`。个人产品标准Skill只增量改既有路由、诊断/交付reference和模板；仓库外独立验证保全。quick_validate缺PyYAML，标准库审计无硬错误。长期记忆未更新。
 
-## 保全与设备
+## 保全与停止点
 
-原有源码/测试/文档WIP已纳入发布；原浏览器会话、旧私有QA图及本地SDD报告删除仍保留在本地，未上传生成物。文档主机路径/序列号改占位引用，原WIP快照私有保全。上游Noto许可保持原始字节，空白检查对此许可作已记录例外。
+146核心新增文件上轮已入Git；本轮新增检查器与审计/回归记录显式纳入。原 `.superpowers/sdd/fidelity-settings-report.md` 删除、浏览器会话、旧生成QA保持原样。前一完整交接由增量前Git标记保全；不清用户数据或失败证据。
 
-仅操作emulator-5580/NanfengWebParityTmp，当前146，原1920×1920/420dpi恢复。61943受控服务器、对应reverse及本次设备临时XML已精确清理，无活跃下载FGS。56条原历史URI保持，旧成品与樱花6e失败缓存保留；旧受控iframe任务在正常UI过程中重新失败，不宣称全部旧字段不变。本次合成成品/失败证据保留，不删除历史制造干净状态。
+本轮无设备操作。原146隔离正常UI两条合格HLS/56历史URI证据沿用；主设备仅142原覆盖证据，146用户路径未跑。旧樱花6e失败缓存与失败候选保留；不把本轮宿主回归当所有公网平台完成。
 
-OPPO仅上轮已按授权覆盖142；本轮未启动/操作/覆盖主设备，其他模拟器未操作。无connected Android/仪器测试、Debug部署、数据库注入、卸载、清数据/缓存。私有原始验证证据未上传。
-
-## 下一安全动作
-
-发布已完成，不重复生成/替换146包；用户要求覆盖时先核对设备、现装签名和指纹，同签名递增保数据，安装不能替代业务验收。
-
-所有平台每次首次≤1秒、持续5–10MB/s、OEM长期后台、AVC之外TS及窄屏多任务空间仍待复核。原A–D、樱花6e/URI120及合格125、YouTube181合格/180偏移失败边界看旧验证记录；不把本轮受控HLS或发布当作全部公网平台完成。
+下次安全工作：按用户反馈处理更广媒体/平台/OEM缺口；另已确认既有签名字段级回退未自动拒绝来源混配，需下一次构建配置增量补整组取值/拒绝测试。冻结146当前证书证据不受文档增量影响；本轮不改源码重建它。

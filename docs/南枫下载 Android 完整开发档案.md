@@ -1,9 +1,9 @@
 # 南枫下载 Android 完整开发档案
 
-初版：2026-08-23；网站范围增量更新：2026-10-08（Asia/Shanghai）
+初版：2026-08-23；网站范围增量更新：2026-10-08；146合同与经验增量：2026-10-11（Asia/Shanghai）
 初版审阅范围：当时 `main` 的 105 个 Git 提交、Android/旧桌面源码、构建配置、Room schema、测试目录、项目文档和现有验证记录。后续增量以当前代码和对应日期的验证记录为准；外部平台状态与设备结果不作推断。
 
-## 1. 项目定位
+## 1. 项目身份与定位
 
 南枫下载的当前维护对象是 Android 下载工作台，应用 ID 为 `com.nanzhufeng.videodownloader`。既有 YouTube、抖音、TikTok、哔哩哔哩和小红书之外，当前本地代码已接入 Pornhub 单作品与通用 HTTP(S) 网页/媒体/合集，但不能把入口代码等同于这些网站的实站验收。目标闭环是：读取链接、去重入队、下载或处理、写入 MediaStore/用户选择目录，并在历史中再次打开。
 
@@ -15,7 +15,7 @@
 
 | 项目 | 现场事实 | 依据 |
 | --- | --- | --- |
-| 分支 / 最近提交 | `main` / `d9a66a1`，另有未提交工作区 | Git HEAD 与工作区 |
+| 分支 / 验证基线 | `main`；生产代码 `d0602d13c87411f5225889c04ef9a6f403a2a362`，本次文档增量前 HEAD `110ccb5e2a509f4d002b3ac2ef321d1480d4e8ad` | Git与146生产文件清单；本地检查点见状态/交接 |
 | Android 版本 | `1.2.146` / `10346` | `android/app/build.gradle.kts` |
 | SDK / JVM | minSdk 29、compile/targetSdk 35、Java/Kotlin 17 | `android/app/build.gradle.kts` |
 | 数据库 | Room schema v11，显式 1→11 迁移 | `NanzhufengDatabase.kt`、`android/app/schemas/` |
@@ -36,9 +36,9 @@
 | ABI | `arm64-v8a`、`x86_64` |
 | 构建工具 | Gradle 8.7、AGP 8.6.1、Kotlin/KSP 2.0.20 |
 
-Release 签名只接受完整 `NANFENG_RELEASE_*` 环境变量，或用户级 `nanzhufengDownload.release.*` 后备值；若只提供一部分，Gradle 直接失败。`stageFormalReleaseArtifacts` 会从已签名的 Release APK/AAB 生成版本化正式产物。
+执行合同要求完整 `NANFENG_RELEASE_*` 环境变量优先，用户级 `nanzhufengDownload.release.*` 完整组作备用；当前Gradle实际按字段回退并仅检查最终四字段齐全，未自动保证来源整组选择。这一配置门禁缺口记录于本次审计，不能宣称部分环境变量一定失败。本轮冻结包身份已有独立证书证据，未修改生产构建配置。`stageFormalReleaseArtifacts` 会从已签名的 Release APK/AAB 生成版本化正式产物。
 
-## 4. 目录与模块
+## 4. 目录结构与模块
 
 ```text
 android/app/src/main/
@@ -88,7 +88,7 @@ android/app/src/main/
 | `ForegroundDownloadWorker` | 按实际网络预检启动有限并行 lane，不以系统联网验证波动反复取消；进程恢复后继续可运行任务，并以持久队列生成前台通知。 |
 | `YtDlpTaskMediaResolver` | 已持久化的合格抖音图集优先于临时缓存和 yt-dlp；普通媒体验证解析 ID 与任务 ID 一致。 |
 | `ForegroundDownloadWorker` / `DownloadIslandState` / `DownloadIslandOverlay` | 唯一后台队列的真实状态同时驱动通知与简洁/详细进度岛；实际Activity可见、锁屏或非交互隐藏，窗口异常不取消下载；停止经DownloadEngine，任务/历史仍归Repository。WorkManager管理已有前台唤醒锁及系统停止/恢复，详见`background-download-island.md`。 |
-| `DirectMediaTransfer` / `HttpFileDownloader` / `Media3TrackMuxer` | Range、有界分块并行、保前缀续传、遵循服务器冷却的有限重试及分阶段吞吐；HTTP共用一次严重低速探测恢复，保已提交前缀/分片并核验恢复已知长度；视频按共享有界多连接/4 MiB请求块策略启动，旧分片布局与当前连接预算分离，不因策略升级删除有效旧片；策略唯一正文见`download-transfer-policy.md`。原生HLS/DASH较大已知响应共用一次慢响应续传，健康分片不丢弃（详见`verification/2026-10-10-shared-slow-download-recovery-and-island-permission.md`）；分片最多6连接按序组装。独立压缩音视频合并使用现有Media3，禁止隐式重编码，按绝对时间戳对齐封装时基防止长片累计取整漂移，成功后原子替换私有缓存，失败/取消保来源。TS封装仍由原解析器处理。图集逐项校验真实媒体，无请求 `206` 续传到声明长度，空体/截断 WebP/水印重定向均失败。 |
+| `DirectMediaTransfer` / `HttpFileDownloader` / `Media3TrackMuxer` / `AndroidStreamRemuxer` | Range、多连接预算、旧断点布局、HLS/DASH提交游标、TS排空和压缩样本封装的唯一合同见[共享视频传输策略](download-transfer-policy.md)。独立轨及TS路径使用Media3封装，TS仍由MediaExtractor提取，禁止隐式重编码；失败/取消保来源。图集逐项校验真实媒体，无请求 `206` 续传到声明长度，空体/截断 WebP/水印重定向均失败。 |
 | `MediaStoreOutputStore` | 用 `IS_PENDING` 或 DocumentsUI 创建输出，复制后复验；任一失败清理本次新建 URI/文档，不覆盖既有文件。 |
 | `MediaFileValidator` | 共享媒体结构预检；小MP4/WebM按有界容器结构判定，不只凭体积或裸签名。MediaStore索引纳入小文件候选，仍经同一检查。结构预检不替代真实样本完整解码。 |
 | `feature/history` | 本地存在性、媒体类型、可打开性分别判断；图片/动图/视频/音频走合适的 App 内或外部入口。 |
@@ -159,6 +159,8 @@ android/app/src/main/
 
 ## 11. 文档冲突与处理口径
 
+下表是初版/网站范围审阅时的历史差异，不代表当前README与交接仍旧。146已完成README/源码清单及正式发布同步；当前事实看 `PROJECT_STATUS.md`。保留旧表用于追溯，不能据此重复已完成的同步。
+
 | 文档 | 与现场冲突 | 处理 |
 | --- | --- | --- |
 | `README.md` | 写为开发版 1.2.67、发布版 1.2.48，构建产物示例为 1.2.8。 | 这些是面向访客的旧状态；当前版本、产物和验证看 Gradle、交接和验证记录。 |
@@ -166,15 +168,21 @@ android/app/src/main/
 | `docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md` 与 `PROJECT_HANDOFF.md` | 已更新到 1.2.82，但仍保留早期里程碑段落。 | 当前增量优先看顶部最新段和 `docs/verification/2026-08-23-android-v1.2.82-douyin-gallery-integrity.md`。 |
 | 未跟踪 Claude 简报 | 基于 1.2.81 且包含已废弃方向。 | 不纳入任何当前结论或提交。 |
 
-## 12. 已知问题与后续路线
+## 12. 已知问题、风险与后续路线
 
-1. 将 README 与 `context.md` 作为独立文档同步任务更新，避免继续传播旧版本、构建与数据库事实；更新前仍需重读现场配置。
+1. README已完成146同步；旧 `context.md` 仅作历史原型参考。当前项目context以本档案和状态文件为准，不再将旧副本作为当前维护入口。
 2. 对每个外部平台以新的公开样本独立确认读取、下载、输出和再次打开。历史成功不可推断为平台当前可用。
 3. 若修改数据库、会话、媒体输出或来源策略，先补相应迁移/契约测试，再安排隔离模拟器与经授权的正式设备验收。
-4. 网站范围目前只有一条公开 Pornhub 作品在隔离 AVD 完成下载及视频帧播放观察；其 OPPO 验收、重启回读、更多 Pornhub 作品、樱花动漫最终文件及其他代表性站点仍缺。MDN 与该单一样本成功不能推断其他外站可用。
+4. 2026-10-09单作品网站证据属于当时范围；后续樱花、YouTube等样本边界看各日期验证与当前交接，不能用旧缺口表否定后续结果，也不能用146受控HLS成功推断所有公网网站可用。
+5. 下一次生产构建配置变更需补签名凭据整组选择及部分环境配置拒绝回归；不修改本轮冻结146源码和包，完整配置/证书门禁仍须执行时核对。
 
 ## 13. 证据入口
 
 - 当前动态事实：`PROJECT_HANDOFF.md`、`docs/verification/`、Gradle 与源码。
 - 完整历史：`git log --all --reverse --format='%h|%ad|%s'`（审阅时共 105 提交）。
 - Android 设计/执行史：`docs/superpowers/plans/` 与 `docs/verification/`；它们是历史证据，不取代现场代码。
+- 本次正式经验增量：[146经验审计](verification/2026-10-11-app-experience-increment-audit.md)；长期经验路由：[可迁移开发经验](可迁移开发经验.md)。
+
+## 14. 数据安全与架构边界
+
+任务/历史持久化经Repository，输出经MediaStore/SAF事务所有者；封装失败保原始来源，不清用户缓存或覆盖旧成品。数据库变更需显式迁移与schema，正常UI验收不得数据库注入。设备/签名/发布门禁只在根 `AGENTS.md` 和专项Skill维护，本档案引用其权威规则。真实数据库、会话、密钥和用户媒体均不进入经验资产或Git。
