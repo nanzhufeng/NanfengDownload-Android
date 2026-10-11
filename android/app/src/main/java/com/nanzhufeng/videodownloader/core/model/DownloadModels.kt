@@ -8,6 +8,8 @@ enum class DownloadPlatform {
     DOUYIN,
     TIKTOK,
     XIAOHONGSHU,
+    PORNHUB,
+    GENERIC,
 }
 
 enum class DownloadSourceKind {
@@ -15,6 +17,7 @@ enum class DownloadSourceKind {
     CREATOR,
     CHANNEL,
     PLAYLIST,
+    COLLECTION,
 }
 
 enum class ResolutionPreset {
@@ -122,6 +125,12 @@ data class MediaItem(
     val capturedImageExpectedCount: Int = 0,
     /** Versioned trust contract. Legacy rows default to 0 and must never download as galleries. */
     val capturedImageSourceVersion: Int = 0,
+    /** User-confirmed target player source; never inferred from arbitrary network requests. */
+    val capturedVideoUrl: String = "",
+    val capturedVideoReferer: String = "",
+    val capturedVideoSourceVersion: Int = 0,
+    /** Discovery-only compatibility hint; stored work IDs and existing rows are not rewritten. */
+    val legacyContentId: String = "",
 )
 
 data class DownloadTask(
@@ -180,4 +189,5 @@ data class DownloadHistory(
     val capturedImageExpectedCount: Int = 0,
     /** Source contract used to produce the stored gallery; legacy history is zero. */
     val capturedImageSourceVersion: Int = 0,
+    val isFavorite: Boolean = false,
 )

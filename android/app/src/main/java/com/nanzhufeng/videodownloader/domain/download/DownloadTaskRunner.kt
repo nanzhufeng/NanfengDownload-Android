@@ -40,6 +40,9 @@ data class ResolvedMedia(
     val audioFromVideoSource: Boolean = false,
     val imageUrls: List<ResolvedImage> = emptyList(),
     val reprobeCount: Int = 0,
+    val videoDownloadSpec: String = "",
+    val audioDownloadSpec: String = "",
+    val audioHeaders: Map<String, String> = headers,
 )
 
 data class PreparedMedia(
@@ -147,9 +150,10 @@ class DownloadTaskRunner(
 ) {
     private val claimMutex = Mutex()
 
-    suspend fun runNext(): TaskRunResult {
+    suspend fun runNext(allowNetworkWaiting: Boolean = true): TaskRunResult {
         val queued = claimMutex.withLock {
-            val next = repository.nextSelectedRunnable() ?: return@withLock null
+            val next = (if (allowNetworkWaiting) repository.nextSelectedRunnable()
+                else repository.nextSelectedWaiting()) ?: return@withLock null
             repository.transition(next.task.taskId, DownloadTaskStatus.PARSING)
             next
         } ?: return TaskRunResult.Idle
@@ -234,6 +238,9 @@ class DownloadTaskRunner(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
+                    if (WebSourceRecoveryPolicy.mustRecapture(queued.media, error)) {
+                        throw WebSourceRefreshRequiredException(error)
+                    }
                     if (reprobeCount >= MAX_SOURCE_REPROBES || !TransferReprobePolicy.shouldReprobe(error)) {
                         throw error
                     }

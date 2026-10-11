@@ -60,6 +60,7 @@ object DownloadOverallProgress {
     }
 
     private fun networkProgress(task: DownloadTask): Float {
+        if (task.downloadedBytes <= 0L) return 0f
         val transferFraction = if (task.totalBytes > 0L) {
             task.downloadedBytes.toDouble()
                 .div(task.totalBytes.toDouble())

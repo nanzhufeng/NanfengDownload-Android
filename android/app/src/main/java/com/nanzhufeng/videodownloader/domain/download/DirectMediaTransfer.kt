@@ -15,6 +15,7 @@ import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4TrackMuxer
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMedia3VideoResolutionTranscoder
 import com.nanzhufeng.videodownloader.domain.download.video.AndroidMp4VideoSegmenter
 import com.nanzhufeng.videodownloader.domain.download.video.MediaTrackMuxer
+import com.nanzhufeng.videodownloader.domain.download.video.Media3TrackMuxer
 import com.nanzhufeng.videodownloader.domain.download.video.VideoResolutionTranscoder
 import com.nanzhufeng.videodownloader.domain.download.video.VideoSegmenter
 import com.nanzhufeng.videodownloader.probe.DirectDownloadRequest
@@ -64,9 +65,9 @@ fun interface DownloadProcessingSink {
 @UnstableApi
 class DirectMediaTransfer(
     context: Context,
-    downloader: FileDownloader = HttpFileDownloader(),
+    downloader: FileDownloader = com.nanzhufeng.videodownloader.probe.ProtocolFileDownloader(),
     audioTranscoder: AudioTranscoder = Mp3AudioTranscoder(),
-    private val mediaTrackMuxer: MediaTrackMuxer = AndroidMp4TrackMuxer(),
+    private val mediaTrackMuxer: MediaTrackMuxer = Media3TrackMuxer(context.applicationContext),
     private val videoSegmenter: VideoSegmenter = AndroidMp4VideoSegmenter(),
     private val videoResolutionTranscoder: VideoResolutionTranscoder =
         AndroidMedia3VideoResolutionTranscoder(context.applicationContext),
@@ -206,6 +207,9 @@ class DirectMediaTransfer(
             }
             val primaryRequest = DirectDownloadRequest(
                 url = source.videoUrl,
+                downloadSpec = source.videoDownloadSpec,
+                remuxToMp4 = !isAudioOnly && source.videoDownloadSpec.isBlank() &&
+                    VideoContainerPolicy.requiresDirectMp4Remux(source.videoExtension),
                 headers = source.headers,
                 target = File(
                     directory,
@@ -391,7 +395,8 @@ class DirectMediaTransfer(
 
             val audioRequest = DirectDownloadRequest(
                 url = audioUrl,
-                headers = source.headers,
+                headers = source.audioHeaders,
+                downloadSpec = source.audioDownloadSpec,
                 target = File(directory, "audio.${source.audioExtension.safeExtension("m4a")}"),
                 taskId = task.task.taskId,
                 platform = task.media.platform,
@@ -488,7 +493,12 @@ class DirectMediaTransfer(
             video
         }
         val segmentCount = task.task.audioSegmentCount.coerceIn(1, MAX_MEDIA_SEGMENTS)
-        if (segmentCount == 1) return PreparedMedia(preparedVideo, "video/mp4")
+        val mimeType = VideoContainerPolicy.outputMime(
+            extension = source.videoExtension,
+            transcodedToMp4 = preparedVideo.extension.equals("mp4", ignoreCase = true),
+            segmented = segmentCount > 1,
+        )
+        if (segmentCount == 1) return PreparedMedia(preparedVideo, mimeType)
 
         processingSink.update(
             task.task.taskId,
@@ -598,16 +608,25 @@ class DirectMediaTransfer(
         reporter = performanceReporter,
         nowNanos = monotonicNanos,
     ) {
-        val activeStreamCount = minOf(maxConcurrentStreams, requests.count { request ->
-            !MediaFileValidator.isLikelyMedia(request.target)
-        }.coerceAtLeast(1))
+        val activeIndices = requests.indices.filter { !MediaFileValidator.isLikelyMedia(requests[it].target) }
+        val policies = requests.map { request ->
+            if (request.downloadSpec.isNotBlank() && request.platform != null) {
+                PlatformTransferPolicy.forFragments(request.platform)
+            } else request.transferPolicy
+        }
+        val activeStreamCount = minOf(maxConcurrentStreams, activeIndices.size.coerceAtLeast(1))
+        val allocations = if (activeIndices.size <= maxConcurrentStreams) {
+            activeIndices.zip(transferConcurrencyBudget.connectionsForStreams(
+                task.task.taskId, activeIndices.map { policies[it]?.maxConnections ?: 1 },
+            )).toMap()
+        } else emptyMap()
         val reports = ConcurrentLinkedQueue<DownloadThroughputReport>()
         try {
             streamDownloadCoordinator.download(
-                requests = requests.map { request ->
-                    val budgetedPolicy = request.transferPolicy?.let { policy ->
+                requests = requests.mapIndexed { index, request ->
+                    val budgetedPolicy = policies[index]?.let { policy ->
                         policy.copy(
-                            maxConnections = transferConcurrencyBudget.connectionsPerStream(
+                            maxConnections = allocations[index] ?: transferConcurrencyBudget.connectionsPerStream(
                                 taskId = task.task.taskId,
                                 activeStreamCount = activeStreamCount,
                                 requestedConnections = policy.maxConnections,
@@ -617,6 +636,16 @@ class DirectMediaTransfer(
                     request.copy(
                         transferPolicy = budgetedPolicy,
                         onReport = reports::add,
+                        onPhaseMeasured = { phase, millis ->
+                            performanceReporter.record(task.task.taskId, phase, millis)
+                            if (phase == "container_remux_started" && activeIndices.size == 1 && !cancelled.get()) {
+                                // Network has finished; persist the existing processing
+                                // state once so muxing cannot trigger a false network stall.
+                                kotlinx.coroutines.runBlocking {
+                                    processingSink.update(task.task.taskId, DownloadProcessingStage.MERGING, 0)
+                                }
+                            }
+                        },
                     )
                 },
                 cancelled = cancelled,

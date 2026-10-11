@@ -47,7 +47,7 @@ cd android
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" ./gradlew :app:testDebugUnitTest
 ```
 
-Expected: FAIL，错误直接指向 Windows `C:/Users/.../Python313/python.exe` 不存在，或 Python 3.13 构建解释器不可用；不得把 Java PATH 问题误记为项目代码失败。
+Expected: FAIL，错误直接指向 Windows `C:<local-reference>` 不存在，或 Python 3.13 构建解释器不可用；不得把 Java PATH 问题误记为项目代码失败。
 
 - [x] **Step 2: 改为可选本机配置**
 
@@ -121,7 +121,7 @@ Run:
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-/Users/nanzhufeng/Library/Android/sdk/cmdline-tools/latest/bin/avdmanager \
+<local-reference> \
 create avd --force \
   --name NanzhufengFindN5Api35 \
   --package 'system-images;android-35;google_apis;arm64-v8a' \
@@ -135,7 +135,7 @@ Expected: AVD 创建成功，未连接、安装或修改 OPPO。
 Run:
 
 ```bash
-/Users/nanzhufeng/Library/Android/sdk/emulator/emulator \
+<local-reference> \
   -avd NanzhufengFindN5Api35 -no-snapshot -no-boot-anim
 ```
 
@@ -143,7 +143,7 @@ Run:
 
 ```bash
 ANDROID_SERIAL=emulator-5556 \
-/Users/nanzhufeng/Library/Android/sdk/platform-tools/adb wait-for-device
+<local-reference> wait-for-device
 ```
 
 Expected: `adb -s emulator-5556 shell getprop sys.boot_completed` 返回 `1`，且 `adb -s emulator-5556 emu avd name` 返回 `NanzhufengFindN5Api35`。若序列号变化，必须先按 AVD 名称核对，不使用 OPPO 序列号或其他项目的模拟器。

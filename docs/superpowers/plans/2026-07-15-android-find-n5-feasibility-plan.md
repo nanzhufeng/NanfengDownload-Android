@@ -168,7 +168,7 @@ android {
 chaquopy {
     defaultConfig {
         version = "3.13"
-        buildPython("C:/Users/Administrator/AppData/Local/Programs/Python/Python313/python.exe")
+        buildPython("C:<local-reference>)
         pip {
             install("yt-dlp==2026.6.9")
         }

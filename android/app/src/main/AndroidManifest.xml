@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -27,11 +29,15 @@
         android:theme="@style/Theme.NanzhufengVideoDownloader"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
-        android:usesCleartextTraffic="false">
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".probe.DouyinProbeActivity"
             android:exported="false"
             android:theme="@style/Theme.NanzhufengVideoDownloader.BackgroundProbe" />
+        <activity
+            android:name=".probe.GenericWebProbeActivity"
+            android:exported="false"
+            android:theme="@style/Theme.NanzhufengVideoDownloader" />
         <activity
             android:name=".feature.settings.SessionLoginActivity"
             android:exported="false"

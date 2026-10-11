@@ -16,7 +16,8 @@ class AppBrandingResourceTest {
 
         assertTrue(strings.contains("<string name=\"app_name\">南枫下载</string>"))
         assertTrue(home.contains("stringResource(R.string.app_name)"))
-        assertTrue(navigation.contains("stringResource(R.string.app_name)"))
+        // The expanded rail no longer owns a logo; the home header remains the brand entry.
+        assertFalse(navigation.contains("PrimaryNavigationRail"))
         assertTrue(worker.contains("getString(R.string.app_name)"))
         assertTrue(buildScript.contains("outputFileName = \"南枫下载.apk\""))
         assertTrue(buildScript.contains("val formalArtifactVersion = requireNotNull(android.defaultConfig.versionName)"))

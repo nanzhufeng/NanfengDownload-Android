@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
@@ -79,17 +80,20 @@ fun SelectedFilterChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    leadingIcon: ImageVector? = null,
 ) {
     FilterChip(
         selected = selected,
         onClick = onClick,
         label = { Text(label) },
+        leadingIcon = leadingIcon?.let { image -> { Icon(image, contentDescription = null, modifier = Modifier.size(18.dp)) } },
         modifier = modifier,
         colors = FilterChipDefaults.filterChipColors(
             containerColor = MaterialTheme.colorScheme.surface,
             labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             selectedContainerColor = ForestGreen,
             selectedLabelColor = Color.White,
+            selectedLeadingIconColor = Color.White,
         ),
     )
 }
@@ -101,6 +105,12 @@ fun PlatformIcon(
     modifier: Modifier = Modifier,
 ) {
     when (platform.iconTreatment()) {
+        PlatformIconTreatment.PORNHUB_ORANGE -> Box(modifier, contentAlignment = Alignment.Center) {
+            Text("PH", color = Color(0xFFE58A00), style = MaterialTheme.typography.labelSmall)
+        }
+        PlatformIconTreatment.GENERIC_WEB -> Box(modifier, contentAlignment = Alignment.Center) {
+            Text("WEB", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.labelSmall)
+        }
         PlatformIconTreatment.YOUTUBE_RED -> PlatformImage(
             resource = R.drawable.platform_youtube,
             tint = Color(0xFFFF0000),
@@ -135,6 +145,8 @@ internal enum class PlatformIconTreatment {
     TIKTOK_MONOCHROME,
     BILIBILI_BLUE,
     XIAOHONGSHU_RED,
+    PORNHUB_ORANGE,
+    GENERIC_WEB,
 }
 
 internal fun DownloadPlatform.iconTreatment(): PlatformIconTreatment = when (this) {
@@ -143,6 +155,8 @@ internal fun DownloadPlatform.iconTreatment(): PlatformIconTreatment = when (thi
     DownloadPlatform.TIKTOK -> PlatformIconTreatment.TIKTOK_MONOCHROME
     DownloadPlatform.BILIBILI -> PlatformIconTreatment.BILIBILI_BLUE
     DownloadPlatform.XIAOHONGSHU -> PlatformIconTreatment.XIAOHONGSHU_RED
+    DownloadPlatform.PORNHUB -> PlatformIconTreatment.PORNHUB_ORANGE
+    DownloadPlatform.GENERIC -> PlatformIconTreatment.GENERIC_WEB
 }
 
 @Composable

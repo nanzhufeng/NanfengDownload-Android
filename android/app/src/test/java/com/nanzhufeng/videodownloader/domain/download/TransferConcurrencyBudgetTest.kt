@@ -4,6 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TransferConcurrencyBudgetTest {
+    @Test fun singleConnectionAudioLeavesTheRestOfTheBudgetForVideo() {
+        val budget = TransferConcurrencyBudget(8)
+        budget.enter("first").use {
+            assertEquals(listOf(6, 1), budget.connectionsForStreams("first", listOf(6, 1)))
+            budget.enter("second").use {
+                assertEquals(listOf(3, 1), budget.connectionsForStreams("first", listOf(6, 1)))
+                assertEquals(listOf(2, 2), budget.connectionsForStreams("second", listOf(4, 4)))
+            }
+        }
+    }
     @Test
     fun dividesTheGlobalBudgetAcrossActiveTasksAndStreams() {
         val budget = TransferConcurrencyBudget(totalConnections = 8)

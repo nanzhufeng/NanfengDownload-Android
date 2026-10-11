@@ -82,7 +82,7 @@ enum class SessionSite(
         fun fromUrl(url: String): SessionSite? {
             val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
             return when {
-                host.matchesDomain("douyin.com") -> DOUYIN
+                host.matchesDomain("douyin.com") || host.matchesDomain("iesdouyin.com") -> DOUYIN
                 host.matchesDomain("youtube.com") || host.matchesDomain("youtu.be") -> YOUTUBE
                 host.matchesDomain("tiktok.com") -> TIKTOK
                 host.matchesDomain("bilibili.com") || host.matchesDomain("b23.tv") -> BILIBILI
@@ -142,6 +142,7 @@ interface SessionProvider {
     val states: StateFlow<List<SiteSessionState>>
 
     fun accessFor(url: String): SessionAccess
+    fun cookieHeaderFor(url: String): String = accessFor(url).cookieHeader
 
     fun openLogin(site: SessionSite)
 
@@ -194,13 +195,28 @@ class SessionAccessPolicy(
     private val youtubeCookieFile: () -> String?,
     private val sessionCookieFile: (SessionSite, String) -> String? = { _, _ -> null },
 ) {
-    fun accessFor(url: String): SessionAccess = when (SessionSite.fromUrl(url)) {
+    fun cookieHeaderFor(url: String): String {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return ""
+        if (!uri.scheme.equals("https", true) || uri.userInfo != null || uri.port !in setOf(-1, 443)) return ""
+        val site = SessionSite.fromUrl(url) ?: return ""
+        if (site == SessionSite.YOUTUBE) return ""
+        return cookieLookup(site, url)
+    }
+
+    fun accessFor(url: String): SessionAccess {
+        // Generic HTTP URLs are supported, but no saved platform credential may
+        // ever be sent to cleartext traffic, including official-looking hosts.
+        if (!runCatching { URI(url).scheme.equals("https", ignoreCase = true) }.getOrDefault(false)) {
+            return SessionAccess()
+        }
+        return when (SessionSite.fromUrl(url)) {
         SessionSite.DOUYIN -> scopedAccess(SessionSite.DOUYIN, url)
         SessionSite.TIKTOK -> scopedAccess(SessionSite.TIKTOK, url)
         SessionSite.BILIBILI -> scopedAccess(SessionSite.BILIBILI, url)
         SessionSite.XIAOHONGSHU -> scopedAccess(SessionSite.XIAOHONGSHU, url)
         SessionSite.YOUTUBE -> SessionAccess(cookieFilePath = youtubeCookieFile())
         null -> SessionAccess()
+        }
     }
 
     private fun scopedAccess(site: SessionSite, url: String): SessionAccess {

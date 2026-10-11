@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +41,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Tune
@@ -55,8 +55,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
@@ -68,6 +74,7 @@ import com.nanzhufeng.videodownloader.core.ui.ForestGreen
 import com.nanzhufeng.videodownloader.core.ui.QualityPurple
 import com.nanzhufeng.videodownloader.core.ui.SecondaryText
 import com.nanzhufeng.videodownloader.core.ui.StorageOchre
+import com.nanzhufeng.videodownloader.core.ui.WarmOrange
 import com.nanzhufeng.videodownloader.data.settings.AppSettings
 import com.nanzhufeng.videodownloader.data.settings.FileNameRule
 import com.nanzhufeng.videodownloader.domain.session.SessionSite
@@ -90,6 +97,7 @@ fun SettingsScreen(
     expanded: Boolean,
 ) {
     val context = LocalContext.current
+    var backgroundDialogVisible by remember { mutableStateOf(false) }
     var concurrencyDialogVisible by remember { mutableStateOf(false) }
     var namingDialogVisible by remember { mutableStateOf(false) }
     var storageDialogVisible by remember { mutableStateOf(false) }
@@ -120,6 +128,8 @@ fun SettingsScreen(
         pendingExportSite = null
         if (site != null) uri?.toString()?.let { onExportCookies(site, it) }
     }
+
+    if (backgroundDialogVisible) DownloadBackgroundSettingsDialog { backgroundDialogVisible = false }
 
     if (concurrencyDialogVisible) {
         ChoiceDialog(
@@ -342,6 +352,14 @@ fun SettingsScreen(
                 compact = !expanded,
                 modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-download-card"),
             ) {
+                ActionSetting(
+                    title = "后台下载与灵动岛",
+                    value = "进度提醒与后台权限",
+                    summary = "离开软件后显示下载阶段、进度和速度",
+                    onClick = { backgroundDialogVisible = true },
+                    modifier = Modifier.testTag("settings-background-island"),
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 SettingSwitchRow(
                     title = "恢复网络后自动继续",
                     summary = "仅恢复因网络中断而等待的任务，用户暂停的任务不会自动继续。",
@@ -391,45 +409,6 @@ fun SettingsScreen(
                 )
             }
         },
-        SettingsContent(key = "feature-review") {
-            SettingsCard(
-                title = "功能审阅",
-                icon = Icons.Outlined.Image,
-                accent = ForestGreen,
-                tone = AppCardTone.MINT,
-                compact = !expanded,
-                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-feature-review-card"),
-            ) {
-                Text("图文历史查看 · 保留", fontWeight = FontWeight.Medium)
-                Text(
-                    "入口：历史图片封面或详情“查看图片”。连续图片可左右滑动，视频在同一内容播放器中打开；" +
-                        "本地文件删除后会明确标记不可用，不会误报播放器问题。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("清理失效 · 保留", fontWeight = FontWeight.Medium)
-                Text(
-                    "入口：历史页“批量删除”旁的“清理失效”。仅删除已确认本地媒体不存在的历史记录，" +
-                        "保留仍可读取的文件。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("动图下载与播放 · 保留", fontWeight = FontWeight.Medium)
-                Text(
-                    "入口：图文作品直接下载，历史封面或详情“查看图片”进入全屏播放。" +
-                        "GIF 与动图 WebP 保留原格式并自动播放，连续图片仍可左右滑动。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("关于与版本信息 · 保留", fontWeight = FontWeight.Medium)
-                Text(
-                    "入口：设置页底部“关于”。仅展示当前 APK 的版本、构建时间、开发者与 GitHub 源码信息，" +
-                        "不收集账号、下载或设备数据。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        },
         SettingsContent(key = "about") {
             SettingsCard(
                 title = "关于",
@@ -439,22 +418,15 @@ fun SettingsScreen(
                 compact = !expanded,
                 modifier = Modifier.testTag("settings-about-card"),
             ) {
-                Text("南枫下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "本机媒体下载与历史管理工作台。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                AboutSettingsContent()
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Text("版本信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text("Android 版 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）")
-                Text("构建时间 ${BuildConfig.BUILD_TIMESTAMP}")
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Text("开发者信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                Text("开发者：席瑞")
-                Text("联系邮箱：nanzhufeng.studio@gmail.com")
-                Text("源码与更新：GitHub · nanzhufeng/NanfengDownload-Android")
-                Text("版权所有 © 2026 席瑞")
+                Text("功能审阅", style = MaterialTheme.typography.titleSmall)
+                Text("保留：视频收藏", style = MaterialTheme.typography.bodyMedium)
+                Text("入口：历史更多操作中收藏或取消收藏，全部时间右侧查看收藏。理由：快速找回常看的视频，取消收藏保留原文件。", style = MaterialTheme.typography.bodySmall)
+                Text("保留：后台下载与灵动岛", style = MaterialTheme.typography.bodyMedium)
+                Text("保留：视频播放记忆与左右连续跳转", style = MaterialTheme.typography.bodyMedium)
+                Text("入口建议：历史内置播放器。左右双击快退/快进10秒，连续点击叠加，单击显示控件；理由：回到视频继续观看，操作不打断播放，不新增常驻按钮。", style = MaterialTheme.typography.bodySmall)
+                Text("入口建议：下载规则内管理权限，进度岛内查看与停止。理由：离开软件也能确认真实进度，不增加首页常驻按钮。", style = MaterialTheme.typography.bodySmall)
             }
         },
     )
@@ -480,13 +452,7 @@ fun SettingsScreen(
                     right = settingsContent[3].content,
                 )
             }
-            item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(modifier = Modifier.weight(1f)) { settingsContent[4].content() }
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-            item { settingsContent[5].content() }
+            item { settingsContent[4].content() }
         }
     } else {
         LazyColumn(
@@ -500,6 +466,58 @@ fun SettingsScreen(
                 SettingsHeader(expanded = false)
             }
             lazyColumnItems(settingsContent, key = { it.key }) { content -> content.content() }
+        }
+    }
+}
+
+@Composable
+private fun AboutSettingsContent() {
+    val repositoryLine = remember {
+        buildAnnotatedString {
+            append("源码与更新： ")
+            withLink(
+                LinkAnnotation.Url(
+                    url = RepositoryUrl,
+                    styles = TextLinkStyles(
+                        style = SpanStyle(
+                            color = WarmOrange,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    ),
+                ),
+            ) {
+                append(RepositoryLabel)
+            }
+        }
+    }
+
+    SelectionContainer {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text("南枫下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                "本机媒体下载与历史管理工作台。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("版本信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text("Android 版 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）")
+            Text("构建时间 ${BuildConfig.BUILD_TIMESTAMP}")
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            Text("开发者信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text("开发者：席瑞")
+            Text("联系邮箱：nanzhufeng.studio@gmail.com")
+            Text(
+                text = repositoryLine,
+                modifier = Modifier.testTag("settings-about-github-link"),
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+            )
+            Text("版权所有 © 2026 席瑞")
         }
     }
 }
@@ -625,6 +643,7 @@ private fun SessionRow(
                     SessionSite.XIAOHONGSHU -> "无需登录"
                     else -> when {
                         !state.hasSavedSession -> "登录"
+                        state.isAuthenticated && state.site == SessionSite.DOUYIN -> "查看账号"
                         state.isAuthenticated -> "重新登录"
                         else -> "继续登录"
                     }
@@ -800,3 +819,6 @@ private fun FileNameRule.label(): String = when (this) {
     FileNameRule.TITLE_ONLY -> "视频标题"
     FileNameRule.CREATOR_AND_TITLE -> "作者 + 视频标题"
 }
+
+private const val RepositoryUrl = "https://github.com/nanzhufeng/NanfengDownload-Android"
+private const val RepositoryLabel = "GitHub · nanzhufeng/NanfengDownload-Android"

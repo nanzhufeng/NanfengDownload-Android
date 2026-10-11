@@ -460,7 +460,7 @@ Expected: BUILD SUCCESSFUL。
 
 - [ ] **Step 3: 覆盖安装并执行真实设备验收**
 
-Run: `adb -s 3B157F009E800000 install -r android/app/build/outputs/apk/debug/app-debug.apk`
+Run: `adb -s <oppo-serial> install -r android/app/build/outputs/apk/debug/app-debug.apk`
 
 Expected: 覆盖安装成功；不卸载、不清空数据。逐项执行验收清单，并将实际链接、结果、失败原因写入验证文档。
 

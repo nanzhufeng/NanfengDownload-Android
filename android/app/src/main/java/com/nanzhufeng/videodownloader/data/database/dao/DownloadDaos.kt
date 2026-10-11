@@ -211,10 +211,22 @@ interface DownloadTaskDao {
         """
         UPDATE download_tasks
         SET status = 'PAUSED', updatedAt = :updatedAt
-        WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'WAITING_NETWORK')
+        WHERE status IN ('WAITING', 'PARSING', 'DOWNLOADING', 'VALIDATING', 'WAITING_NETWORK')
         """,
     )
     suspend fun pauseRunnableTasks(updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'WAITING_NETWORK', failureType = 'NETWORK',
+            errorSummary = '网络连接已中断，恢复后可继续下载',
+            speedBytesPerSecond = 0, remainingSeconds = NULL,
+            retryCount = retryCount + 1, updatedAt = :updatedAt
+        WHERE status IN ('PARSING', 'DOWNLOADING', 'VALIDATING')
+        """,
+    )
+    suspend fun markActiveTasksWaitingForNetwork(updatedAt: Long): Int
 
     @Query(
         """
@@ -224,6 +236,15 @@ interface DownloadTaskDao {
         """,
     )
     suspend fun resumePausedTasks(updatedAt: Long): Int
+
+    @Query(
+        """
+        UPDATE download_tasks
+        SET status = 'WAITING', failureType = NULL, errorSummary = NULL, updatedAt = :updatedAt
+        WHERE status = 'WAITING_NETWORK'
+        """,
+    )
+    suspend fun resumeNetworkWaitingTasks(updatedAt: Long): Int
 
     @Query(
         """
@@ -367,6 +388,9 @@ interface DownloadHistoryDao {
 
     @Query("SELECT * FROM download_history WHERE taskId = :taskId")
     suspend fun getById(taskId: String): DownloadHistoryEntity?
+
+    @Query("UPDATE download_history SET isFavorite = :isFavorite WHERE taskId = :taskId AND finalStatus = 'COMPLETED' AND resolution != 'AUDIO_MP3' AND capturedImageExpectedCount = 0")
+    suspend fun setFavorite(taskId: String, isFavorite: Boolean): Int
 
     @Query("DELETE FROM download_history WHERE taskId = :taskId")
     suspend fun deleteById(taskId: String): Int

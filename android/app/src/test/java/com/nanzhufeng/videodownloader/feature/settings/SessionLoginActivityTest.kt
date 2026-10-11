@@ -96,6 +96,18 @@ class SessionLoginActivityTest {
     }
 
     @Test
+    fun reopeningDouyinWithSavedAuthenticationFirstShowsTheAccountPage() {
+        assertTrue(
+            initialLoginPageUrl(SessionSite.DOUYIN, hasAuthenticatedCookie = true) ==
+                SessionSite.DOUYIN.cookieProbeUrl,
+        )
+        assertTrue(
+            initialLoginPageUrl(SessionSite.DOUYIN, hasAuthenticatedCookie = false) ==
+                SessionSite.DOUYIN.loginUrl,
+        )
+    }
+
+    @Test
     fun douyinSsoDoesNotRedirectTheMobileLoginToDesktopCampaign() {
         assertTrue(SessionSite.DOUYIN.loginUrl.startsWith("https://www.douyin.com/login_page?"))
         assertTrue(SessionSite.DOUYIN.loginUrl.contains("service=https%3A%2F%2Fwww.douyin.com%2Fhome"))

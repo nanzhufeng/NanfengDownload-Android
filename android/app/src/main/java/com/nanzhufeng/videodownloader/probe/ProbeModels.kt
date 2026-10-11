@@ -6,6 +6,8 @@ enum class Platform {
     DOUYIN,
     TIKTOK,
     XIAOHONGSHU,
+    PORNHUB,
+    GENERIC,
 }
 
 enum class SourceKind {
@@ -15,6 +17,7 @@ enum class SourceKind {
     UNKNOWN_TIKTOK_SHARE,
     UNKNOWN_BILIBILI_SHARE,
     UNKNOWN_XIAOHONGSHU_SHARE,
+    UNKNOWN_WEB_PAGE,
 }
 
 data class ClassifiedSource(

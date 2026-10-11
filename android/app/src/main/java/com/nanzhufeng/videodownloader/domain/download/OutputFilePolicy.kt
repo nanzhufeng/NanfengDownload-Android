@@ -10,14 +10,21 @@ class OutputFilePolicy {
         media: MediaItem,
         resolution: ResolutionPreset,
         fileNameRule: FileNameRule = FileNameRule.DATE_AND_TITLE,
+        mimeType: String? = null,
     ): String {
-        val extension = if (resolution == ResolutionPreset.AUDIO_MP3) "mp3" else "mp4"
+        val extension = when {
+            resolution == ResolutionPreset.AUDIO_MP3 -> "mp3"
+            mimeType == "video/webm" -> "webm"
+            else -> "mp4"
+        }
         val platform = when (media.platform) {
             DownloadPlatform.DOUYIN -> "抖音"
             DownloadPlatform.YOUTUBE -> "YouTube"
             DownloadPlatform.TIKTOK -> "TikTok"
             DownloadPlatform.BILIBILI -> "哔哩哔哩"
             DownloadPlatform.XIAOHONGSHU -> "小红书"
+            DownloadPlatform.PORNHUB -> "Pornhub"
+            DownloadPlatform.GENERIC -> "其他网站/${sanitize(java.net.URI(media.originalUrl).host.orEmpty())}"
         }
         val creator = sanitize(media.creator.ifBlank { "未知作者" })
         val title = sanitize(media.title.ifBlank { "未知标题" })
@@ -29,6 +36,17 @@ class OutputFilePolicy {
             FileNameRule.CREATOR_AND_TITLE -> "$creator $title"
         }
         return "$root/南烛枫视频下载器/$platform/$creator/$baseName.$extension"
+    }
+
+    fun existingPaths(
+        media: MediaItem,
+        resolution: ResolutionPreset,
+        fileNameRule: FileNameRule = FileNameRule.DATE_AND_TITLE,
+    ): List<String> = buildList {
+        add(relativePath(media, resolution, fileNameRule))
+        if (resolution != ResolutionPreset.AUDIO_MP3) {
+            add(relativePath(media, resolution, fileNameRule, mimeType = "video/webm"))
+        }
     }
 
     fun displayName(

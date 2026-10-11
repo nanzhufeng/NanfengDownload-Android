@@ -10,11 +10,15 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.lifecycleScope
 import com.nanzhufeng.videodownloader.domain.download.NotificationPermissionPolicy
 import com.nanzhufeng.videodownloader.navigation.NanzhufengApp
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    companion object { const val ACTION_OPEN_DOWNLOADS = "com.nanzhufeng.videodownloader.OPEN_DOWNLOADS" }
+    private val openDownloads = MutableSharedFlow<Unit>(replay = 1, extraBufferCapacity = 1)
     private val incomingSharedText = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 1)
     private val requestNotifications = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -24,13 +28,24 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         acceptSharedText(intent)
+        if (savedInstanceState == null && intent?.action == ACTION_OPEN_DOWNLOADS) openDownloads.tryEmit(Unit)
         requestNotificationPermissionIfNeeded()
         val container = (application as NanzhufengApplication).container
         setContent {
             NanzhufengApp(
                 container = container,
                 incomingSharedText = incomingSharedText,
+                openDownloads = openDownloads,
             )
+        }
+        lifecycleScope.launch {
+            kotlinx.coroutines.yield()
+            com.nanzhufeng.videodownloader.probe.DouyinReadPreparation.prepareTransport(this@MainActivity)
+        }
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val started = System.nanoTime()
+            runCatching { container.discovery.prepare() }
+            android.util.Log.i("ReadPerformance", "stage=engine_prepare elapsedMs=${(System.nanoTime()-started)/1_000_000}")
         }
     }
 
@@ -38,6 +53,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         acceptSharedText(intent)
+        if (intent.action == ACTION_OPEN_DOWNLOADS) openDownloads.tryEmit(Unit)
     }
 
     override fun onResume() {

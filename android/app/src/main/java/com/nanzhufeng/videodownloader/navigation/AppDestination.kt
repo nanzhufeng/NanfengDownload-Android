@@ -12,7 +12,7 @@ internal enum class AppDestination(
     val icon: ImageVector,
     val testTag: String,
 ) {
-    HOME("home", "主页", Icons.Outlined.Home, "nav-home"),
+    HOME("home", "首页", Icons.Outlined.Home, "nav-home"),
     HISTORY("history", "历史", Icons.Outlined.History, "nav-history"),
     SETTINGS("settings", "设置", Icons.Outlined.Settings, "nav-settings"),
 }

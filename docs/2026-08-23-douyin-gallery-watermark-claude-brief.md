@@ -363,7 +363,7 @@ history is certified iff
 | 像素验收 | 每张逐一打开并检查水印区域；保存结果与可追溯的验收记录。 |
 | 历史重读 | 重启 App 后，历史仍显示同一 manifest/proof，而不是按最新元数据重解释旧文件。 |
 
-设备约束：严禁运行 `connected*AndroidTest`。OPPO Find N5 是有用户数据的主设备，只能在同签名、递增版本的正式 APK 通过安装前安全检查后，使用 `adb -s 3B157F009E800000 install -r --user 0` 覆盖；不得卸载、清数据、注入数据库或删除媒体。若需要自动化验收，请使用隔离模拟器，并把它与 OPPO 人工真实成品验收分开报告。
+设备约束：严禁运行 `connected*AndroidTest`。OPPO Find N5 是有用户数据的主设备，只能在同签名、递增版本的正式 APK 通过安装前安全检查后，使用 `adb -s <oppo-serial> install -r --user 0` 覆盖；不得卸载、清数据、注入数据库或删除媒体。若需要自动化验收，请使用隔离模拟器，并把它与 OPPO 人工真实成品验收分开报告。
 
 ---
 

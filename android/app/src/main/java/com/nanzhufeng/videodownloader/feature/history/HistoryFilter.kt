@@ -3,6 +3,7 @@ package com.nanzhufeng.videodownloader.feature.history
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
+import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 
 enum class HistoryPeriod(val label: String, val days: Int?) {
     ALL("全部时间", null),
@@ -16,11 +17,13 @@ fun filterCompletedHistory(
     platform: DownloadPlatform?,
     period: HistoryPeriod,
     now: Long = System.currentTimeMillis(),
+    favoritesOnly: Boolean = false,
 ): List<DownloadHistory> {
     val normalizedQuery = query.trim()
     val cutoff = period.days?.let { now - it * DAY_MILLIS }
     return history.asSequence()
         .filter { it.finalStatus == DownloadTaskStatus.COMPLETED }
+        .filter { !favoritesOnly || (it.isFavorite && it.resolution != ResolutionPreset.AUDIO_MP3 && it.capturedImageExpectedCount == 0) }
         .filter { normalizedQuery.isBlank() || it.title.contains(normalizedQuery, true) || it.creator.contains(normalizedQuery, true) || it.originalUrl.contains(normalizedQuery, true) }
         .filter { platform == null || it.platform == platform }
         .filter { cutoff == null || it.completedAt >= cutoff }

@@ -365,7 +365,7 @@ git commit -m "feat(android): refine adaptive settings cards"
 - Modify: `PROJECT_HANDOFF.md`
 
 **Interfaces:**
-- Consumes: existing installed debug package, OPPO device `3B157F009E800000`, `cmd device_state state 3/reset` fold control.
+- Consumes: existing installed debug package, OPPO device `<oppo-serial>`, `cmd device_state state 3/reset` fold control.
 - Produces: independent external/inner screenshots under `.artifacts/ui-audit-2026-07-16/`; this directory stays untracked.
 
 - [ ] **Step 1: Write the failing test/check**
@@ -390,7 +390,7 @@ Do not remove the existing local screenshots; only prevent them from being stage
 
 - [ ] **Step 3: Verify build and install without data loss**
 
-Run the full command from Step 1 until it reports `BUILD SUCCESSFUL`. Then use `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` against `3B157F009E800000`; do not use uninstall, `pm clear`, or a downgrade flag.
+Run the full command from Step 1 until it reports `BUILD SUCCESSFUL`. Then use `adb install -r android/app/build/outputs/apk/debug/app-debug.apk` against `<oppo-serial>`; do not use uninstall, `pm clear`, or a downgrade flag.
 
 - [ ] **Step 4: Perform independent visual and continuity checks**
 

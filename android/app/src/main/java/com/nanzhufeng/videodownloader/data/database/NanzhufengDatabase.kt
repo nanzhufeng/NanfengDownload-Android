@@ -20,7 +20,7 @@ import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputRep
         DownloadHistoryEntity::class,
         DownloadThroughputReportEntity::class,
     ],
-    version = 9,
+    version = 11,
     exportSchema = true,
 )
 abstract class NanzhufengDatabase : RoomDatabase() {
@@ -147,4 +147,17 @@ object NanzhufengMigrations {
             )
         }
     }
+    val MIGRATION_9_10 = object : Migration(9, 10) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE media_items ADD COLUMN capturedVideoUrl TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE media_items ADD COLUMN capturedVideoReferer TEXT NOT NULL DEFAULT ''")
+            database.execSQL("ALTER TABLE media_items ADD COLUMN capturedVideoSourceVersion INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+    val MIGRATION_10_11 = object : Migration(10, 11) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            database.execSQL("ALTER TABLE download_history ADD COLUMN isFavorite INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
 }

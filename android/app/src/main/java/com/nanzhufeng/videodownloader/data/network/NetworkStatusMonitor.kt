@@ -17,8 +17,11 @@ class NetworkStatusMonitor(context: Context) {
             val network = connectivityManager.activeNetwork
             val capabilities = network?.let(connectivityManager::getNetworkCapabilities)
             trySend(
-                capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true &&
-                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                downloadNetworkAvailable(
+                    hasDefaultNetwork = network != null,
+                    hasInternetCapability = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true,
+                    hasCaptivePortal = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL) == true,
+                ),
             )
         }
 

@@ -2,7 +2,7 @@ package com.nanzhufeng.videodownloader.feature.history
 
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
+import com.nanzhufeng.videodownloader.core.ui.IslandFeedback
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -34,6 +36,11 @@ import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
@@ -102,6 +109,9 @@ fun HistoryScreen(
     },
     onDeleteMissingRecords: () -> Unit = {},
     onMediaMissing: (String) -> Unit = {},
+    onHistoryFavoriteChange: (String, Boolean) -> Unit = { _, _ -> },
+    favoritesOnly: Boolean = false,
+    onFavoritesOnlyChange: (Boolean) -> Unit = {},
     onOpenInternalVideo: (taskId: String, uri: String, title: String) -> Unit = { _, _, _ -> },
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -112,11 +122,11 @@ fun HistoryScreen(
     var selectedIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     var pendingBulkDelete by rememberSaveable { mutableStateOf(false) }
     var pendingMissingMediaCleanup by rememberSaveable { mutableStateOf(false) }
-    val filtered = filterCompletedHistory(history, query, platform, period)
+    val filtered = filterCompletedHistory(history, query, platform, period, favoritesOnly = favoritesOnly)
     val grouped = filtered.groupBy { formatHistoryDay(it.completedAt) }
     val visibleIds = filtered.map(DownloadHistory::taskId)
     val selectedIdSet = selectedIds.toSet()
-    val missingMediaCount = history.count { !it.fileExists }
+    val missingMediaCount = if (favoritesOnly) 0 else history.count { !it.fileExists }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -165,6 +175,18 @@ fun HistoryScreen(
                 HistoryFilters(
                     platform = platform,
                     period = period,
+                    expanded = expanded,
+                    favoritesOnly = favoritesOnly,
+                    onFavoritesChange = {
+                        onFavoritesOnlyChange(!favoritesOnly)
+                        if (!favoritesOnly) {
+                            query = ""
+                            platform = null
+                            period = HistoryPeriod.ALL
+                        }
+                        selectionMode = false
+                        selectedIds = emptyList()
+                    },
                     onPlatformChange = {
                         platform = it
                         selectedIds = emptyList()
@@ -241,7 +263,7 @@ fun HistoryScreen(
             }
             if (grouped.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    CompactEmptyHistory(history = history)
+                    CompactEmptyHistory(history = history, favoritesOnly = favoritesOnly)
                 }
             } else {
                 grouped.forEach { (day, records) ->
@@ -263,6 +285,7 @@ fun HistoryScreen(
                                 }
                             },
                             onDelete = { pendingDeleteId = item.taskId },
+                            onFavoriteChange = { onHistoryFavoriteChange(item.taskId, !item.isFavorite) },
                             onMediaMissing = onMediaMissing,
                             onOpenInternalVideo = onOpenInternalVideo,
                         )
@@ -352,12 +375,12 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun CompactEmptyHistory(history: List<DownloadHistory>) {
+private fun CompactEmptyHistory(history: List<DownloadHistory>, favoritesOnly: Boolean) {
     WorkbenchCard(tone = AppCardTone.NEUTRAL) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(if (history.isEmpty()) "还没有下载历史" else "没有匹配结果", fontWeight = FontWeight.SemiBold)
+            Text(if (favoritesOnly) "暂无匹配的收藏视频" else if (history.isEmpty()) "还没有下载历史" else "没有匹配结果", fontWeight = FontWeight.SemiBold)
             Text(
-                if (history.isEmpty()) "已完成的下载会归档到这里。" else "请调整关键词或筛选条件。",
+                if (favoritesOnly) "在视频的更多操作中收藏，或调整筛选条件。" else if (history.isEmpty()) "已完成的下载会归档到这里。" else "请调整关键词或筛选条件。",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
             )
@@ -365,10 +388,14 @@ private fun CompactEmptyHistory(history: List<DownloadHistory>) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HistoryFilters(
     platform: DownloadPlatform?,
     period: HistoryPeriod,
+    expanded: Boolean,
+    favoritesOnly: Boolean,
+    onFavoritesChange: () -> Unit,
     onPlatformChange: (DownloadPlatform?) -> Unit,
     onPeriodChange: (HistoryPeriod) -> Unit,
     showBulkDelete: Boolean,
@@ -378,78 +405,97 @@ private fun HistoryFilters(
 ) {
     var platformMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var periodMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    Row(
-        modifier = Modifier.fillMaxWidth().testTag("history-platform-time-filters"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.testTag("history-platform-filter")) {
-            SelectedFilterChip(
-                label = platform?.label() ?: "全部平台",
-                selected = true,
-                onClick = { platformMenuExpanded = true },
-            )
-            DropdownMenu(
-                expanded = platformMenuExpanded,
-                onDismissRequest = { platformMenuExpanded = false },
+    Column(modifier = Modifier.fillMaxWidth().testTag("history-platform-time-filters")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(
+                modifier = if (expanded) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                DropdownMenuItem(
-                    text = { Text("全部平台") },
-                    onClick = {
-                        platformMenuExpanded = false
-                        onPlatformChange(null)
-                    },
+                Box(modifier = Modifier.testTag("history-platform-filter")) {
+                    SelectedFilterChip(
+                        label = platform?.label() ?: "全部平台",
+                        selected = true,
+                        onClick = { platformMenuExpanded = true },
+                    )
+                    DropdownMenu(
+                        expanded = platformMenuExpanded,
+                        onDismissRequest = { platformMenuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("全部平台") },
+                            onClick = {
+                                platformMenuExpanded = false
+                                onPlatformChange(null)
+                            },
+                        )
+                        DownloadPlatform.entries.forEach { value ->
+                            DropdownMenuItem(
+                                text = { Text(value.label()) },
+                                onClick = {
+                                    platformMenuExpanded = false
+                                    onPlatformChange(value)
+                                },
+                            )
+                        }
+                    }
+                }
+                Box(modifier = Modifier.testTag("history-period-filter")) {
+                    SelectedFilterChip(
+                        label = period.label,
+                        selected = true,
+                        onClick = { periodMenuExpanded = true },
+                    )
+                    DropdownMenu(
+                        expanded = periodMenuExpanded,
+                        onDismissRequest = { periodMenuExpanded = false },
+                    ) {
+                        HistoryPeriod.entries.forEach { value ->
+                            DropdownMenuItem(
+                                text = { Text(value.label) },
+                                onClick = {
+                                    periodMenuExpanded = false
+                                    onPeriodChange(value)
+                                },
+                            )
+                        }
+                    }
+                }
+                SelectedFilterChip(
+                    label = "收藏",
+                    selected = favoritesOnly,
+                    leadingIcon = if (favoritesOnly) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    onClick = onFavoritesChange,
+                    modifier = Modifier.testTag("history-favorites-filter"),
                 )
-                DownloadPlatform.entries.forEach { value ->
-                    DropdownMenuItem(
-                        text = { Text(value.label()) },
-                        onClick = {
-                            platformMenuExpanded = false
-                            onPlatformChange(value)
-                        },
-                    )
-                }
+            }
+            if (expanded) {
+                HistoryFilterActions(showBulkDelete, missingMediaCount, onBulkDelete, onCleanMissingMedia)
             }
         }
-        Box(modifier = Modifier.testTag("history-period-filter")) {
-            SelectedFilterChip(
-                label = period.label,
-                selected = true,
-                onClick = { periodMenuExpanded = true },
-            )
-            DropdownMenu(
-                expanded = periodMenuExpanded,
-                onDismissRequest = { periodMenuExpanded = false },
-            ) {
-                HistoryPeriod.entries.forEach { value ->
-                    DropdownMenuItem(
-                        text = { Text(value.label) },
-                        onClick = {
-                            periodMenuExpanded = false
-                            onPeriodChange(value)
-                        },
-                    )
-                }
+        if (!expanded && (showBulkDelete || missingMediaCount > 0)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                HistoryFilterActions(showBulkDelete, missingMediaCount, onBulkDelete, onCleanMissingMedia)
             }
         }
-        Spacer(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp),
-        )
+    }
+}
+
+@Composable
+private fun HistoryFilterActions(
+    showBulkDelete: Boolean,
+    missingMediaCount: Int,
+    onBulkDelete: () -> Unit,
+    onCleanMissingMedia: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         if (showBulkDelete) {
-            TextButton(
-                onClick = onBulkDelete,
-                modifier = Modifier.testTag("history-bulk-delete"),
-            ) {
+            TextButton(onClick = onBulkDelete, modifier = Modifier.testTag("history-bulk-delete")) {
                 Text("批量删除")
             }
         }
         if (missingMediaCount > 0) {
-            TextButton(
-                onClick = onCleanMissingMedia,
-                modifier = Modifier.testTag("history-clean-missing-media"),
-            ) {
+            TextButton(onClick = onCleanMissingMedia, modifier = Modifier.testTag("history-clean-missing-media")) {
                 Text("清理失效")
             }
         }
@@ -465,6 +511,7 @@ private fun HistoryItem(
     selected: Boolean,
     onSelectionChange: () -> Unit,
     onDelete: () -> Unit,
+    onFavoriteChange: () -> Unit,
     onMediaMissing: (String) -> Unit,
     onOpenInternalVideo: (String, String, String) -> Unit,
 ) {
@@ -516,7 +563,12 @@ private fun HistoryItem(
     }
     val choosePlayer: () -> Unit = {
         if (contentAvailable) {
-            showPlayerChooser = true
+            if (queryMediaPlayers(context, item).isEmpty()) {
+                IslandFeedback.error(
+                    context, mediaOpenMessage(MediaOpenResult.NoPlayer, shouldUseInternalAudioPlayer(item)),
+                    title = "没有可用的播放器",
+                )
+            } else showPlayerChooser = true
         } else {
             handleMediaOpenResult(MediaOpenResult.MissingMedia, item, context, onMediaMissing)
         }
@@ -641,6 +693,10 @@ private fun HistoryItem(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    if (item.isFavorite) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Filled.Star, contentDescription = "已收藏", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
                     Spacer(Modifier.weight(1f))
                     if (!selectionMode) {
                         Box {
@@ -652,7 +708,18 @@ private fun HistoryItem(
                         ) {
                             Icon(Icons.Outlined.MoreVert, contentDescription = "更多操作")
                         }
-                        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                            modifier = Modifier.background(MaterialTheme.colorScheme.surface),
+                        ) {
+                            if (item.isFavorite || (mediaMetadata != null && mediaKind == HistoryMediaKind.VIDEO)) {
+                                DropdownMenuItem(
+                                    text = { Text(if (item.isFavorite) "取消收藏" else "收藏视频") },
+                                    leadingIcon = { Icon(if (item.isFavorite) Icons.Filled.Star else Icons.Outlined.StarBorder, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                    onClick = { menuExpanded = false; onFavoriteChange() },
+                                )
+                            }
                             if (contentAvailable && mediaKind == HistoryMediaKind.VIDEO) {
                                 DropdownMenuItem(
                                     text = {
@@ -660,6 +727,7 @@ private fun HistoryItem(
                                             "用外部播放器打开",
                                         )
                                     },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                     onClick = {
                                         menuExpanded = false
                                         choosePlayer()
@@ -668,15 +736,17 @@ private fun HistoryItem(
                             }
                             DropdownMenuItem(
                                 text = { Text("复制原链接") },
+                                leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     menuExpanded = false
                                     clipboard.setText(AnnotatedString(item.originalUrl))
-                                    Toast.makeText(context, "已复制原链接", Toast.LENGTH_SHORT).show()
+                                    IslandFeedback.success(context, "已复制原链接")
                                 },
                             )
                             if (reports.isNotEmpty()) {
                                 DropdownMenuItem(
                                     text = { Text("查看吞吐报告") },
+                                leadingIcon = { Icon(Icons.Outlined.Speed, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                     onClick = {
                                         menuExpanded = false
                                         showThroughputReport = true
@@ -685,6 +755,7 @@ private fun HistoryItem(
                             }
                             DropdownMenuItem(
                                 text = { Text("分享原链接") },
+                                leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     menuExpanded = false
                                     context.startActivity(
@@ -700,6 +771,7 @@ private fun HistoryItem(
                             )
                             DropdownMenuItem(
                                 text = { Text("删除历史记录") },
+                                leadingIcon = { Icon(Icons.Outlined.DeleteOutline, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                 onClick = {
                                     menuExpanded = false
                                     onDelete()
@@ -756,7 +828,7 @@ private fun HistoryItem(
             },
             onCopyLink = {
                 clipboard.setText(AnnotatedString(item.originalUrl))
-                Toast.makeText(context, "已复制原链接", Toast.LENGTH_SHORT).show()
+                IslandFeedback.success(context, "已复制原链接")
             },
             onShowReport = {
                 showDetails = false
@@ -857,11 +929,9 @@ private fun handleMediaOpenResult(
 ) {
     if (result == MediaOpenResult.Opened) return
     if (result == MediaOpenResult.MissingMedia) onMediaMissing(item.taskId)
-    Toast.makeText(
+    IslandFeedback.error(
         context,
-        mediaOpenMessage(result, isAudio = shouldUseInternalAudioPlayer(item)),
-        Toast.LENGTH_LONG,
-    ).show()
+        mediaOpenMessage(result, isAudio = shouldUseInternalAudioPlayer(item)))
 }
 
 @Composable
@@ -1276,6 +1346,8 @@ private fun DownloadPlatform.label(): String = when (this) {
     DownloadPlatform.TIKTOK -> "TikTok"
     DownloadPlatform.BILIBILI -> "哔哩哔哩"
     DownloadPlatform.XIAOHONGSHU -> "小红书"
+    DownloadPlatform.PORNHUB -> "Pornhub"
+    DownloadPlatform.GENERIC -> "其他网站"
 }
 
 private fun com.nanzhufeng.videodownloader.core.model.ResolutionPreset.label(): String = when (this) {

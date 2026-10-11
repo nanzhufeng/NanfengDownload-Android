@@ -2,6 +2,7 @@ package com.nanzhufeng.videodownloader.feature.home
 
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.core.model.QueuedDownload
@@ -15,6 +16,9 @@ import com.nanzhufeng.videodownloader.domain.discovery.DiscoveryResult
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import com.nanzhufeng.videodownloader.probe.DouyinCapturedMedia
 import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
+import com.nanzhufeng.videodownloader.probe.GenericWebCapture
+import com.nanzhufeng.videodownloader.probe.GenericWebEpisode
+import com.nanzhufeng.videodownloader.probe.genericCollectionMediaId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
@@ -24,6 +28,186 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeViewModelTest {
+    @Test
+    fun staleWebCaptureResultAfterInputChangesNeverCreatesATask() = runBlocking {
+        val page = "https://example.test/watch/old"
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.WebCaptureRequired(input)
+        })
+
+        viewModel.onInputChanged(page)
+        viewModel.smartRead()
+        assertEquals(page, viewModel.uiState.value.webCaptureUrl)
+        viewModel.onInputChanged("https://example.test/watch/new")
+        viewModel.completeWebCapture(
+            GenericWebCapture(page, page, "https://cdn.example.test/old.mp4", "旧作品"),
+        )
+
+        assertTrue(downloads.enqueued.isEmpty())
+        assertTrue(viewModel.uiState.value.notice.contains("未创建任务"))
+    }
+
+    @Test
+    fun expiredWebTaskCanRefreshOnlyItsOwnConfirmedPlayerSource() = runBlocking {
+        val page = "https://www.yhdm.one/vod-play/2025999379/ep1.html"
+        val other = "https://www.yhdm.one/vod-play/2025999379/ep2.html"
+        val id = genericCollectionMediaId(page)
+        val media = MediaItem(
+            mediaKey = "GENERIC:$id", platform = DownloadPlatform.GENERIC, contentId = id,
+            originalUrl = page, sourceKind = DownloadSourceKind.COLLECTION, title = "第1集",
+            creator = "站点", creatorId = "", publishDate = "", thumbnailUrl = "",
+            capturedVideoUrl = "https://cdn.example.test/expired.m3u8",
+            capturedVideoReferer = page, capturedVideoSourceVersion = 1,
+        )
+        val task = com.nanzhufeng.videodownloader.core.model.DownloadTask(
+            taskId = "failed-episode", mediaKey = media.mediaKey, selected = true, sortOrder = 1,
+            resolution = ResolutionPreset.UP_TO_720P, saveTreeUri = null,
+            downloadedBytes = 0, totalBytes = 0, speedBytesPerSecond = 0,
+            remainingSeconds = null, status = DownloadTaskStatus.FAILED,
+            failureType = com.nanzhufeng.videodownloader.core.model.DownloadFailureType.TRANSFER,
+            errorSummary = "下载请求失败：HTTP 403", retryCount = 1, updatedAt = 1,
+        )
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+
+        assertTrue(viewModel.requestWebSourceRefresh(QueuedDownload(task, media)))
+        assertEquals(page, viewModel.uiState.value.webCaptureUrl)
+        viewModel.completeWebCapture(GenericWebCapture(other, other, "https://cdn.example.test/other.mp4", "其他集"))
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(null, viewModel.uiState.value.webCaptureUrl)
+
+        assertTrue(viewModel.requestWebSourceRefresh(QueuedDownload(task, media)))
+        viewModel.completeWebCapture(GenericWebCapture(page, page, "https://cdn.example.test/fresh.m3u8", "第1集"))
+        val refreshed = downloads.enqueued.single().single()
+        assertEquals(id, refreshed.contentId)
+        assertEquals(media.sourceKind, refreshed.sourceKind)
+        assertEquals("https://cdn.example.test/fresh.m3u8", refreshed.capturedVideoUrl)
+        assertEquals(null, viewModel.uiState.value.webCaptureUrl)
+    }
+
+    @Test
+    fun selectedYinghuaEpisodesRequireVisiblePlayerCaptureBeforeQueueing() = runBlocking {
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+        val first = "https://www.yhdm.one/vod-play/2025999379/ep1.html"
+        val second = "https://www.yhdm.one/vod-play/2025999379/ep2.html"
+
+        viewModel.completeWebCapture(
+            capture = null,
+            episodes = listOf(GenericWebEpisode(first, "第1集"), GenericWebEpisode(second, "第2集")),
+            pageUrl = "https://www.yhdm.one/vod/2025999379.html",
+        )
+        viewModel.confirmPending()
+
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(first, viewModel.uiState.value.webCaptureUrl)
+        viewModel.completeWebCapture(
+            GenericWebCapture(first, first, "https://cdn.example.test/first.m3u8", "作品 第1集"),
+        )
+
+        val saved = downloads.enqueued.single().single()
+        assertEquals(genericCollectionMediaId(first), saved.contentId)
+        assertEquals(DownloadSourceKind.COLLECTION, saved.sourceKind)
+        assertEquals("https://cdn.example.test/first.m3u8", saved.capturedVideoUrl)
+        assertEquals(second, viewModel.uiState.value.webCaptureUrl)
+        viewModel.completeWebCapture(
+            GenericWebCapture(second, second, "https://cdn.example.test/second.mp4", "作品 第2集"),
+        )
+        assertEquals(2, downloads.enqueued.size)
+        assertEquals(null, viewModel.uiState.value.webCaptureUrl)
+        assertTrue(!viewModel.uiState.value.isReading)
+    }
+
+    @Test
+    fun cancellingOrMismatchingAnEpisodeNeverQueuesUnconfirmedWorks() = runBlocking {
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+        val first = "https://www.yhdm.one/vod-play/2025999379/ep1.html"
+        val second = "https://www.yhdm.one/vod-play/2025999379/ep2.html"
+        val episodes = listOf(GenericWebEpisode(first, "第1集"), GenericWebEpisode(second, "第2集"))
+
+        viewModel.completeWebCapture(null, episodes = episodes, pageUrl = "https://www.yhdm.one/vod/2025999379.html")
+        viewModel.confirmPending()
+        viewModel.completeWebCapture(
+            GenericWebCapture(second, second, "https://cdn.example.test/second.mp4", "其他集"),
+        )
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(null, viewModel.uiState.value.webCaptureUrl)
+        assertTrue(viewModel.uiState.value.notice.contains("不属于当前剧集"))
+
+        viewModel.completeWebCapture(null, episodes = episodes, pageUrl = "https://www.yhdm.one/vod/2025999379.html")
+        viewModel.confirmPending()
+        viewModel.completeWebCapture(null)
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(null, viewModel.uiState.value.webCaptureUrl)
+        assertTrue(viewModel.uiState.value.notice.contains("未确认播放源"))
+    }
+
+    @Test
+    fun genericCollectionWaitsForSelectionBeforeQueueing() = runBlocking {
+        val downloads = RecordingDownloads()
+        val first = DiscoveredMedia(
+            "https://example.test/one", DownloadPlatform.GENERIC, "one", "第一集",
+            CreatorIdentity("合集", "series"), "", "", ResolutionPreset.UP_TO_720P,
+        )
+        val second = first.copy(sourceUrl = "https://example.test/two", mediaId = "two", title = "第二集")
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.Collection(
+                CreatorIdentity("合集", "series"), listOf(first, second), false, null,
+            )
+        })
+
+        viewModel.onInputChanged("https://example.test/series")
+        viewModel.smartRead()
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(2, viewModel.uiState.value.pendingItems.size)
+        viewModel.setPendingSelected("GENERIC:two", false)
+        viewModel.confirmPending()
+        assertEquals(listOf("one"), downloads.enqueued.single().map(MediaItem::contentId))
+    }
+
+    @Test
+    fun genericCollectionLoadMoreKeepsExistingSelectionAndCollectionKind() = runBlocking {
+        val downloads = RecordingDownloads()
+        val first = DiscoveredMedia(
+            "https://example.test/one", DownloadPlatform.GENERIC, "one", "第一集",
+            CreatorIdentity("合集", "series"), "", "", ResolutionPreset.UP_TO_720P,
+        )
+        val second = first.copy(sourceUrl = "https://example.test/two", mediaId = "two", title = "第二集")
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.Collection(
+                CreatorIdentity("合集", "series"), listOf(if (page == 1) first else second),
+                page == 1, if (page == 1) 2 else null,
+            )
+        })
+        viewModel.onInputChanged("https://example.test/series")
+        viewModel.smartRead()
+        viewModel.setPendingSelected("GENERIC:one", false)
+        assertTrue(viewModel.uiState.value.canLoadMore)
+        viewModel.loadMore()
+        assertEquals(2, viewModel.uiState.value.pendingItems.size)
+        assertEquals(false, viewModel.uiState.value.pendingItems.first().selected)
+        viewModel.confirmPending()
+        assertEquals(listOf("two"), downloads.enqueued.single().map(MediaItem::contentId))
+        assertEquals(com.nanzhufeng.videodownloader.core.model.DownloadSourceKind.COLLECTION,
+            downloads.enqueued.single().single().sourceKind)
+    }
+
+    @Test
+    fun multipleUrlFailuresRemainVisibleUntilSelectionIsDismissed() = runBlocking {
+        val viewModel = HomeViewModel(RecordingDownloads(), FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.Batch(
+                emptyList(), listOf("https://example.test/missing?token=secret" to "页面不可用"),
+            )
+        })
+        viewModel.onInputChanged("https://example.test/missing?token=secret https://example.test/other")
+        viewModel.smartRead()
+        assertEquals(1, viewModel.uiState.value.pendingErrors.size)
+        viewModel.dismissPending()
+        assertTrue(viewModel.uiState.value.pendingErrors.isEmpty())
+    }
+
     @Test
     fun smartRead_singleVideo_enqueuesExactlyOneSelectedItem() = runBlocking {
         val downloads = RecordingDownloads()
@@ -130,6 +314,28 @@ class HomeViewModelTest {
         assertTrue(downloads.enqueued.single().single().capturedImageUrls.isEmpty())
         assertTrue(!viewModel.uiState.value.isReading)
         assertTrue(viewModel.uiState.value.notice.contains("已通过抖音页面读取"))
+    }
+
+    @Test
+    fun pornhubPageCaptureEnqueuesOriginalPlatformAndViewkey() = runBlocking {
+        val page = "https://www.pornhub.com/view_video.php?viewkey=sample123"
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.WebCaptureRequired(input)
+        })
+        viewModel.onInputChanged(page)
+        viewModel.smartRead()
+        assertEquals(page, viewModel.uiState.value.webCaptureUrl)
+
+        viewModel.completeWebCapture(
+            GenericWebCapture(page, page, "https://cdn.example.test/target.mp4", "目标作品"),
+        )
+
+        val saved = downloads.enqueued.single().single()
+        assertEquals(DownloadPlatform.PORNHUB, saved.platform)
+        assertEquals("sample123", saved.contentId)
+        assertEquals(page, saved.originalUrl)
+        assertTrue(!viewModel.uiState.value.isReading)
     }
 
     @Test

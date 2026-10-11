@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.domain.discovery
 
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.probe.ClassifiedSource
 import com.nanzhufeng.videodownloader.probe.CreatorCatalog
 import com.nanzhufeng.videodownloader.probe.CreatorVideoEntry
@@ -17,6 +18,196 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlatformSourceDiscoveryEngineTest {
+    @Test fun completeGenericResolutionDoesNotRequireASecondNetworkExtraction() = runBlocking {
+        val page = "https://fixture.test/media/video.mp4"
+        val media = YtDlpMediaInfo("generic", "fixture:test:video", "Fixture title", "Fixture", "", page, "", "",
+            page, null, "mp4", audioExt=null, headers=emptyMap())
+        val gateway = object : ProbeDiscoveryGateway {
+            override fun classify(input: String) = ClassifiedSource(Platform.GENERIC, SourceKind.UNKNOWN_WEB_PAGE, page)
+            override fun resolve(url: String) = ResolvedSource(SourceKind.SINGLE_VIDEO, page, media)
+            override fun extractSingle(url: String): YtDlpMediaInfo = error("Second network extraction is unavailable")
+            override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog = error("not a collection")
+        }
+        val result = PlatformSourceDiscoveryEngine(gateway).read(page)
+        assertTrue(result is DiscoveryResult.Single)
+        assertEquals("fixture:test:video", (result as DiscoveryResult.Single).item.mediaId)
+    }
+
+    @Test
+    fun repeatedDouyinShareReusesItsOfficialTargetResolution() = runBlocking {
+        val delegate = DouyinFreshCookieGateway()
+        var calls = 0
+        val gateway = object : ProbeDiscoveryGateway by delegate {
+            override fun resolve(url: String): ResolvedSource { calls++; return delegate.resolve(url) }
+        }
+        val engine = PlatformSourceDiscoveryEngine(gateway)
+        val first = engine.read("https://v.douyin.com/qiRt29Dauu4/")
+        assertEquals(first, engine.read("https://v.douyin.com/qiRt29Dauu4/"))
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun expiredDouyinMappingResolvesAgainAndDifferentSharesStaySeparate() = runBlocking {
+        var time = 1_000L
+        var calls = 0
+        var current = "https://www.douyin.com/video/7684884186910329202"
+        val gateway = object : ProbeDiscoveryGateway by DouyinFreshCookieGateway() {
+            override fun resolve(url: String): ResolvedSource { calls++; return ResolvedSource(SourceKind.SINGLE_VIDEO, current) }
+        }
+        val engine = PlatformSourceDiscoveryEngine(gateway, nowMillis = { time })
+        engine.read("https://v.douyin.com/one/")
+        current = "https://www.douyin.com/video/7690158572814077184"
+        assertEquals(DiscoveryResult.DouyinCaptureRequired(current), engine.read("https://v.douyin.com/two/"))
+        time = 121_001
+        assertEquals(DiscoveryResult.DouyinCaptureRequired(current), engine.read("https://v.douyin.com/one/"))
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun failedAndUntrustedDouyinResolutionsAreNeverCached() = runBlocking {
+        var calls = 0
+        val gateway = object : ProbeDiscoveryGateway by DouyinFreshCookieGateway() {
+            override fun resolve(url: String): ResolvedSource {
+                calls++
+                if (calls == 1) error("temporary failure")
+                return ResolvedSource(SourceKind.SINGLE_VIDEO, "https://douyin.com.evil.example/video/7684884186910329202")
+            }
+        }
+        val engine = PlatformSourceDiscoveryEngine(gateway)
+        repeat(3) { engine.read("https://v.douyin.com/one/") }
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun multipleUrlsProducePerItemResultsWithoutAutoConfusingPlatforms() = runBlocking {
+        val base = FakeGateway()
+        val gateway = object : ProbeDiscoveryGateway by base {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun extractSingle(url: String): YtDlpMediaInfo = when {
+                "broken" in url -> error("目标页面不可用")
+                else -> base.extractSingle("https://youtu.be/one")
+                    .copy(platform = "generic", id = url, webpageUrl = url)
+            }
+        }
+        val result = PlatformSourceDiscoveryEngine(gateway).read(
+            "https://media.example.test/one.mp4 https://media.example.test/broken.mp4",
+        ) as DiscoveryResult.Batch
+        assertEquals(1, result.items.size)
+        assertEquals(1, result.errors.size)
+        assertTrue(result.errors.single().first.contains("broken.mp4"))
+    }
+
+    @Test
+    fun moreThanTwentyUrlsFailClearlyWithoutReadingAnyUrl() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(FakeGateway()).read(
+            (1..21).joinToString(" ") { "https://example.test/$it.mp4" },
+        ) as DiscoveryResult.Failure
+        assertTrue(result.message.contains("最多读取 20 条"))
+    }
+
+    @Test
+    fun collectionInsideMultipleUrlsRetainsMemberKind() = runBlocking {
+        val base = FakeGateway()
+        val gateway = object : ProbeDiscoveryGateway by base {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun resolve(url: String) = ResolvedSource(
+                if ("series" in url) SourceKind.CHANNEL_OR_PLAYLIST else SourceKind.SINGLE_VIDEO, url,
+            )
+            override fun extractSingle(url: String) = base.extractSingle("https://youtu.be/one")
+                .copy(platform = "generic", id = "one", webpageUrl = url)
+            override fun extractWebCollection(url: String, start: Int, pageSize: Int) = CreatorCatalog(
+                creator = "剧集", creatorId = "series", entries = listOf(
+                    CreatorVideoEntry("ep1", "第一集", "演员", "series", "https://example.test/ep1", "", ""),
+                ), duplicateCount = 0, foreignCount = 0, hasMore = true, nextStart = 2,
+            )
+        }
+        val result = PlatformSourceDiscoveryEngine(gateway).read(
+            "https://example.test/series https://example.test/one.mp4",
+        ) as DiscoveryResult.Batch
+        val collection = result.items.first { it.mediaId == "ep1" }
+        assertEquals(DownloadSourceKind.COLLECTION,
+            result.sourceKinds[collection.platform to collection.mediaId])
+        assertTrue(result.errors.any { it.second.contains("单独粘贴合集链接") })
+    }
+
+    @Test
+    fun genericCollectionUsesCollectionIdentityNotCreatorOwnership() = runBlocking {
+        val base = FakeGateway()
+        val gateway = object : ProbeDiscoveryGateway by base {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun resolve(url: String) = ResolvedSource(SourceKind.CHANNEL_OR_PLAYLIST, url)
+            override fun extractWebCollection(url: String, start: Int, pageSize: Int) = CreatorCatalog(
+                creator = "剧集", creatorId = "series-42", entries = listOf(
+                    CreatorVideoEntry("ep1", "第1集", "演员", "series-42", "https://example.test/ep1", "", ""),
+                ), duplicateCount = 0, foreignCount = 0, hasMore = false, nextStart = 0,
+            )
+        }
+        val collection = PlatformSourceDiscoveryEngine(gateway)
+            .read("https://example.test/series/42") as DiscoveryResult.Collection
+        assertEquals("series-42", collection.owner.id)
+        assertEquals(DownloadPlatform.GENERIC, collection.items.single().platform)
+    }
+    @Test
+    fun genericWorkPageResolvesToSingleWithoutBorrowingOtherPlatform() = runBlocking {
+        val input = "https://vimeo.com/227128119"
+        val gateway = object : ProbeDiscoveryGateway by FakeGateway() {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun resolve(url: String) = ResolvedSource(SourceKind.SINGLE_VIDEO, url)
+            override fun extractSingle(url: String) = FakeGateway().extractSingle("https://youtu.be/one")
+                .copy(platform = "generic", id = "vimeo-id", webpageUrl = url)
+        }
+        val item = (PlatformSourceDiscoveryEngine(gateway).read(input) as DiscoveryResult.Single).item
+        assertEquals("GENERIC", item.platform.name)
+        assertEquals(input, item.sourceUrl)
+    }
+
+    @Test
+    fun pornhubUsesExistingSingleItemFlowWithOriginalTitle() = runBlocking {
+        val input = "https://cn.pornhub.com/view_video.php?viewkey=sample123"
+        val base = FakeGateway()
+        val gateway = object : ProbeDiscoveryGateway by base {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun extractSingle(url: String) = base.extractSingle("https://youtu.be/one").copy(
+                platform = "pornhub", id = "sample123", title = "Synthetic fixture title", webpageUrl = url,
+            )
+        }
+        val result = PlatformSourceDiscoveryEngine(gateway).read(input) as DiscoveryResult.Single
+        assertEquals(DownloadPlatform.PORNHUB, result.item.platform)
+        assertEquals("Synthetic fixture title", result.item.title)
+        assertEquals("sample123", result.item.mediaId)
+        assertEquals(input, result.item.sourceUrl)
+    }
+
+    @Test
+    fun pornhubExtractorGoneOffersTargetPageCaptureInsteadOfCallingVideoDeleted() = runBlocking {
+        val input = "https://www.pornhub.com/view_video.php?viewkey=sample123"
+        val gateway = object : ProbeDiscoveryGateway by FakeGateway() {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun extractSingle(url: String): YtDlpMediaInfo =
+                error("[PornHub] sample123: Unable to download webpage: HTTP Error 410: Gone")
+        }
+        val result = PlatformSourceDiscoveryEngine(gateway).read(input)
+        assertEquals(input, (result as DiscoveryResult.WebCaptureRequired).sourceUrl)
+    }
+
+    @Test
+    fun pornhubForbiddenDoesNotPretendPageCaptureCanBypassAccess() = runBlocking {
+        val input = "https://www.pornhub.com/view_video.php?viewkey=sample123"
+        val gateway = object : ProbeDiscoveryGateway by FakeGateway() {
+            override fun classify(input: String) = com.nanzhufeng.videodownloader.probe.UrlClassifier
+                .extractAndClassify(input)
+            override fun extractSingle(url: String): YtDlpMediaInfo =
+                error("HTTP Error 403: Forbidden")
+        }
+        assertTrue(PlatformSourceDiscoveryEngine(gateway).read(input) is DiscoveryResult.Failure)
+    }
+
     @Test
     fun singleVideoLink_returnsOnlyOneItem() = runBlocking {
         val result = PlatformSourceDiscoveryEngine(FakeGateway()).read("https://youtu.be/one")
@@ -40,11 +231,15 @@ class PlatformSourceDiscoveryEngineTest {
     }
 
     @Test
-    fun singleShortLink_staysSingleAfterResolution() = runBlocking {
-        val result = PlatformSourceDiscoveryEngine(FakeGateway()).read("https://v.douyin.com/short")
+    fun douyinShortVideoUsesPageCaptureAfterOfficialResolution() = runBlocking {
+        val result = PlatformSourceDiscoveryEngine(DouyinFreshCookieGateway())
+            .read("https://v.douyin.com/qiRt29Dauu4/")
 
-        assertTrue(result is DiscoveryResult.Single)
-        assertFalse(result is DiscoveryResult.Collection)
+        assertTrue(result is DiscoveryResult.DouyinCaptureRequired)
+        assertEquals(
+            "https://www.douyin.com/video/7686854662317722889",
+            (result as DiscoveryResult.DouyinCaptureRequired).sourceUrl,
+        )
     }
 
     @Test
@@ -150,6 +345,20 @@ class PlatformSourceDiscoveryEngineTest {
         )
     }
 
+}
+
+private class DouyinFreshCookieGateway : ProbeDiscoveryGateway {
+    override fun classify(input: String) =
+        ClassifiedSource(Platform.DOUYIN, SourceKind.UNKNOWN_DOUYIN_SHARE, input)
+
+    override fun resolve(url: String) =
+        ResolvedSource(SourceKind.SINGLE_VIDEO, "https://www.douyin.com/video/7686854662317722889")
+
+    override fun extractSingle(url: String): YtDlpMediaInfo =
+        error("ERROR: [Douyin] 7686854662317722889: Fresh cookies are needed")
+
+    override fun extractCreator(url: String, start: Int, pageSize: Int): CreatorCatalog =
+        error("不应读取列表")
 }
 
 private class MismatchedDouyinGalleryGateway : ProbeDiscoveryGateway {

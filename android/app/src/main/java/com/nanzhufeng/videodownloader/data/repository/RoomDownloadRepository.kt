@@ -25,6 +25,7 @@ import com.nanzhufeng.videodownloader.data.database.entity.DownloadTaskWithMedia
 import com.nanzhufeng.videodownloader.data.database.entity.MediaItemEntity
 import com.nanzhufeng.videodownloader.data.database.entity.DownloadThroughputReportEntity
 import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
+import com.nanzhufeng.videodownloader.probe.GenericWebCapture
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -63,12 +64,26 @@ class RoomDownloadRepository(
 
         val activeMediaKeys = taskDao.getDownloadListMediaKeys().toSet()
         val completedMediaKeys = historyDao.getCompletedMediaKeys().toSet()
+        val knownMediaKeys = activeMediaKeys + completedMediaKeys
         val normalizedItems = items
             .map(MediaItem::normalized)
+            .map { media ->
+                if (media.platform != DownloadPlatform.GENERIC ||
+                    media.sourceKind != DownloadSourceKind.SINGLE_VIDEO ||
+                    media.legacyContentId.isBlank()) return@map media
+                val legacyKey = "GENERIC:${media.legacyContentId}"
+                val existing = if (legacyKey in knownMediaKeys) {
+                    database.mediaItemDao().getByKey(legacyKey)
+                } else null
+                if (existing != null && existing.originalUrl == media.originalUrl &&
+                    existing.platform == DownloadPlatform.GENERIC.name &&
+                    existing.capturedVideoSourceVersion == 0) {
+                    media.copy(mediaKey = existing.mediaKey, contentId = existing.contentId)
+                } else media
+            }
             .distinctBy(MediaItem::mediaKey)
         if (normalizedItems.isEmpty()) return@withTransaction emptyList()
 
-        val knownMediaKeys = activeMediaKeys + completedMediaKeys
         val existingMediaByKey = normalizedItems.asSequence()
             .filter { media ->
                 media.mediaKey in knownMediaKeys &&
@@ -103,6 +118,14 @@ class RoomDownloadRepository(
                 )
             }
         }
+        if (normalizedItems.any { it.platform == DownloadPlatform.DOUYIN }) {
+            android.util.Log.i(
+                "DouyinEnqueue",
+                "target enqueue: active=${normalizedItems.any { it.mediaKey in activeMediaKeys }}, " +
+                    "completed=${normalizedItems.any { it.mediaKey in completedMediaKeys }}, " +
+                    "accepted=${normalized.size}",
+            )
+        }
 
         val now = clock()
         // Refresh media metadata even when the task itself remains a duplicate.
@@ -111,11 +134,13 @@ class RoomDownloadRepository(
         // a newer app version.
         val mediaItemsToRefresh = normalizedItems.filter { media ->
             media.mediaKey !in knownMediaKeys ||
-                (media.platform == DownloadPlatform.DOUYIN && media.hasVerifiedCapturedGallery())
+                (media.platform == DownloadPlatform.DOUYIN && media.hasVerifiedCapturedGallery()) ||
+                media.hasVerifiedCapturedWebVideo()
         }
         database.mediaItemDao().upsertAll(mediaItemsToRefresh.map { it.toEntity(now) })
         val reactivatedTaskIds = normalizedItems.mapNotNull { media ->
-            if (media.mediaKey !in activeMediaKeys || !media.hasVerifiedCapturedGallery()) {
+            if (media.mediaKey !in activeMediaKeys ||
+                (!media.hasVerifiedCapturedGallery() && !media.hasVerifiedCapturedWebVideo())) {
                 return@mapNotNull null
             }
             val activeTaskId = taskDao.getActiveTaskId(media.mediaKey) ?: return@mapNotNull null
@@ -195,7 +220,11 @@ class RoomDownloadRepository(
 
     override suspend fun pauseRunnableTasks(): Int = taskDao.pauseRunnableTasks(clock())
 
+    override suspend fun markActiveTasksWaitingForNetwork(): Int = taskDao.markActiveTasksWaitingForNetwork(clock())
+
     override suspend fun resumePausedTasks(): Int = taskDao.resumePausedTasks(clock())
+
+    override suspend fun resumeNetworkWaitingTasks(): Int = taskDao.resumeNetworkWaitingTasks(clock())
 
     override suspend fun cancelTask(taskId: String): Boolean = database.withTransaction {
         val queued = taskDao.getWithMediaById(taskId)?.toDomain() ?: return@withTransaction false
@@ -330,9 +359,15 @@ class RoomDownloadRepository(
         }
     }
 
+    override suspend fun setHistoryFavorite(taskId: String, isFavorite: Boolean): Boolean =
+        historyDao.setFavorite(taskId, isFavorite) == 1
+
     override suspend fun archiveTerminal(history: DownloadHistory) {
         require(history.finalStatus.isTerminal) { "只有终态任务可以归档" }
-        historyDao.upsert(history.toEntity())
+        database.withTransaction {
+            val existingFavorite = historyDao.getById(history.taskId)?.isFavorite ?: false
+            historyDao.upsert(history.toEntity().copy(isFavorite = existingFavorite))
+        }
     }
 
     override suspend fun findCompleted(
@@ -414,6 +449,20 @@ private fun MediaItem.hasVerifiedCapturedGallery(): Boolean =
         sourceVersion = capturedImageSourceVersion,
     )
 
+internal fun MediaItem.hasVerifiedCapturedWebVideo(): Boolean {
+    if (capturedVideoSourceVersion != 1 ||
+        platform !in setOf(DownloadPlatform.GENERIC, DownloadPlatform.PORNHUB)) return false
+    return runCatching {
+        val capture = GenericWebCapture(
+            pageUrl = originalUrl,
+            referer = capturedVideoReferer,
+            mediaUrl = capturedVideoUrl,
+            title = title,
+        ).validate()
+        capture.platform == platform && capture.mediaId == contentId
+    }.getOrDefault(false)
+}
+
 private fun String.stableCapturedImageIdentity(): String = runCatching {
     java.net.URI(this).path.orEmpty()
 }.getOrDefault(substringBefore('?'))
@@ -432,6 +481,9 @@ private fun MediaItem.toEntity(discoveredAt: Long) = MediaItemEntity(
     capturedImageUrlsJson = JSONArray(capturedImageUrls).toString(),
     capturedImageExpectedCount = capturedImageExpectedCount,
     capturedImageSourceVersion = capturedImageSourceVersion,
+    capturedVideoUrl = capturedVideoUrl,
+    capturedVideoReferer = capturedVideoReferer,
+    capturedVideoSourceVersion = capturedVideoSourceVersion,
     discoveredAt = discoveredAt,
 )
 
@@ -477,6 +529,9 @@ private fun DownloadTaskWithMedia.toDomain() = QueuedDownload(
         capturedImageUrls = media.capturedImageUrlsJson.toStringList(),
         capturedImageExpectedCount = media.capturedImageExpectedCount,
         capturedImageSourceVersion = media.capturedImageSourceVersion,
+        capturedVideoUrl = media.capturedVideoUrl,
+        capturedVideoReferer = media.capturedVideoReferer,
+        capturedVideoSourceVersion = media.capturedVideoSourceVersion,
     ),
 )
 
@@ -505,6 +560,7 @@ private fun DownloadHistory.toEntity() = DownloadHistoryEntity(
     audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
     capturedImageExpectedCount = capturedImageExpectedCount,
     capturedImageSourceVersion = capturedImageSourceVersion,
+    isFavorite = isFavorite,
 )
 
 private fun QueuedDownload.toHistory(
@@ -547,6 +603,7 @@ private fun DownloadHistoryEntity.toDomain() = DownloadHistory(
     audioSegmentCount = audioSegmentCount.coerceIn(1, 20),
     capturedImageExpectedCount = capturedImageExpectedCount,
     capturedImageSourceVersion = capturedImageSourceVersion,
+    isFavorite = isFavorite,
 )
 
 private fun DownloadHistoryWithThumbnail.toDomain() = history.toDomain().copy(

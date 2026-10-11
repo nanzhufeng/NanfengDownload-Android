@@ -7,6 +7,60 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MediaFileValidatorTest {
+    @Test fun acceptsARealCompleteWebmBelow64KiB() {
+        val bytes = requireNotNull(javaClass.getResourceAsStream("/media/short-vp9-opus.webm")).use { it.readBytes() }
+        assertTrue(bytes.size < 64 * 1024)
+        assertTrue(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    @Test fun rejectsAShortWebmWithATruncatedElement() {
+        val original = requireNotNull(javaClass.getResourceAsStream("/media/short-vp9-opus.webm")).use { it.readBytes() }
+        val bytes = original.copyOf(original.size - 1)
+        assertFalse(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    @Test fun rejectsAnEbmlHeaderWithoutTracksAndMediaBlocks() {
+        val bytes = ByteArray(2048)
+        byteArrayOf(0x1a, 0x45, 0xdf.toByte(), 0xa3.toByte()).copyInto(bytes)
+        assertFalse(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    private fun shortVideo(): ByteArray = requireNotNull(javaClass.getResourceAsStream("/media/short-h264-aac.mp4")).use { it.readBytes() }
+
+    @Test fun rejectsShortMp4WhoseSamplesPointOutsideItsMediaData() {
+        val bytes = shortVideo()
+        val offsets = bytes.toString(Charsets.ISO_8859_1).indexOf("stco")
+        ByteArray(4).copyInto(bytes, offsets + 12)
+        assertFalse(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    @Test fun acceptsARealCompleteMp4Below64KiB() {
+        val bytes = shortVideo()
+        assertTrue(bytes.size < 64 * 1024)
+        assertTrue(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    @Test fun rejectsAShortMp4WithATruncatedFinalBox() {
+        val original = shortVideo()
+        val truncated = original.copyOf(original.size - 1)
+        assertFalse(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(truncated), truncated.size.toLong()))
+    }
+
+    @Test fun rejectsAShortMp4WithoutItsMovieMetadata() {
+        val bytes = shortVideo()
+        val moov = bytes.toString(Charsets.ISO_8859_1).indexOf("moov")
+        "free".toByteArray().copyInto(bytes, moov)
+        assertFalse(MediaFileValidator.isLikelyMedia(ByteArrayInputStream(bytes), bytes.size.toLong()))
+    }
+
+    @Test fun acceptsShortMediaEvenWhenTheInputStreamReturnsPartialReads() {
+        val bytes = shortVideo()
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, minOf(len, 3))
+        }
+        assertTrue(MediaFileValidator.isLikelyMedia(input, bytes.size.toLong()))
+    }
+
     @Test
     fun acceptsSmallId3PrefixedMp3() {
         val payload = ByteArray(2 * 1024).also {

@@ -100,7 +100,7 @@ android/app/src/main/java/com/nanzhufeng/videodownloader/
 ## 6. 构建、OPPO 与验收
 
 ```bash
-cd /Users/nanzhufeng/Documents/工具开发/NanzhufengVideoDownloader-Android/android
+cd ./android
 JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home' \
 NANZHUFENG_BUILD_PYTHON='/opt/homebrew/bin/python3.13' \
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:testReleaseUnitTest \

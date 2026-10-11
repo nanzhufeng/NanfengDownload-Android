@@ -12,9 +12,27 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class DownloadEngineTest {
+    @Test
+    fun startupRecoveryKeepsRunningWorkerAndDoesNotResumeExplicitlyPausedTasks() = runBlocking {
+        val repository = EngineRepository()
+        val scheduler = RecordingScheduler()
+        DefaultDownloadEngine(repository, scheduler).recoverInterruptedAtStartup()
+        assertEquals(0, scheduler.cancelCalls)
+        assertEquals(1, scheduler.enqueueCalls)
+        assertEquals(0, repository.resumeCalls)
+    }
+
+    @Test
+    fun explicitStartReleasesNetworkHoldEvenWhenAutomaticResumeWasDisabled() = runBlocking {
+        val repository = EngineRepository().apply { networkWaiting = true }
+        DefaultDownloadEngine(repository, RecordingScheduler()).start()
+        assertFalse(repository.networkWaiting)
+    }
+
     @Test
     fun startResumesPausedTasksAndSchedulesSingleWorker() = runBlocking {
         val repository = EngineRepository()
@@ -122,6 +140,7 @@ private class EngineRepository : DownloadRepository {
     override val history: Flow<List<DownloadHistory>> = MutableStateFlow(emptyList())
     var resumeCalls = 0
     var pauseCalls = 0
+    var networkWaiting = false
     val cancelledIds = mutableListOf<String>()
     val removedIds = mutableListOf<String>()
     var removable = false
@@ -140,6 +159,11 @@ private class EngineRepository : DownloadRepository {
 
     override suspend fun resumePausedTasks(): Int {
         resumeCalls += 1
+        return 1
+    }
+
+    override suspend fun resumeNetworkWaitingTasks(): Int {
+        networkWaiting = false
         return 1
     }
 

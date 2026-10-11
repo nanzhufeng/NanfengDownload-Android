@@ -19,6 +19,62 @@ import org.junit.Test
 
 class StreamDownloadCoordinatorTest {
     @Test
+    fun aBurstAfterAnIdleGapStillReportsItsActualIntervalSpeed() {
+        val estimator = RollingTransferSpeed(0, 0)
+        assertEquals(1_000L, estimator.record(2_000, 2_000_000_000))
+        assertEquals(1_000L, estimator.record(4_000, 4_000_000_000))
+    }
+
+    @Test
+    fun coroutineCancellationSignalsAStalledDownloaderBeforeItReturns() = runBlocking {
+        val directory = createTempDirectory("blocked-cancel-").toFile()
+        val observed = AtomicBoolean(false)
+        val started = System.nanoTime()
+        val downloader = FileDownloader { _, cancelled, _ ->
+            val limit = System.nanoTime() + 1_000_000_000
+            while (!cancelled.get() && System.nanoTime() < limit) Thread.sleep(5)
+            observed.set(cancelled.get())
+            throw java.util.concurrent.CancellationException("fixture")
+        }
+        try {
+            runCatching {
+                withTimeout(50) {
+                    StreamDownloadCoordinator(downloader, isComplete = { false }).download(
+                        listOf(DirectDownloadRequest("https://fixture.test/video", emptyMap(), File(directory, "video"))),
+                        AtomicBoolean(false), onProgress = {},
+                    )
+                }
+            }
+            assertTrue("blocked downloader must receive cancellation", observed.get())
+            assertTrue("must not wait for the blocked download to finish", (System.nanoTime()-started) < 500_000_000)
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test
+    fun resumedSizeIsPublishedImmediatelyWithoutInventingNetworkSpeed() = runBlocking {
+        val directory = createTempDirectory("resume-progress-").toFile()
+        val reported = CountDownLatch(1)
+        val samples = Collections.synchronizedList(mutableListOf<TransferProgress>())
+        val downloader = FileDownloader { request, _, progress ->
+            progress(8_000L, 10_000L)
+            check(reported.await(2, TimeUnit.SECONDS))
+            request.target.writeBytes(ByteArray(10_000))
+            progress(10_000L, 10_000L)
+            request.target
+        }
+        try {
+            StreamDownloadCoordinator(downloader, isComplete = { false }).download(
+                listOf(DirectDownloadRequest("https://fixture.test/video", emptyMap(), File(directory, "video"))),
+                AtomicBoolean(false),
+                onProgress = { samples.add(it); reported.countDown() },
+            )
+            assertEquals(8_000L, samples.first().downloadedBytes)
+            assertEquals(10_000L, samples.first().totalBytes)
+            assertEquals(0L, samples.first().speedBytesPerSecond)
+        } finally { directory.deleteRecursively() }
+    }
+
+    @Test
     fun smoothsABurstyProgressSampleAcrossTheRollingWindow() {
         val estimator = RollingTransferSpeed(initialBytes = 0L, initialNanos = 0L)
 

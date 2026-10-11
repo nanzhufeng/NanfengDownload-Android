@@ -39,27 +39,34 @@ class MediaStoreOutputStore(
         audioSegmentCount: Int,
     ): StoredMedia? = outputMutex.withLock { withContext(Dispatchers.IO) {
         val paths = outputPaths(media, resolution, fileNameRule, audioSegmentCount)
+        val pathOptions = if (audioSegmentCount == 1) {
+            policy.existingPaths(media, resolution, fileNameRule).map(::listOf)
+        } else listOf(paths)
         if (saveTreeUri != null) {
-            val stored = paths.map { relativePath ->
-                val uri = findTreeDocument(
-                    treeUri = Uri.parse(saveTreeUri),
-                    relativePath = relativePath.substringAfter('/'),
-                ) ?: return@withContext null
-                val size = resolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
-                StoredMedia(uri.toString(), size).takeIf(::isValid)
-                    ?: return@withContext null
+            for (candidate in pathOptions) {
+                val stored = candidate.mapNotNull { relativePath ->
+                    val uri = findTreeDocument(
+                        treeUri = Uri.parse(saveTreeUri),
+                        relativePath = relativePath.substringAfter('/'),
+                    ) ?: return@mapNotNull null
+                    val size = resolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+                    StoredMedia(uri.toString(), size).takeIf(::isValid)
+                }
+                if (stored.size == candidate.size) return@withContext stored.aggregate()
             }
-            return@withContext stored.aggregate()
+            return@withContext null
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext null
         val index = loadIndex()
-        val stored = paths.map { path ->
-            index.firstOrNull { item -> item.relativePath == path }
-                ?.stored
-                ?.takeIf(::isValid)
-                ?: return@withContext null
+        for (candidate in pathOptions) {
+            val stored = candidate.mapNotNull { path ->
+                index.firstOrNull { item -> item.relativePath == path }
+                    ?.stored
+                    ?.takeIf(::isValid)
+            }
+            if (stored.size == candidate.size) return@withContext stored.aggregate()
         }
-        stored.aggregate()
+        null
     } }
 
     override suspend fun uriExists(uri: String): Boolean = withContext(Dispatchers.IO) {
@@ -335,7 +342,7 @@ class MediaStoreOutputStore(
             queryCollection(
                 MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                 "Movies/南烛枫视频下载器/%",
-                MIN_CONTAINER_BYTES,
+                MIN_MP3_BYTES,
             ),
         )
         addAll(
@@ -411,7 +418,7 @@ class MediaStoreOutputStore(
         requestedSegmentCount: Int,
         prepared: PreparedMedia? = null,
     ): List<String> {
-        val base = policy.relativePath(media, resolution, fileNameRule)
+        val base = policy.relativePath(media, resolution, fileNameRule, prepared?.mimeType)
         if (prepared?.mimeType?.startsWith("image/") == true) {
             val directory = "Pictures" + base.substringBeforeLast('/').removePrefix("Movies")
             val baseName = base.substringAfterLast('/').substringBeforeLast('.')
@@ -468,7 +475,6 @@ class MediaStoreOutputStore(
 
     private companion object {
         const val MIN_MP3_BYTES = 1024L
-        const val MIN_CONTAINER_BYTES = 64 * 1024L
         const val MAX_MEDIA_SEGMENTS = 20
         const val MAX_COPY_INDEX = 10_000
         const val COPY_BUFFER_BYTES = 1024 * 1024

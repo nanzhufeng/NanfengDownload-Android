@@ -125,13 +125,17 @@ object UserFacingErrorPresenter {
 
             evidence.isNotBlank() && containsChinese(evidence) && hasAction(evidence) -> evidence
             evidence.isNotBlank() && containsChinese(evidence) ->
-                "${evidence.trimEnd('。')}。解决办法：$genericRetryAction"
+                "${evidence.trimEnd('。')}。解决办法：${fallbackAction.trimEnd('。')}。"
 
             else -> "${fallbackProblem.trimEnd('。')}。解决办法：${fallbackAction.trimEnd('。')}。"
         }
     }
 
     private fun loginAction(platform: DownloadPlatform?): String = when (platform) {
+        DownloadPlatform.PORNHUB ->
+            "请先确认原网页可正常访问；当前仅读取公开作品，不会借用其他平台账号。"
+        DownloadPlatform.GENERIC ->
+            "请确认原网页的目标媒体可公开播放，再复制具体作品链接重试。"
         DownloadPlatform.YOUTUBE ->
             "请到“设置 → 账号与权限 → YouTube”重新导入最新 cookies.txt，再重新智能读取并重试。"
         DownloadPlatform.DOUYIN ->
@@ -147,6 +151,7 @@ object UserFacingErrorPresenter {
     }
 
     private fun inferPlatform(lower: String): DownloadPlatform? = when {
+        lower.contains("pornhub") -> DownloadPlatform.PORNHUB
         lower.contains("youtube") -> DownloadPlatform.YOUTUBE
         lower.contains("douyin") -> DownloadPlatform.DOUYIN
         lower.contains("tiktok") -> DownloadPlatform.TIKTOK
@@ -160,5 +165,4 @@ object UserFacingErrorPresenter {
     private fun containsChinese(value: String): Boolean = value.any { it in '\u4e00'..'\u9fff' }
     private fun hasAction(value: String): Boolean = listOf("请", "建议", "重试", "检查", "更换").any(value::contains)
 
-    private const val genericRetryAction = "请重新智能读取链接后重试；仍失败可在下载详情中查看原始错误"
 }

@@ -7,6 +7,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SessionAccessPolicyTest {
+    @Test fun nativeHeaderReadDoesNotWriteCookieFilesOrSendToOtherOrigins() {
+        var files = 0
+        val policy = SessionAccessPolicy(cookieLookup = { _, _ -> "ttwid=test-visitor" },
+            youtubeCookieFile = { null }, sessionCookieFile = { _, _ -> files++; "private-file" })
+        assertEquals("ttwid=test-visitor", policy.cookieHeaderFor("https://www.iesdouyin.com/share/video/123/"))
+        for (url in listOf("http://www.iesdouyin.com/", "https://evil.example/", "https://www.iesdouyin.com.evil.example/",
+                "https://user@www.iesdouyin.com/", "https://www.iesdouyin.com:444/", "https://www.youtube.com/")) {
+            assertEquals("", policy.cookieHeaderFor(url))
+        }
+        assertEquals(0, files)
+    }
+    @Test fun officialIesShareUsesTheExistingDouyinSessionScope() {
+        val policy = SessionAccessPolicy(cookieLookup = { site, _ ->
+            if (site == SessionSite.DOUYIN) "ttwid=test-visitor" else ""
+        }, youtubeCookieFile = { null })
+        assertEquals("ttwid=test-visitor", policy.accessFor("https://www.iesdouyin.com/share/video/123/").cookieHeader)
+        assertEquals("", policy.accessFor("http://www.iesdouyin.com/share/video/123/").cookieHeader)
+        assertEquals("", policy.accessFor("https://www.iesdouyin.com.evil.example/share/video/123/").cookieHeader)
+    }
     @Test
     fun douyinAndTikTokUseOnlyTheirOwnWebViewCookies() {
         val cookies = mapOf(

@@ -42,6 +42,27 @@ class TransferConcurrencyBudget(
         }
     }
 
+    fun connectionsForStreams(taskId: String, requested: List<Int>): List<Int> = synchronized(lock) {
+        require(taskId.isNotBlank() && requested.all { it > 0 })
+        if (requested.isEmpty()) return@synchronized emptyList()
+        val perTaskBudget = (totalConnections / activeTaskLeases.size.coerceAtLeast(1)).coerceAtLeast(1)
+        val allocated = MutableList(requested.size) { 1 }
+        var remaining = (perTaskBudget - requested.size).coerceAtLeast(0)
+        while (remaining > 0) {
+            var changed = false
+            for (index in requested.indices) {
+                if (remaining == 0) break
+                if (allocated[index] < requested[index]) {
+                    allocated[index]++
+                    remaining--
+                    changed = true
+                }
+            }
+            if (!changed) break
+        }
+        allocated
+    }
+
     private fun release(taskId: String) {
         synchronized(lock) {
             val remaining = (activeTaskLeases[taskId] ?: return) - 1

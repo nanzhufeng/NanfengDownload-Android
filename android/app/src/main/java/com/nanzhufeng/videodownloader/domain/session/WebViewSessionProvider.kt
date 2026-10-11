@@ -29,6 +29,7 @@ class WebViewSessionProvider(context: Context) : SessionProvider {
     override val states: StateFlow<List<SiteSessionState>> = mutableStates.asStateFlow()
 
     override fun accessFor(url: String): SessionAccess = accessPolicy.accessFor(url)
+    override fun cookieHeaderFor(url: String): String = accessPolicy.cookieHeaderFor(url)
 
     override fun openLogin(site: SessionSite) {
         require(site != SessionSite.YOUTUBE) { "YouTube 登录信息请通过 cookies.txt 导入" }

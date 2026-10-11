@@ -15,6 +15,7 @@ import java.io.File
 import java.net.UnknownHostException
 import com.nanzhufeng.videodownloader.probe.HttpDownloadException
 import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
+import com.nanzhufeng.videodownloader.probe.genericCollectionMediaId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -24,6 +25,52 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DownloadTaskRunnerTest {
+    @Test
+    fun disabledAutoResumeLeavesNetworkWaitingTaskUntouched() = runBlocking {
+        val initial = queued().let { it.copy(task = it.task.copy(status = DownloadTaskStatus.WAITING_NETWORK)) }
+        val repository = RunnerRepository(initial)
+        val runner = DownloadTaskRunner(repository, RecordingResolver(), FailingTransfer(), ExistingOutputStore())
+
+        assertEquals(TaskRunResult.Idle, runner.runNext(allowNetworkWaiting = false))
+        assertEquals(DownloadTaskStatus.WAITING_NETWORK, repository.current.task.status)
+        assertTrue(repository.archived.isEmpty())
+    }
+
+    @Test
+    fun expiredCapturedWebSourceAsksForSameWorkRecaptureInsteadOfRetryingTheSameUrl() = runBlocking {
+        val page = "https://www.yhdm.one/vod-play/2025999379/ep1.html"
+        val id = genericCollectionMediaId(page)
+        val original = queued()
+        val source = original.copy(
+            task = original.task.copy(mediaKey = "GENERIC:$id"),
+            media = original.media.copy(
+                mediaKey = "GENERIC:$id", platform = DownloadPlatform.GENERIC,
+                contentId = id, originalUrl = page, sourceKind = DownloadSourceKind.COLLECTION,
+                capturedVideoUrl = "https://cdn.example.test/expired.m3u8",
+                capturedVideoReferer = page, capturedVideoSourceVersion = 1,
+            ),
+        )
+        val repository = RunnerRepository(source)
+        val resolver = SuccessfulResolver()
+        val runner = DownloadTaskRunner(
+            repository = repository,
+            resolver = resolver,
+            transfer = object : MediaTransfer {
+                override suspend fun download(
+                    task: QueuedDownload,
+                    source: ResolvedMedia,
+                    onProgress: suspend (Long, Long, Long, Long?) -> Unit,
+                ): PreparedMedia = throw HttpDownloadException(403)
+            },
+            outputStore = ExistingOutputStore(),
+        )
+
+        assertEquals(TaskRunResult.Failed, runner.runNext())
+        assertEquals(1, resolver.calls)
+        assertEquals(DownloadTaskStatus.FAILED, repository.current.task.status)
+        assertTrue(repository.current.task.errorSummary.orEmpty().contains("重新读取播放源"))
+    }
+
     @Test
     fun completedHistoryWithVerifiedMediaIsSkippedBeforeResolvingNetworkSource() = runBlocking {
         val queued = queued()
@@ -323,6 +370,10 @@ private class RunnerRepository(
     override suspend fun setResolution(taskId: String, resolution: ResolutionPreset) = Unit
     override suspend fun nextSelectedWaiting(): QueuedDownload? =
         current.takeIf { it.task.selected && it.task.status == DownloadTaskStatus.WAITING }
+
+    override suspend fun nextSelectedRunnable(): QueuedDownload? = current.takeIf {
+        it.task.selected && it.task.status in setOf(DownloadTaskStatus.WAITING, DownloadTaskStatus.WAITING_NETWORK)
+    }
 
     override suspend fun updateTransfer(
         taskId: String,

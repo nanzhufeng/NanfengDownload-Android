@@ -2,12 +2,14 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import yt_dlp
 from yt_dlp import YoutubeDL
+from .pornhub_http import youtube_dl_for_source
+from .android_network import system_opener, proxy_options
 
 
 _MOBILE_USER_AGENT = (
@@ -25,7 +27,7 @@ class _NoRedirect(HTTPRedirectHandler):
         return None
 
 
-_NO_REDIRECT_OPENER = build_opener(_NoRedirect())
+_NO_REDIRECT_OPENER = system_opener(_NoRedirect())
 _REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
 
 
@@ -398,14 +400,21 @@ def _bilibili_page_state(html, page_number=1):
     state = _initial_state(html, "__INITIAL_STATE__=")
     video_root = state.get("video") or {}
     view = state.get("videoData") or video_root.get("viewInfo") or {}
+    return _bilibili_view_state(view, page_number, video_root)
+
+
+def _bilibili_view_state(view, page_number=1, video_root=None):
+    video_root = video_root or {}
     pages = list(view.get("pages") or [])
     if not view or not pages:
         raise ValueError("Bilibili page state missing video metadata")
-    page_number = max(1, int(page_number or 1))
+    page_number = int(page_number or 1)
     page = next(
         (item for item in pages if int(item.get("page") or 0) == page_number),
-        pages[0],
+        None,
     )
+    if page is None:
+        raise ValueError("哔哩哔哩目标分P不存在，未替换为第一P")
     owner = view.get("owner") or {}
     return {
         "bvid": str(view.get("bvid") or video_root.get("bvid") or ""),
@@ -428,7 +437,18 @@ def _bilibili_fallback_info(url, cookie_header=""):
     page = _bilibili_page_state(html, page_number)
     if not page["bvid"] or not page["cid"]:
         raise ValueError("Bilibili page state missing bvid or cid")
+    requested = re.fullmatch(r"/video/(BV[0-9A-Za-z]+|av\d+)/?", urlsplit(url).path, re.I)
+    if requested:
+        work = requested.group(1)
+        matches = (work[2:] == page["bvid"][2:] if work.lower().startswith("bv")
+                   else work[2:] == page["aid"])
+        if not matches:
+            raise ValueError("哔哩哔哩页面与目标作品不一致，已停止读取")
 
+    return _bilibili_playback_info(page, final_url, cookie_header)
+
+
+def _bilibili_playback_info(page, final_url, cookie_header=""):
     query = urlencode(
         {
             "bvid": page["bvid"],
@@ -446,7 +466,11 @@ def _bilibili_fallback_info(url, cookie_header=""):
             f"Bilibili API rejected request: {response.get('code')} {response.get('message', '')}"
         )
     data = response.get("data") or {}
+    if data.get("is_preview") not in (None, False, 0, "0", "false"):
+        raise ValueError("哔哩哔哩返回试看媒体，未当作完整作品；请更新有效会话后重试")
     dash = data.get("dash") or {}
+    if dash.get("drm_tech_type") not in (None, False, 0, "0", "false") or data.get("drm_tech_type") not in (None, False, 0, "0", "false"):
+        raise ValueError("哔哩哔哩返回 DRM 媒体，当前不支持下载")
     # Bilibili's current public CDN URLs reject the Android mobile UA used to
     # fetch the page, even when the URL itself is valid. A normal desktop
     # browser identity is accepted for the media Range requests.
@@ -490,7 +514,10 @@ def _bilibili_fallback_info(url, cookie_header=""):
                 "http_headers": headers,
             }
         )
-    for item in data.get("durl") or []:
+    durls = data.get("durl") or []
+    if len(durls) > 1 and not formats:
+        raise ValueError("哔哩哔哩返回多段旧格式，当前无法完整封装，已停止而非仅下载第一段")
+    for item in durls if len(durls) <= 1 else []:
         media_url = item.get("url")
         if not media_url:
             continue
@@ -508,6 +535,10 @@ def _bilibili_fallback_info(url, cookie_header=""):
     if not formats:
         raise ValueError("Bilibili API returned no downloadable media formats")
 
+    return dict(_bilibili_page_info(page, final_url), http_headers=headers, formats=formats)
+
+
+def _bilibili_page_info(page, final_url):
     title = page["title"]
     if page["page_count"] > 1 and page["part"]:
         title = f"{title} - P{page['page']} {page['part']}"
@@ -523,9 +554,44 @@ def _bilibili_fallback_info(url, cookie_header=""):
         "webpage_url": final_url,
         "upload_date": page["upload_date"],
         "thumbnail": page["thumbnail"],
-        "http_headers": headers,
-        "formats": formats,
     }
+
+
+class _BilibiliMetadataUnavailable(ValueError):
+    pass
+
+
+def _bilibili_read_info(url):
+    parsed = urlsplit(url)
+    match = re.fullmatch(r"/video/(BV[0-9A-Za-z]+|av\d+)/?", parsed.path, re.I)
+    if (not match or parsed.scheme != "https" or parsed.port not in {None,443}
+            or parsed.username or parsed.password or parsed.hostname not in {"www.bilibili.com","bilibili.com"}):
+        raise _BilibiliMetadataUnavailable("Bilibili API metadata does not cover this URL")
+    parts = parse_qs(parsed.query).get("p", ["1"])
+    if len(parts) != 1 or not parts[0].isdigit() or not 1 <= int(parts[0]) <= 1000:
+        raise ValueError("哔哩哔哩目标分P不明确，已停止读取")
+    work = match.group(1)
+    query = urlencode({"bvid" if work.lower().startswith("bv") else "aid": work if work.lower().startswith("bv") else work[2:]})
+    body, final = _fetch("https://api.bilibili.com/x/web-interface/view?" + query, "", max_bytes=1024*1024)
+    target = urlsplit(final)
+    if target.hostname != "api.bilibili.com" or target.path != "/x/web-interface/view":
+        raise ValueError("哔哩哔哩元数据跳转到其他来源，已停止读取")
+    response = json.loads(body)
+    view = response.get("data") or {}
+    if response.get("code") != 0 or view.get("state",0) != 0 or (view.get("rights") or {}).get("pay"):
+        raise _BilibiliMetadataUnavailable("Bilibili public metadata unavailable")
+    page = _bilibili_view_state(view, int(parts[0]))
+    if not page["cid"] or not page["bvid"] or page["page_count"] != int(view.get("videos") or 0):
+        raise _BilibiliMetadataUnavailable("Bilibili public metadata incomplete")
+    if not (work[2:] == page["bvid"][2:] if work.lower().startswith("bv") else work[2:] == page["aid"]):
+        raise ValueError("哔哩哔哩页面与目标作品不一致，已停止读取")
+    if not view.get("title") or not (view.get("owner") or {}).get("name") or view.get("is_upower_exclusive") or (view.get("rights") or {}).get("is_stein_gate"):
+        raise _BilibiliMetadataUnavailable("Bilibili public metadata incomplete or restricted")
+    info = _bilibili_page_info(page, url)
+    # Reading is metadata discovery. Do not fetch playback renditions until the Worker resolves the download.
+    return {"platform":"bilibili", "id":info["id"], "title":info["title"], "creator":info["channel"],
+            "creator_id":info["channel_id"], "webpage_url":info["webpage_url"], "upload_date":info["upload_date"],
+            "thumbnail":info["thumbnail"], "video_url":"", "audio_url":"", "video_ext":"mp4", "audio_ext":"", "headers":{}}
 
 
 def _xiaohongshu_note_state(html):
@@ -823,9 +889,10 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
     # make googlevideo reject or severely throttle otherwise valid Range URLs.
     headers = dict(info.get("http_headers") or {})
     headers.update(chosen_video.get("http_headers") or {})
-    if audio:
-        headers.update(audio.get("http_headers") or {})
     headers = _without_credential_headers(headers)
+    audio_headers = dict(info.get("http_headers") or {})
+    audio_headers.update((audio or {}).get("http_headers") or {})
+    audio_headers = _without_credential_headers(audio_headers)
 
     return {
         "platform": _platform_name(info),
@@ -846,6 +913,7 @@ def _media_result(info, cookie_header="", resolution="UP_TO_720P"):
         "audio_from_video_source": audio_from_video_source,
         "image_urls": [],
         "headers": headers,
+        "audio_headers": audio_headers,
         "video_cookie_header": str(info.get("video_cookie_header") or ""),
         "audio_cookie_header": str(info.get("audio_cookie_header") or ""),
     }
@@ -916,7 +984,27 @@ def extract_douyin_gallery(url: str, cookie_header: str = "") -> str:
 
 def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> str:
     url = _resolve_known_short_link(url, cookie_header)
-    host = urlsplit(url).netloc.lower().split(":", 1)[0]
+    parsed_url = urlsplit(url)
+    host = parsed_url.netloc.lower().split(":", 1)[0]
+    official_douyin_host = _host_matches(host, "douyin.com") or _host_matches(
+        host, "iesdouyin.com"
+    )
+    shared_video = re.fullmatch(r"/share/video/(\d+)/?", parsed_url.path)
+    if official_douyin_host and parsed_url.scheme == "https" and shared_video:
+        # Share landing pages can navigate away from the target work in a
+        # WebView. Use the same official work ID on its canonical page.
+        url = f"https://www.douyin.com/video/{shared_video.group(1)}"
+        return json.dumps({"kind": "single", "url": url}, ensure_ascii=False)
+    if _host_matches(host, "douyin.com") and re.fullmatch(
+        r"/(?:video|note)/\d+/?", parsed_url.path
+    ):
+        # A target Douyin work is read by the app's scoped WebView capture.
+        # yt-dlp may demand fresh cookies before that page is even opened.
+        return json.dumps({"kind": "single", "url": url}, ensure_ascii=False)
+    if host in {"www.tiktok.com", "tiktok.com"} and parsed_url.scheme == "https" and re.fullmatch(
+        r"/@[^/]+/video/\d+/?", parsed_url.path
+    ):
+        return json.dumps({"kind": "single", "url": url}, ensure_ascii=False)
     if (
         _host_matches(host, "bilibili.com")
         or _host_matches(host, "xiaohongshu.com")
@@ -938,9 +1026,20 @@ def resolve_source(url: str, cookie_header: str = "", cookie_file: str = "") -> 
     if extractor_args:
         options["extractor_args"] = extractor_args
     options = _with_session_access(options, cookie_header, cookie_file)
+    options = proxy_options(url, options)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
-    return json.dumps(_source_result(info), ensure_ascii=False)
+    result = _source_result(info)
+    # One request-scoped snapshot, never a cross-read metadata cache. A generic
+    # page already fully extracted here must not fetch everything a second time.
+    if result.get("kind") == "single" and result.get("url") == url:
+        from .web_media import is_web_source, web_media_result
+        if is_web_source(url):
+            try:
+                result["media"] = web_media_result(info, url, "UP_TO_720P")
+            except (ValueError, KeyError, TypeError):
+                pass
+    return json.dumps(result, ensure_ascii=False)
 
 
 def _normalized_handle(value):
@@ -1143,6 +1242,7 @@ def extract_creator(
         "retries": 1,
     }
     options = _with_session_access(options, cookie_header, cookie_file)
+    options = proxy_options(normalized_url, options)
     with YoutubeDL(options) as ydl:
         info = ydl.extract_info(normalized_url, download=False)
     if start == 1 and not info.get("entries"):
@@ -1162,16 +1262,34 @@ def extract_creator(
     return json.dumps(result, ensure_ascii=False)
 
 
+def read_single(url: str, resolution: str = "UP_TO_720P", cookie_header: str = "", cookie_file: str = "") -> str:
+    """Discovery metadata; download-time extraction retains its complete pipeline."""
+    return extract_single(url, resolution, cookie_header, cookie_file, discovery_only=True)
+
+
 def extract_single(
     url: str,
     resolution: str = "UP_TO_720P",
     cookie_header: str = "",
     cookie_file: str = "",
+    discovery_only: bool = False,
 ) -> str:
+    from .web_media import is_web_source, validate_url, web_media_result
+    validate_url(url)
+    public_web_source = is_web_source(url)
+    if public_web_source:
+        # Unknown sites must never inherit another platform's session.
+        cookie_header, cookie_file = "", ""
     url = _resolve_known_short_link(url, cookie_header)
     host = urlsplit(url).netloc.lower().split(":", 1)[0]
     if _host_matches(host, "bilibili.com") and urlsplit(url).path.lower().startswith("/video/"):
-        info = _bilibili_fallback_info(url, cookie_header)
+        if discovery_only:
+            try:
+                return json.dumps(_bilibili_read_info(url), ensure_ascii=False)
+            except (HTTPError, URLError, _BilibiliMetadataUnavailable, json.JSONDecodeError):
+                info = _bilibili_fallback_info(url, cookie_header)
+        else:
+            info = _bilibili_fallback_info(url, cookie_header)
         return json.dumps(
             _media_result(info, cookie_header=cookie_header, resolution=resolution),
             ensure_ascii=False,
@@ -1203,10 +1321,17 @@ def extract_single(
         "socket_timeout": 20,
         "retries": 1,
     }
+    if discovery_only:
+        # The UI needs one valid target stream, not expansion of every optional
+        # HLS/DASH rendition. Keep download-time resolution unchanged.
+        if _host_matches(host, "youtube.com") or host == "youtu.be":
+            options["extractor_args"] = {"youtube": {"skip": ["hls", "dash"]}}
     options = _with_session_access(options, cookie_header, cookie_file)
     try:
-        with YoutubeDL(options) as ydl:
+        with youtube_dl_for_source(url, options) as ydl:
             info = ydl.extract_info(url, download=False)
+            if public_web_source:
+                return json.dumps(web_media_result(info, url, resolution), ensure_ascii=False)
             if (
                 (_host_matches(host, "xiaohongshu.com") or _host_matches(host, "rednote.com"))
                 and not info.get("image_urls")

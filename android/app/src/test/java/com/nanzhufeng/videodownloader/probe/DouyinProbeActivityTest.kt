@@ -8,11 +8,43 @@ import org.junit.Test
 
 class DouyinProbeActivityTest {
     @Test
+    fun videoProbeUsesMobileSessionBrowserWithInstalledEngine() {
+        assertEquals(
+            "Mozilla/5.0 (Linux; Android 16; PKH120 Build/V) " +
+                "AppleWebKit/537.36 Chrome/150.0.0.0 Mobile Safari/537.36",
+            DouyinProbeActivity.browserUserAgent(
+                "Mozilla/5.0 (Linux; Android 16; PKH120 Build/V; wv) " +
+                    "AppleWebKit/537.36 Version/4.0 Chrome/150.0.0.0 Mobile Safari/537.36",
+                isCompleteGallery = false,
+            ),
+        )
+    }
+
+    @Test
+    fun completeGalleryKeepsDesktopFlightPageContract() {
+        assertEquals(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36",
+            DouyinProbeActivity.browserUserAgent("Android WebView", isCompleteGallery = true),
+        )
+    }
+
+    @Test
     fun iesDouyinSharePageIsCanonicalizedToAuthenticatedVideoPage() {
         assertEquals(
             "https://www.douyin.com/video/7669248142533973995",
             DouyinProbeActivity.canonicalDouyinVideoUrl(
                 "https://www.iesdouyin.com/share/video/7669248142533973995/?region=CN",
+            ),
+        )
+    }
+
+    @Test
+    fun douyinSharePageIsCanonicalizedBeforeItCanNavigateAway() {
+        assertEquals(
+            "https://www.douyin.com/video/7686854662317722889",
+            DouyinProbeActivity.canonicalDouyinVideoUrl(
+                "https://www.douyin.com/share/video/7686854662317722889/?share=1",
             ),
         )
     }
@@ -24,6 +56,20 @@ class DouyinProbeActivityTest {
                 "https://www.iesdouyin.com.attacker.example/share/video/7669248142533973995/",
             ),
         )
+    }
+
+    @Test
+    fun diagnosticRouteOmitsWorkIdQueryAndUnknownHost() {
+        assertEquals(
+            "douyin/video",
+            DouyinProbeActivity.safePageRoute("https://www.douyin.com/video/7686854662317722889?token=private"),
+        )
+        assertEquals(
+            "other-host/login",
+            DouyinProbeActivity.safePageRoute("https://example.invalid/login?account=private"),
+        )
+        assertEquals("about/blank", DouyinProbeActivity.safePageRoute("about:blank"))
+        assertEquals("intent/other", DouyinProbeActivity.safePageRoute("intent://open/private#Intent;end"))
     }
 
     @Test
@@ -53,9 +99,10 @@ class DouyinProbeActivityTest {
     }
 
     @Test
-    fun videoElementNeverFallsBackToThePreviewImage() {
-        assertFalse(DouyinProbeActivity.shouldTryImageFallback(hasVideoElement = true))
-        assertTrue(DouyinProbeActivity.shouldTryImageFallback(hasVideoElement = false))
+    fun videoPageNeverTreatsItsCoverAsACompletedImageWork() {
+        assertFalse(DouyinProbeActivity.shouldTryImageFallback(isImageWork = false, hasVideoElement = true))
+        assertFalse(DouyinProbeActivity.shouldTryImageFallback(isImageWork = false, hasVideoElement = false))
+        assertTrue(DouyinProbeActivity.shouldTryImageFallback(isImageWork = true, hasVideoElement = false))
     }
 
     @Test

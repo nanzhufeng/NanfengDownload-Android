@@ -6,6 +6,8 @@ import com.nanzhufeng.videodownloader.probe.MediaFileValidator
 import java.io.File
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -44,7 +46,7 @@ internal class RollingTransferSpeed(
         if (atNanos <= previous.atNanos) return latestSpeed
         val sample = Sample(totalBytes.coerceAtLeast(previous.bytes), atNanos)
         samples.addLast(sample)
-        while (samples.size > 1 && atNanos - samples.first().atNanos > windowNanos) {
+        while (samples.size > 2 && atNanos - samples.elementAt(1).atNanos > windowNanos) {
             samples.removeFirst()
         }
         val baseline = samples.first()
@@ -97,6 +99,14 @@ internal class StreamDownloadCoordinator(
             for (progress in progressChannel) onProgress(progress)
         }
         val parentJob = currentCoroutineContext()[Job]
+        // A progress callback cannot signal cancellation while read() is blocked.
+        val cancellationMonitor = launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                awaitCancellation()
+            } finally {
+                if (parentJob?.isCancelled == true) cancelled.set(true)
+            }
+        }
 
         try {
             val downloads = pending.mapIndexed { index, request ->
@@ -125,6 +135,7 @@ internal class StreamDownloadCoordinator(
             }
             requests.map { it.target }
         } finally {
+            cancellationMonitor.cancel()
             progressChannel.close()
             listOf(reporter).joinAll()
         }
@@ -137,9 +148,12 @@ internal class StreamDownloadCoordinator(
     ) {
         private val downloaded = LongArray(streamCount)
         private val totals = LongArray(streamCount)
+        private val initialized = BooleanArray(streamCount)
+        private var receivedBytes = 0L
         private var lastReportedNanos = nowNanos()
+        private var hasReported = false
         private val speedEstimator = RollingTransferSpeed(
-            initialBytes = completedBytes,
+            initialBytes = 0L,
             initialNanos = lastReportedNanos,
         )
 
@@ -150,10 +164,13 @@ internal class StreamDownloadCoordinator(
             total: Long,
             force: Boolean = false,
         ): TransferProgress? {
-            this.downloaded[index] = downloaded.coerceAtLeast(0L)
+            val current = downloaded.coerceAtLeast(0L)
+            if (initialized[index]) receivedBytes += (current - this.downloaded[index]).coerceAtLeast(0L)
+            initialized[index] = true
+            this.downloaded[index] = current
             totals[index] = total.coerceAtLeast(0L)
             val now = nowNanos()
-            if (!force && now - lastReportedNanos < PROGRESS_INTERVAL_NANOS) return null
+            if (!force && hasReported && now - lastReportedNanos < PROGRESS_INTERVAL_NANOS) return null
 
             val combinedDownloaded = completedBytes + this.downloaded.sum()
             val combinedTotal = if (totals.all { it > 0L }) {
@@ -161,13 +178,14 @@ internal class StreamDownloadCoordinator(
             } else {
                 0L
             }
-            val speed = speedEstimator.record(combinedDownloaded, now)
+            val speed = speedEstimator.record(receivedBytes, now)
             val remaining = if (speed > 0L && combinedTotal > combinedDownloaded) {
                 (combinedTotal - combinedDownloaded) / speed
             } else {
                 null
             }
             lastReportedNanos = now
+            hasReported = true
             return TransferProgress(combinedDownloaded, combinedTotal, speed, remaining)
         }
     }

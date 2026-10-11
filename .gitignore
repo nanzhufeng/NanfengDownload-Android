@@ -47,3 +47,7 @@ browser-profile/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local browser sessions and private visual QA
+.playwright-cli/
+docs/qa/

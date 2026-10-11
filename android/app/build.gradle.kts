@@ -68,8 +68,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10288
-        versionName = "1.2.88"
+        versionCode = 10346
+        versionName = "1.2.146"
         buildConfigField("String", "BUILD_TIMESTAMP", "\"$aboutBuildTimestamp\"")
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -254,7 +254,7 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation("androidx.media3:media3-transformer:1.7.1")
     implementation("androidx.media3:media3-exoplayer:1.7.1")
     implementation("androidx.media3:media3-ui:1.7.1")
@@ -265,6 +265,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")

@@ -15,6 +15,8 @@ data class DouyinCapturedMedia(
     val imageUrls: List<String> = emptyList(),
     val imageExpectedCount: Int = 0,
     val imageSourceVersion: Int = 0,
+    val captureUserAgent: String = "",
+    val sessionFingerprint: String = "",
 )
 
 fun interface DouyinCapturedMediaSource {
@@ -40,7 +42,7 @@ class DouyinCapturedMediaRepository(
     override fun find(workId: String): DouyinCapturedMedia? {
         val payload = preferences.getString(workId, null) ?: return null
         val media = runCatching { JSONObject(payload).toCapturedMedia() }.getOrNull()
-        if (media == null || !isValid(media) || nowMillis() - media.capturedAtMillis > MAX_CAPTURE_AGE_MILLIS) {
+        if (media == null || media.workId != workId || !isValid(media) || nowMillis() - media.capturedAtMillis > MAX_CAPTURE_AGE_MILLIS) {
             preferences.edit().remove(workId).apply()
             return null
         }
@@ -49,6 +51,7 @@ class DouyinCapturedMediaRepository(
 
     private fun isValid(media: DouyinCapturedMedia): Boolean =
         media.workId.matches(WORK_ID_PATTERN) &&
+            (media.captureUserAgent.isBlank() || DouyinCaptureContext.isSafeUserAgent(media.captureUserAgent)) &&
             DouyinCaptureStore.extractWorkId(media.pageUrl) == media.workId &&
             (
                 DouyinCaptureStore.isMediaUrl(media.mediaUrl) ||
@@ -70,6 +73,8 @@ class DouyinCapturedMediaRepository(
         .put("image_urls", JSONArray(imageUrls))
         .put("image_expected_count", imageExpectedCount)
         .put("image_source_version", imageSourceVersion)
+        .put("capture_user_agent", captureUserAgent)
+        .put("session_fingerprint", sessionFingerprint)
 
     private fun JSONObject.toCapturedMedia() = DouyinCapturedMedia(
         workId = getString("work_id"),
@@ -88,6 +93,8 @@ class DouyinCapturedMediaRepository(
         }.orEmpty(),
         imageExpectedCount = optInt("image_expected_count"),
         imageSourceVersion = optInt("image_source_version"),
+        captureUserAgent = optString("capture_user_agent"),
+        sessionFingerprint = optString("session_fingerprint"),
     )
 
     private companion object {

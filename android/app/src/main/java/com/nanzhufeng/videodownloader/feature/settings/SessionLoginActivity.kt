@@ -7,7 +7,7 @@ import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.WebSettings
-import android.widget.Toast
+import com.nanzhufeng.videodownloader.core.ui.IslandFeedback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -55,11 +55,9 @@ class SessionLoginActivity : ComponentActivity() {
                         if (!loginCompleted) {
                             loginCompleted = true
                             setResult(RESULT_OK)
-                            Toast.makeText(
+                            IslandFeedback.successOnReturn(
                                 this@SessionLoginActivity,
-                                "${site.label}登录成功",
-                                Toast.LENGTH_SHORT,
-                            ).show()
+                                "${site.label}登录成功")
                             finish()
                         }
                     },
@@ -169,7 +167,7 @@ private fun LoginWebView(
                 // state in its WebView cache. Do not erase that state merely
                 // because the user reopened the same login page.
                 if (site != SessionSite.TIKTOK) clearCache(true)
-                loadUrl(site.loginUrl)
+                loadUrl(initialLoginPageUrl(site, hadAuthenticatedSessionAtStart))
                 onCreated(this)
             }
         },
@@ -182,6 +180,9 @@ internal fun mobileLoginUserAgent(defaultUserAgent: String): String = defaultUse
 
 internal fun loginCacheMode(site: SessionSite): Int =
     if (site == SessionSite.TIKTOK) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_NO_CACHE
+
+internal fun initialLoginPageUrl(site: SessionSite, hasAuthenticatedCookie: Boolean): String =
+    if (site == SessionSite.DOUYIN && hasAuthenticatedCookie) site.cookieProbeUrl else site.loginUrl
 
 internal fun shouldFinishLoginAfterNavigation(
     site: SessionSite,

@@ -4,11 +4,36 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.MediaItem
 import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
+import com.nanzhufeng.videodownloader.probe.genericCollectionMediaId
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoomDownloadRepositoryTest {
+    @Test
+    fun confirmedWebPlayerSourceCanReactivateOnlyItsMatchingFailedWork() {
+        val page = "https://www.yhdm.one/vod-play/2025999379/ep1.html"
+        val captured = MediaItem(
+            mediaKey = "GENERIC:${genericCollectionMediaId(page)}",
+            platform = DownloadPlatform.GENERIC,
+            contentId = genericCollectionMediaId(page),
+            originalUrl = page,
+            sourceKind = DownloadSourceKind.COLLECTION,
+            title = "作品 第1集",
+            creator = "yhdm.one",
+            creatorId = "",
+            publishDate = "",
+            thumbnailUrl = "",
+            capturedVideoUrl = "https://cdn.example.test/episode.m3u8",
+            capturedVideoReferer = page,
+            capturedVideoSourceVersion = 1,
+        )
+        assertTrue(captured.hasVerifiedCapturedWebVideo())
+        assertFalse(captured.copy(capturedVideoSourceVersion = 0).hasVerifiedCapturedWebVideo())
+        assertFalse(captured.copy(contentId = "other").hasVerifiedCapturedWebVideo())
+        assertFalse(captured.copy(capturedVideoUrl = "blob:https://yhdm.one/target").hasVerifiedCapturedWebVideo())
+    }
+
     @Test
     fun completeGalleryRequeuesLegacyItemWithoutCapturedImages() {
         assertTrue(

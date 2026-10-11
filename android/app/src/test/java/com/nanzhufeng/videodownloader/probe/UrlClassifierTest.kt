@@ -7,6 +7,50 @@ import org.junit.Test
 
 class UrlClassifierTest {
     @Test
+    fun pornhubWorkKeepsItsOwnPlatformAndSource() {
+        val url = "https://cn.pornhub.com/view_video.php?viewkey=sample123"
+        val source = UrlClassifier.extractAndClassify(url)
+        assertEquals("PORNHUB", source.platform.name)
+        assertEquals(SourceKind.SINGLE_VIDEO, source.kind)
+        assertEquals(url, source.url)
+    }
+
+    @Test
+    fun pornhubImpersonationAndEmbeddedCredentialsAreRejected() {
+        val impostor = UrlClassifier.extractAndClassify(
+            "https://pornhub.com.attacker.test/view_video.php?viewkey=sample123",
+        )
+        assertEquals(Platform.GENERIC, impostor.platform)
+        listOf(
+            "https://user:pass@www.pornhub.com/view_video.php?viewkey=sample123",
+        ).forEach { url ->
+            assertThrows(IllegalArgumentException::class.java) { UrlClassifier.extractAndClassify(url) }
+        }
+        assertEquals(
+            SourceKind.UNKNOWN_WEB_PAGE,
+            UrlClassifier.extractAndClassify("https://www.pornhub.com/view_video.php").kind,
+        )
+    }
+
+    @Test
+    fun publicWebMediaAndWorkPagesUseGenericSource() {
+        val direct = UrlClassifier.extractAndClassify("https://media.example.test/clip.mp4")
+        assertEquals("GENERIC", direct.platform.name)
+        assertEquals(SourceKind.SINGLE_VIDEO, direct.kind)
+        val page = UrlClassifier.extractAndClassify("https://vimeo.com/227128119")
+        assertEquals("GENERIC", page.platform.name)
+        assertEquals("UNKNOWN_WEB_PAGE", page.kind.name)
+    }
+
+    @Test
+    fun multipleUrlsKeepOrderAndRemoveDuplicates() {
+        assertEquals(
+            listOf("https://a.test/one.mp4", "https://b.test/two.m3u8"),
+            UrlClassifier.extractUrls("第一个 https://a.test/one.mp4， 第二个 https://b.test/two.m3u8 https://a.test/one.mp4"),
+        )
+    }
+
+    @Test
     fun youtubeWatchIsSingleVideo() {
         val source = UrlClassifier.extractAndClassify(
             "https://www.youtube.com/watch?v=abcdefghijk",
@@ -153,11 +197,11 @@ class UrlClassifierTest {
 
     @Test
     fun platformNameInForeignHostDoesNotBypassHostValidation() {
-        assertThrows(IllegalArgumentException::class.java) {
-            UrlClassifier.extractAndClassify(
-                "https://example.test/redirect?next=https://www.bilibili.com/video/BV1bK411W797",
-            )
-        }
+        val source = UrlClassifier.extractAndClassify(
+            "https://example.test/redirect?next=https://www.bilibili.com/video/BV1bK411W797",
+        )
+        assertEquals(Platform.GENERIC, source.platform)
+        assertEquals(SourceKind.UNKNOWN_WEB_PAGE, source.kind)
     }
 
     @Test

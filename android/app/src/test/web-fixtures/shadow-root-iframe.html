@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开放 Shadow DOM 目标视频测试</title>
+<style>body { font: 18px sans-serif; margin: 20px; } target-player { display: block; }</style>
+<h1>开放 Shadow DOM 目标视频测试</h1>
+<button id="play">播放目标测试视频</button>
+<target-player></target-player>
+<script>
+  const outer = document.querySelector('target-player').attachShadow({mode: 'open'});
+  const inner = document.createElement('nested-player');
+  inner.style.display = 'block';
+  outer.append(inner);
+  const nested = inner.attachShadow({mode: 'open'});
+  const frame = document.createElement('iframe');
+  frame.title = '目标播放器';
+  frame.style.cssText = 'width:100%;height:320px;border:0';
+  frame.srcdoc = '<body><script>' +
+    'const v=document.createElement("video");v.controls=true;v.loop=true;' +
+    'v.style.cssText="width:100%;height:260px";' +
+    'v.src=["https:","","developer.mozilla.org","shared-assets","videos","flower.mp4"].join("/");' +
+    'document.body.append(v)' + '</scr' + 'ipt></body>';
+  nested.append(frame);
+  document.querySelector('#play').onclick = () => frame.contentDocument.querySelector('video').play();
+</script>
+</html>

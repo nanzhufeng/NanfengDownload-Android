@@ -4,31 +4,27 @@ import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
 import com.nanzhufeng.videodownloader.probe.TransferPolicy
 
 object PlatformTransferPolicy {
+    fun forFragments(platform: DownloadPlatform): TransferPolicy = forPlatform(platform).copy(
+        maxConnections = 6,
+        chunkSizeBytes = null,
+        preferSingleConnection = false,
+    )
+
     fun forPlatform(platform: DownloadPlatform): TransferPolicy = when (platform) {
         DownloadPlatform.YOUTUBE -> TransferPolicy(
             platform = platform.name,
             maxConnections = 6,
             segmentedThresholdBytes = 8L * 1024L * 1024L,
+            chunkSizeBytes = 4L * 1024L * 1024L,
         )
-        DownloadPlatform.TIKTOK -> TransferPolicy(
+        // Share the proven video range/chunk path, bounded by the existing
+        // per-task/per-stream global connection budget. Images stay separate.
+        else -> TransferPolicy(
             platform = platform.name,
-            maxConnections = 4,
-            segmentedThresholdBytes = 8L * 1024L * 1024L,
-        )
-        DownloadPlatform.DOUYIN -> TransferPolicy(
-            platform = platform.name,
-            maxConnections = 3,
-            segmentedThresholdBytes = 16L * 1024L * 1024L,
-        )
-        DownloadPlatform.BILIBILI -> TransferPolicy(
-            platform = platform.name,
-            maxConnections = 4,
-            segmentedThresholdBytes = 8L * 1024L * 1024L,
-        )
-        DownloadPlatform.XIAOHONGSHU -> TransferPolicy(
-            platform = platform.name,
-            maxConnections = 3,
-            segmentedThresholdBytes = 8L * 1024L * 1024L,
+            maxConnections = 6,
+            segmentedThresholdBytes = 2L * 1024L * 1024L,
+            chunkSizeBytes = 4L * 1024L * 1024L,
+            rangeProbeBytes = 8 * 1024,
         )
     }
 

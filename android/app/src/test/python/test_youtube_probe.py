@@ -197,7 +197,7 @@ class StreamSelectionTest(unittest.TestCase):
 
         self.assertEqual("yt-dlp-player-agent", result["headers"]["User-Agent"])
         self.assertEqual("navigate", result["headers"]["Sec-Fetch-Mode"])
-        self.assertEqual("en-us,en;q=0.5", result["headers"]["Accept-Language"])
+        self.assertEqual("en-us,en;q=0.5", result["audio_headers"]["Accept-Language"])
         self.assertEqual("*/*", result["headers"]["Accept"])
 
     @staticmethod

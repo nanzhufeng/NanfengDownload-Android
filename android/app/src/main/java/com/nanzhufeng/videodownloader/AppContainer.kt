@@ -27,6 +27,15 @@ import com.nanzhufeng.videodownloader.domain.session.SessionProvider
 import com.nanzhufeng.videodownloader.domain.session.WebViewSessionProvider
 import com.nanzhufeng.videodownloader.probe.DouyinCapturedMediaRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 
 class AppContainer private constructor(
     val database: NanzhufengDatabase,
@@ -39,6 +48,28 @@ class AppContainer private constructor(
     val sessions: SessionProvider,
     val douyinCaptures: DouyinCapturedMediaRepository,
 ) {
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        // This observer survives a WorkManager constraint cancellation, so the visible
+        // task state changes even while a blocked network read is still unwinding.
+        applicationScope.launch {
+            combine(networkAvailable, settings.settings) { connected, preferences ->
+                connected to preferences.autoResumeNetwork
+            }.distinctUntilChanged().collect { (connected, automaticResume) ->
+                runCatching {
+                    if (!connected) {
+                        downloads.markActiveTasksWaitingForNetwork()
+                    } else if (automaticResume && downloads.activeTasks.first().any {
+                            it.task.selected && it.task.status == DownloadTaskStatus.WAITING_NETWORK
+                        }) {
+                        downloadEngine.resumeWhenNetworkAvailable()
+                    }
+                }.onFailure { Log.e("NanfengNetwork", "无法更新网络等待任务", it) }
+            }
+        }
+    }
+
     companion object {
         @OptIn(markerClass = [UnstableApi::class])
         fun create(context: Context): AppContainer {
@@ -56,6 +87,8 @@ class AppContainer private constructor(
                 NanzhufengMigrations.MIGRATION_6_7,
                 NanzhufengMigrations.MIGRATION_7_8,
                 NanzhufengMigrations.MIGRATION_8_9,
+                NanzhufengMigrations.MIGRATION_9_10,
+                NanzhufengMigrations.MIGRATION_10_11,
             )
                 .build()
             val downloads = RoomDownloadRepository(database)

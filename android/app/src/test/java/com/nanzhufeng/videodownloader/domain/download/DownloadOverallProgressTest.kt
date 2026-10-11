@@ -10,6 +10,18 @@ import org.junit.Test
 
 class DownloadOverallProgressTest {
     @Test
+    fun waitingForFirstNetworkByteDoesNotClaimFivePercent() {
+        listOf(0L, 100L).forEach { total ->
+            assertEquals(0, DownloadOverallProgress.percent(task(
+                status = DownloadTaskStatus.DOWNLOADING,
+                stage = DownloadProcessingStage.NETWORK_MEDIA,
+                downloaded = 0L,
+                total = total,
+            )))
+        }
+    }
+
+    @Test
     fun completedNetworkTransferLeavesRoomForProcessingAndPublishing() {
         val task = task(
             status = DownloadTaskStatus.DOWNLOADING,

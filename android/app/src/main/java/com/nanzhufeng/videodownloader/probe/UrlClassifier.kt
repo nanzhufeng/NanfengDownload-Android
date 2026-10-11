@@ -5,16 +5,30 @@ import java.net.URI
 object UrlClassifier {
     private val urlRegex = Regex("https?://[^\\s]+")
 
+    fun extractUrls(text: String): List<String> = urlRegex.findAll(text)
+        .map { it.value.trimEnd('。', '，', ',', '.', ')', '）', ']', '】') }
+        .filter(String::isNotBlank)
+        .distinct()
+        .take(21)
+        .toList()
+
     fun extractAndClassify(text: String): ClassifiedSource {
-        val raw = urlRegex.find(text)?.value
-            ?.trimEnd('。', '，', ',', '.', ')', '）', ']', '】')
+        val raw = extractUrls(text).firstOrNull()
             ?: throw IllegalArgumentException("没有找到支持平台的视频链接")
         val uri = runCatching { URI(raw) }
             .getOrElse { throw IllegalArgumentException("链接格式无效，请重新复制官方分享链接") }
         val host = uri.host.orEmpty().lowercase()
         val path = uri.path.orEmpty().lowercase()
+        require(host.isNotBlank() && uri.userInfo == null) { "请输入不含账号密码的有效网站链接" }
 
         return when {
+            host.matchesDomain("pornhub.com") && path == "/view_video.php" &&
+                Regex("(?:^|&)viewkey=[A-Za-z0-9]+(?:&|$)").containsMatchIn(uri.rawQuery.orEmpty()) ->
+                ClassifiedSource(Platform.PORNHUB, SourceKind.SINGLE_VIDEO, raw)
+
+            host.matchesDomain("pornhub.com") ->
+                ClassifiedSource(Platform.PORNHUB, SourceKind.UNKNOWN_WEB_PAGE, raw)
+
             host.matchesDomain("youtu.be") && path.length > 1 ->
                 ClassifiedSource(Platform.YOUTUBE, SourceKind.SINGLE_VIDEO, raw)
 
@@ -79,8 +93,23 @@ object UrlClassifier {
             (host.matchesDomain("xhslink.com") || host.matchesDomain("xhslink.cn")) ->
                 ClassifiedSource(Platform.XIAOHONGSHU, SourceKind.UNKNOWN_XIAOHONGSHU_SHARE, raw)
 
+            !listOf("youtube.com", "youtu.be", "douyin.com", "iesdouyin.com", "tiktok.com",
+                "bilibili.com", "b23.tv", "xiaohongshu.com", "rednote.com", "xhslink.com",
+                "xhslink.cn").any { host.matchesDomain(it) } ->
+                ClassifiedSource(
+                    Platform.GENERIC,
+                    if (path.endsWith(".mp4") || path.endsWith(".m4a") ||
+                        path.endsWith(".mp3") || path.endsWith(".webm") ||
+                        path.endsWith(".m3u8") || path.endsWith(".mpd")) {
+                        SourceKind.SINGLE_VIDEO
+                    } else {
+                        SourceKind.UNKNOWN_WEB_PAGE
+                    },
+                    raw,
+                )
+
             else -> throw IllegalArgumentException(
-                "只支持抖音、YouTube、TikTok、哔哩哔哩和小红书视频链接",
+                "该平台链接格式不受支持，请打开具体作品后复制链接",
             )
         }
     }

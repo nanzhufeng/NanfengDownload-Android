@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.domain.discovery
 
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.model.DownloadSourceKind
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 
 data class CreatorIdentity(
@@ -20,12 +21,21 @@ data class DiscoveredMedia(
     val capturedImageUrls: List<String> = emptyList(),
     val capturedImageExpectedCount: Int = 0,
     val capturedImageSourceVersion: Int = 0,
+    val legacyMediaId: String = "",
 )
 
 sealed interface DiscoveryResult {
     data class Single(val item: DiscoveredMedia) : DiscoveryResult
 
+    data class Batch(
+        val items: List<DiscoveredMedia>,
+        val errors: List<Pair<String, String>>,
+        val sourceKinds: Map<Pair<DownloadPlatform, String>, DownloadSourceKind> = emptyMap(),
+    ) : DiscoveryResult
+
     data class DouyinCaptureRequired(val sourceUrl: String) : DiscoveryResult
+
+    data class WebCaptureRequired(val sourceUrl: String) : DiscoveryResult
 
     data class Collection(
         val owner: CreatorIdentity,

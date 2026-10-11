@@ -5,6 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DouyinCaptureStoreTest {
+    @Test fun queryMarkersCredentialsAndNonstandardPortsAreNotMediaProof() {
+        assertFalse(DouyinCaptureStore.isMediaUrl("https://www.douyin.com/track?next=clip.mp4"))
+        assertFalse(DouyinCaptureStore.isMediaUrl("https://a:b@v3-web.douyinvod.com/video/tos/clip.mp4"))
+        assertFalse(DouyinCaptureStore.isMediaUrl("https://v3-web.douyinvod.com:8443/video/tos/clip.mp4"))
+        assertFalse(DouyinCaptureStore.isMediaUrl("https://v3-web.douyinvod.com/photo.jpg?next=clip.mp4"))
+    }
     @Test
     fun capturesMediaOnlyFromTargetWorkPage() {
         DouyinCaptureStore.begin("https://www.douyin.com/video/7315041660419853608")

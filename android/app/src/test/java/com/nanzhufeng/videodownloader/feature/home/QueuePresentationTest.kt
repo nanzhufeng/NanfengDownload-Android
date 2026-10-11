@@ -20,48 +20,20 @@ class QueuePresentationTest {
     }
 
     @Test
-    fun slowDownload_appearsOnlyAfterFiveStableSecondsBelow600Kb() {
+    fun continuingDownloadsShowNoSlowOrHealthyBoilerplate() {
         val now = 100_000L
         val controller = TransferHealthNoticeController()
-
-        assertEquals(
-            "连接正常，正在持续下载。",
-            controller.update(task(speed = 599L * 1024L, updatedAt = now), now)?.message,
-        )
-
-        assertEquals(
-            "下载速度已持续低于 600 KB/s。解决办法：请检查 Wi-Fi、代理或平台网络；App 会继续下载，无需反复点击重试。",
-            controller.update(task(speed = 599L * 1024L, updatedAt = now + 5_000L), now + 5_000L)?.message,
-        )
+        assertEquals(null, controller.update(task(speed = 22L * 1024L, updatedAt = now), now))
+        assertEquals(null, controller.update(task(speed = 22L * 1024L, updatedAt = now + 60_000L), now + 60_000L))
+        assertEquals(null, controller.update(task(speed = 2L * 1024L * 1024L, updatedAt = now), now))
     }
 
     @Test
-    fun slowWarning_staysVisibleUntilSpeedHasRecoveredForEightSeconds() {
+    fun resumedBytesImmediatelyRemoveTheStallNotice() {
         val now = 100_000L
         val controller = TransferHealthNoticeController()
-        controller.update(task(speed = 100L * 1024L, updatedAt = now), now)
-        val slow = controller.update(task(speed = 100L * 1024L, updatedAt = now + 5_000L), now + 5_000L)
-
-        assertEquals(
-            slow,
-            controller.update(task(speed = 2L * 1024L * 1024L, updatedAt = now + 6_000L), now + 6_000L),
-        )
-        assertEquals(
-            "连接正常，正在持续下载。",
-            controller.update(task(speed = 2L * 1024L * 1024L, updatedAt = now + 14_000L), now + 14_000L)?.message,
-        )
-    }
-
-    @Test
-    fun speedAt600Kb_isHealthy() {
-        val now = 100_000L
-
-        assertEquals(
-            "连接正常，正在持续下载。",
-            TransferHealthNoticeController()
-                .update(task(speed = 600L * 1024L, updatedAt = now), now)
-                ?.message,
-        )
+        controller.update(task(speed = 0L, updatedAt = now - 20_000L), now)
+        assertEquals(null, controller.update(task(speed = 22L * 1024L, updatedAt = now + 1_000L), now + 1_000L))
     }
 
     @Test

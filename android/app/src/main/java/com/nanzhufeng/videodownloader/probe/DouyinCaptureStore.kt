@@ -18,7 +18,7 @@ object DouyinCaptureStore {
     // 抖音会把实况图/动态图片作品放在 `/note/<id>`，但页面实际播放的
     // 仍是受签名保护的 MP4 流。`video` 与 `note` 必须使用同一作品 ID
     // 边界，避免把相邻推荐流误捕获为当前下载任务。
-    private val workIdPattern = Regex("/(?:video|note)/(\\d+)")
+    private val workIdPattern = Regex("^/(?:share/)?(?:video|note)/(\\d+)/?$")
 
     val latestMediaUrl: String?
         get() = captured.get()?.mediaUrl
@@ -66,12 +66,19 @@ object DouyinCaptureStore {
         }
     }
 
-    internal fun extractWorkId(url: String): String? =
-        workIdPattern.find(url)?.groupValues?.get(1)
+    internal fun extractWorkId(url: String): String? {
+        val uri = runCatching { URI(url) }.getOrNull() ?: return null
+        val host = uri.host.orEmpty().lowercase()
+        if (uri.scheme != "https" || uri.userInfo != null || uri.port !in setOf(-1, 443) ||
+            !(host == "douyin.com" || host.endsWith(".douyin.com") || host == "iesdouyin.com" || host.endsWith(".iesdouyin.com"))) return null
+        return workIdPattern.matchEntire(uri.path.orEmpty())?.groupValues?.get(1)
+    }
 
     internal fun isMediaUrl(url: String): Boolean {
-        val lower = url.lowercase()
-        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", true) || uri.userInfo != null || uri.port !in setOf(-1, 443)) return false
+        val lower = uri.path.orEmpty().lowercase()
+        val host = uri.host.orEmpty().lowercase()
         val trustedMediaHost = host == "douyin.com" || host.endsWith(".douyin.com") ||
             host == "iesdouyin.com" || host.endsWith(".iesdouyin.com") ||
             host == "douyinvod.com" || host.endsWith(".douyinvod.com") ||
@@ -81,7 +88,7 @@ object DouyinCaptureStore {
             host == "amemv.com" || host.endsWith(".amemv.com") ||
             host == "snssdk.com" || host.endsWith(".snssdk.com")
         val douyinVideoCdn = (host == "douyinvod.com" || host.endsWith(".douyinvod.com")) &&
-            ("/tos-" in lower || "video_mp4" in lower)
+            ("/tos-" in lower || "/video/tos/" in lower)
         val mediaPath = "/video/tos/" in lower ||
             "/play/" in lower ||
             "/aweme/v1/play" in lower ||
@@ -91,16 +98,17 @@ object DouyinCaptureStore {
             lower.endsWith(".jpg") ||
             lower.endsWith(".jpeg") ||
             lower.endsWith(".png")
-        return lower.startsWith("https://") &&
-            trustedMediaHost &&
+        return trustedMediaHost &&
             mediaPath &&
             !image &&
-            "douyin.com/video/" !in lower
+            !(host.endsWith("douyin.com") && lower.startsWith("/video/"))
     }
 
     internal fun isImageUrl(url: String): Boolean {
-        val lower = url.lowercase()
-        val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", true) || uri.userInfo != null || uri.port !in setOf(-1, 443)) return false
+        val lower = uri.path.orEmpty().lowercase()
+        val host = uri.host.orEmpty().lowercase()
         val trustedImageHost = host == "douyinpic.com" || host.endsWith(".douyinpic.com") ||
             host == "byteimg.com" || host.endsWith(".byteimg.com") ||
             host == "ibytedtos.com" || host.endsWith(".ibytedtos.com") ||
@@ -110,7 +118,7 @@ object DouyinCaptureStore {
             lower.contains("tos-cn-i") ||
             lower.contains(".jpg") || lower.contains(".jpeg") ||
             lower.contains(".png") || lower.contains(".webp")
-        return lower.startsWith("https://") && trustedImageHost && imagePath && !isMediaUrl(url)
+        return trustedImageHost && imagePath && !isMediaUrl(url)
     }
 
     internal fun isVerifiedImageGallery(
@@ -122,7 +130,7 @@ object DouyinCaptureStore {
         imageUrls.size == expectedCount &&
         imageUrls.distinct().size == expectedCount &&
         imageUrls.all { url ->
-            val lower = url.lowercase()
+            val lower = runCatching { URI(url).path.orEmpty().lowercase() }.getOrDefault("")
             isImageUrl(url) &&
                 "tplv-dy-aweme-images" in lower &&
                 "tplv-dy-water" !in lower

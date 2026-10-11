@@ -8,6 +8,18 @@ import org.junit.Test
 
 class UserFacingErrorPresenterTest {
     @Test
+    fun invalidCookieImportKeepsTheOperationSpecificRecoveryAction() {
+        val message = UserFacingErrorPresenter.message(
+            rawError = "所选文件不是有效的 Netscape cookies.txt",
+            fallbackProblem = "导入 YouTube 登录信息失败",
+            fallbackAction = "请重新导出 Netscape 格式 cookies.txt 后选择该文件",
+        )
+        assertTrue(message.contains("请重新导出 Netscape 格式 cookies.txt 后选择该文件"))
+        assertFalse(message.contains("智能读取"))
+        assertFalse(message.contains("下载详情"))
+    }
+
+    @Test
     fun `ssl hostname mismatch is not reported as generic timeout`() {
         val message = UserFacingErrorPresenter.message(
             "<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: " +

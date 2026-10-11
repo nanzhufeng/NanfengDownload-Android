@@ -31,7 +31,9 @@ class HomeLayoutResourceTest {
         assertFalse("队列不再需要完成确认", queuePanel.contains("Text(\"完成\")"))
         assertTrue(queuePanel.contains("queue-select-page"))
         assertTrue(queuePanel.contains("queue-start-selected"))
-        assertTrue(queuePanel.contains("Text(\"开始下载\""))
+        assertTrue(queuePanel.contains("\"开始下载\""))
+        assertTrue(queuePanel.contains("\"暂停下载\""))
+        assertTrue(queuePanel.contains("if (hasActiveDownloads) onPauseActive else onStartDownloads"))
         assertFalse(queuePanel.contains("开始下载已选作品"))
         assertTrue(queuePanel.contains("containerColor = MaterialTheme.colorScheme.primary"))
         assertTrue("用户可见名称统一为下载列表", queuePanel.contains("\"下载列表\""))
@@ -77,7 +79,7 @@ class HomeLayoutResourceTest {
             .substringBefore("private fun Thumbnail(")
 
         assertTrue(readEntry.contains("placeholder ="))
-        assertTrue(readEntry.contains("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本"))
+        assertTrue(readEntry.contains("粘贴视频作品页或媒体直链；支持抖音、YouTube、TikTok、哔哩哔哩、小红书、Pornhub 等网站"))
         assertTrue(readEntry.contains("!notice.startsWith(\"已加入\")"))
         assertFalse("字符数不得占用输入框右侧", readEntry.contains("trailingIcon ="))
         assertTrue(readEntry.contains("input-character-count"))
@@ -130,7 +132,7 @@ class HomeLayoutResourceTest {
         assertTrue("必须显示实时下载速度", queueRow.contains("formatSpeed(queued.task.speedBytesPerSecond)"))
         assertTrue("必须显示已下载和总数据量", queueRow.contains("queued.task.downloadedBytes"))
         assertTrue("必须显示预计剩余时间", queueRow.contains("queued.task.remainingSeconds"))
-        assertTrue("卡顿或低速必须使用稳定状态器", queueRow.contains("TransferHealthNoticeController"))
+        assertTrue("无数据中断必须使用明确的状态器", queueRow.contains("TransferHealthNoticeController"))
         assertTrue("选择和状态应合并为紧凑前导控件", queueRow.contains("QueueLeadingControl"))
         assertFalse("不再使用抢空间的大号默认 Checkbox", queueRow.contains("Checkbox("))
     }

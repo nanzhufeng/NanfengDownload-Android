@@ -30,7 +30,7 @@ Room 状态层、Repository、DataStore 和首页/历史/设置三页壳层已�
 
 ## Find N5 真实验证
 
-- 设备：OPPO Find N5，序列号 `3B157F009E800000`。
+- 设备：OPPO Find N5，序列号 `<oppo-serial>`。
 - 外屏：系统报告 1140 × 2616；使用覆盖安装，没有卸载或清除数据。
 - 应用可启动，首页多行输入、总进度、队列空状态和底部导航均无重叠或截断。
 - 真机外屏截图：[room-shell-find-n5-outer.png](../assets/android/room-shell-find-n5-outer.png)

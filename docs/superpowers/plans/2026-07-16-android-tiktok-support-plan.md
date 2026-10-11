@@ -27,7 +27,7 @@
 - 下载结果存在、非空且通过媒体容器校验后才能显示完成。
 - 当前工作树已有未提交的 YouTube、抖音验证改动；每次提交只暂存当前任务列出的文件，不得使用 `git add .`。
 - Windows 中文主路径会影响 Android 单元测试类路径；所有 Gradle 验证从当前 ASCII 工作树执行。
-- Find N5 设备序列号为 `3B157F009E800000`，真机验证不得清空应用数据。
+- Find N5 设备序列号为 `<oppo-serial>`，真机验证不得清空应用数据。
 
 ---
 
@@ -781,7 +781,7 @@ Expected: 所有测试 PASS，两个 APK 均生成；记录测试数量和 APK �
 Run:
 
 ```powershell
-& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s 3B157F009E800000 install -r android\app\build\outputs\apk\debug\app-debug.apk
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" -s <oppo-serial> install -r android\app\build\outputs\apk\debug\app-debug.apk
 ```
 
 Expected: `Success`。不得运行卸载、清除数据或重置 WebView 数据命令。

@@ -1,79 +1,50 @@
 # 南枫下载 Android
 
-面向 Android 的 YouTube、抖音、TikTok、哔哩哔哩和小红书视频下载工作台。支持公开单视频与已结束直播回放的读取、去重、队列管理、真实下载、音视频合并、MP3 转码、系统媒体库发布、完成历史与永久吞吐报告。
+Android 视频下载工作台，支持链接读取、下载队列、系统媒体库保存、历史收藏和内置播放。
 
-> 当前正式版为 `v1.2.88`（`versionCode 10288`）。设置页新增“关于”卡片，展示当前 APK 的版本、构建时间、开发者与 GitHub 源码信息；历史媒体支持 App 内视频、图片、动图及小红书实况图查看，视频可双击播放／暂停，画面不会进入顶部系统状态栏。抖音 `/note/` 图文从目标作品的完整公开原图 `urlList` 读取，拒绝带平台水印的 `downloadUrlList`，并将该已验证列表直接传给最终下载，禁止后续解析覆盖。
+[下载 v1.2.146 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.146) · [源码](https://github.com/nanzhufeng/NanfengDownload-Android) · [项目状态](docs/PROJECT_STATUS.md)
 
 ## 界面预览
 
-| 首页 | 历史 | 设置 | 关于 |
-| --- | --- | --- | --- |
-| <img src="docs/screenshots/github-preview/home.png" width="240" alt="南枫下载 Android 首页" /> | <img src="docs/screenshots/github-preview/history.png" width="240" alt="南枫下载 Android 历史" /> | <img src="docs/screenshots/github-preview/settings.png" width="240" alt="南枫下载 Android 设置" /> | <img src="docs/screenshots/github-preview/settings-about-v1.2.88.png" width="240" alt="南枫下载 Android 1.2.88 关于设置" /> |
+| 首页 | 收藏与操作菜单 | 设置 |
+| --- | --- | --- |
+| <img src="docs/screenshots/github-preview/home-v1.2.146.png" width="240" alt="南枫下载146首页" /> | <img src="docs/screenshots/github-preview/favorites-v1.2.146.png" width="240" alt="历史收藏及统一图标操作菜单" /> | <img src="docs/screenshots/github-preview/settings-v1.2.146.png" width="240" alt="南枫下载146设置" /> |
 
-前三张截图来自 `v1.2.87` 正式 APK；“关于”截图来自本次 `v1.2.88` 正式 APK。两者均在项目隔离 Android 15 模拟器的真实运行页面截取，展开视口为 `1600×1800`、字体比例 `1.0`；内容为空数据，不含用户任务或媒体。每张图片只展示一个页面，不使用旧设计稿或多页面拼接图冒充实际界面。
+截图来自 v1.2.146 正式 APK 在隔离 Android 15 模拟器的正常运行页面，视口1080×2400、480dpi、字体1.0。演示媒体为合成测试片，不包含用户账号、会话或私人媒体；每张图对应一个真实页面。
 
-## 下载安装
+## 功能
 
-前往 [v1.2.88 正式版](https://github.com/nanzhufeng/NanfengDownload-Android/releases/tag/v1.2.88) 下载 `NanfengDownload-Android-v1.2.88.apk`。普通安装请选择 APK；本地构建仍按约定输出中文名，GitHub Release 使用稳定英文附件名。
+- 读取 YouTube、抖音、TikTok、哔哩哔哩、小红书，以及已接入的 Pornhub 单作品和通用 HTTP(S) 媒体页面；平台入口范围与实际验收见[网站审计](docs/verification/2026-10-10-five-platform-read-download-audit.md)。
+- 按画质下载或导出 MP3，支持有界多连接、分段传输、续传、暂停、停止与失败重试；最终校验后保存到媒体库或所选目录。
+- 后台通知和灵动岛显示真实任务进度，提供简洁／详细视图、原位缩放回弹切换及查看／停止操作。
+- 历史视频收藏，支持关键词、平台和时间筛选；取消收藏保留视频文件。
+- 内置视频播放器保存播放位置；左右双击快退／快进10秒，连续点击叠加，保持播放状态。
+- 手机窄屏底部导航，展开屏使用双栏工作区；菜单统一配图标。
 
-正式版使用长期 Release 签名。项目曾通过 Android v3 签名证书谱系，将指定 OPPO 上的 `0.1.0-probe` Debug 验收版无损迁移到正式签名；其他设备若签名不一致，仍必须停止并先确认迁移或备份方案，不得自动卸载或清除数据。
+## 安装与边界
 
-## 核心能力
+Release 附件使用稳定英文名 `NanfengDownload-Android-v1.2.146.apk`，附 SHA256 校验文件。本地正式构建产物保留中文名。长期正式签名相同的版本可保数据覆盖；签名不匹配时停止，禁止以卸载或清数据绕过。
 
-- 支持粘贴或分享 YouTube、抖音、TikTok、哔哩哔哩和小红书链接，公开单视频优先无需登录使用。
-- 下载列表持久保留等待、下载、失败、取消与重复跳过状态；失败提供中文原因、解决建议、重试和删除。
-- 平台感知的 Range 探测与单/多连接传输，保存实际连接模式、网络字节、平均/峰值速度、重试和回退原因。
-- 支持最佳画质、1080p、720p、360p 与仅音频 MP3；没有独立音频流时，自动选取最高不超过 720p 的含音轨视频作为转换源，真实 MP3 由 Android 解码 PCM 后通过 LAME 4.0 编码。
-- YouTube 独立音频使用单连接顺序 Range，避免多个音频分片在 CDN 上互相争抢带宽；视频及视频转音频源仍使用平台感知的多连接策略。
-- 视频写入系统 `Movies`，MP3 写入系统 `Music`；历史音频点击左侧封面直接使用 App 内置播放器，外部播放器保留为次要操作。
-- 账号与权限页把授权能力明确分开：哔哩哔哩使用应用内官方 H5 登录并通过真实请求验证会话；YouTube 只导入合法会话文件；抖音、TikTok 与小红书只走公开内容模式，下载请求不会携带 WebView 登录信息。
-- 适配 OPPO Find N5：外屏单页底部导航，内屏单页左侧导航与双栏工作区。
+只处理公开内容或用户有权访问的内容，不绕过付费、DRM或私密限制。读取与下载速度受平台、CDN、网络和账号条件影响，不承诺所有平台每次秒读或固定吞吐。OPPO已核验安装142与媒体元数据保留，146业务真机路径仍待用户验证；模拟器成功不能代替主设备或全部公网平台验收。
 
-## 产品边界
+## 开发与验证
 
-- 只处理公开内容，以及用户已合法登录并有权访问的内容。
-- 不绕过会员、付费、DRM 或私密内容限制。
-- 哔哩哔哩当前只支持单视频，不声明支持尚未跑通的 UP 主页批量读取；小红书支持公开视频笔记与公开图文/实况图笔记。
-- 不在仓库中保存账号密码、Cookie、Token、签名密钥或用户媒体。
-- 平台 CDN、网络、地区和账号条件会影响速度与成功率，界面只报告真实测量结果。
+Kotlin / Jetpack Compose / Room11 / WorkManager / OkHttp / Media3 / Chaquopy / yt-dlp；Android 10及以上，compile/targetSdk35。
 
-## 技术栈
-
-- Kotlin、Jetpack Compose、Material 3、Navigation Compose
-- Room、DataStore、WorkManager、OkHttp、Media3
-- Chaquopy Python 3.13 + `yt-dlp`
-- Android NDK/CMake + LAME 4.0 JNI
-- `minSdk 29`、`compileSdk 35`、`targetSdk 35`
-
-完整版本与架构见 [context.md](context.md)。
-
-## 构建与验证
-
-正式打包必须通过环境变量提供 `NANFENG_RELEASE_STORE_FILE`、`NANFENG_RELEASE_STORE_PASSWORD`、`NANFENG_RELEASE_KEY_ALIAS` 和 `NANFENG_RELEASE_KEY_PASSWORD`；签名密钥与密码不会保存在仓库中。
+正式签名优先完整 `NANFENG_RELEASE_*` 环境变量；备用为仓库外用户级 Gradle 的 App 专属命名空间，不提交凭据。
 
 ```bash
 cd android
-JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-NANZHUFENG_BUILD_PYTHON="/opt/homebrew/bin/python3.13" \
-./gradlew :app:testDebugUnitTest :app:testReleaseUnitTest :app:lintRelease \
-  :app:stageFormalReleaseArtifacts --max-workers=1
+./gradlew testDebugUnitTest testReleaseUnitTest lintRelease assembleRelease
 ```
 
-构建产物直接命名为：
+产物：`android/app/build/outputs/apk/release/南枫下载-Android-v1.2.146.apk`。配置所需JDK、Python、NDK及签名后构建，详见[开发档案](docs/南枫下载%20Android%20完整开发档案.md)。宿主 Python 测试设置 `PYTHONDONTWRITEBYTECODE=1`，避免把宿主缓存写进Android依赖目录。
 
-```text
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.88.apk
-android/app/build/outputs/formal-release/南枫下载-Android-v1.2.88.aab
-```
+永久禁止 `connected*AndroidTest` 和主设备Debug／仪器部署。正式主设备覆盖只按用户授权核验同签名、递增版本和数据指纹。
 
-自动化 UI 测试必须绑定项目专用模拟器。OPPO 真机更新固定使用“推送 APK → `pm install -r --user 0`”的同签名覆盖路径，不使用会触发 ColorOS 图形确认页的直接 `adb install`。
+## 文档
 
-## 项目文档
-
-- [context.md](context.md)：当前技术栈、目录结构、数据流、构建与风险入口。
-- [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md)：真实设备、三平台下载、吞吐报告和阶段验收证据。
-- [design-qa.md](design-qa.md)：外屏/内屏三页 UI 合同与视觉验收。
-
-## 发布状态
-
-当前仓库明确维护 Android 版。`v1.2.88` 使用既有正式证书生成 APK/AAB，并在 OPPO 完成同签名覆盖和数据保留核验；抖音图文真实下载闭环已由用户确认。视频详情面板、顶部安全区和双击播放／暂停仍待用户在 OPPO 内外屏手动验收。Google Play 上架和签名密钥异地加密备份仍是后续独立任务。
+- [项目状态](docs/PROJECT_STATUS.md)：当前能力、门禁、验证缺口和同步情况。
+- [当前交接](PROJECT_HANDOFF.md)：源码、冻结包与下一步边界。
+- [146发布验收](docs/verification/2026-10-11-release-146.md)：续传修复、测试、包与GitHub交付证据。
+- [后台灵动岛](docs/background-download-island.md) · [播放器](docs/video-playback.md) · [历史收藏](docs/history-favorites.md)

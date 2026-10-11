@@ -14,6 +14,9 @@ interface DownloadEngine {
     suspend fun retry(taskId: String)
 
     suspend fun resumeWhenNetworkAvailable()
+
+    /** Startup recovery preserves any already running worker and explicit paused tasks. */
+    suspend fun recoverInterruptedAtStartup() = resumeWhenNetworkAvailable()
 }
 
 object NoOpDownloadEngine : DownloadEngine {
@@ -42,6 +45,7 @@ class DefaultDownloadEngine(
 ) : DownloadEngine {
     override suspend fun start() {
         repository.resumePausedTasks()
+        repository.resumeNetworkWaitingTasks()
         scheduler.enqueue()
     }
 
@@ -70,5 +74,9 @@ class DefaultDownloadEngine(
 
     override suspend fun resumeWhenNetworkAvailable() {
         scheduler.restart()
+    }
+
+    override suspend fun recoverInterruptedAtStartup() {
+        scheduler.enqueue()
     }
 }

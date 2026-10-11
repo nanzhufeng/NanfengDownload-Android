@@ -26,6 +26,9 @@ data class MediaItemEntity(
     val capturedImageUrlsJson: String = "[]",
     val capturedImageExpectedCount: Int = 0,
     val capturedImageSourceVersion: Int = 0,
+    val capturedVideoUrl: String = "",
+    val capturedVideoReferer: String = "",
+    val capturedVideoSourceVersion: Int = 0,
     val discoveredAt: Long,
 )
 
@@ -103,6 +106,7 @@ data class DownloadHistoryEntity(
     val audioSegmentCount: Int = 1,
     val capturedImageExpectedCount: Int = 0,
     val capturedImageSourceVersion: Int = 0,
+    @ColumnInfo(defaultValue = "0") val isFavorite: Boolean = false,
 )
 
 data class DownloadHistoryWithThumbnail(

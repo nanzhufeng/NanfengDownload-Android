@@ -17,17 +17,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,8 +37,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -61,7 +59,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.nanzhufeng.videodownloader.AppContainer
 import com.nanzhufeng.videodownloader.core.diagnostics.UserFacingErrorPresenter
-import com.nanzhufeng.videodownloader.R
 import com.nanzhufeng.videodownloader.core.ui.NanzhufengTheme
 import com.nanzhufeng.videodownloader.core.ui.SelectedSage
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
@@ -77,12 +74,15 @@ import com.nanzhufeng.videodownloader.feature.settings.SettingsScreen
 import com.nanzhufeng.videodownloader.domain.discovery.SourceDiscoveryEngine
 import com.nanzhufeng.videodownloader.domain.download.DownloadEngine
 import com.nanzhufeng.videodownloader.domain.download.NoOpDownloadEngine
+import com.nanzhufeng.videodownloader.domain.download.WebSourceRecoveryPolicy
 import com.nanzhufeng.videodownloader.domain.session.NoOpSessionProvider
 import com.nanzhufeng.videodownloader.domain.session.SessionProvider
 import com.nanzhufeng.videodownloader.domain.session.SessionSite
 import com.nanzhufeng.videodownloader.domain.session.SiteSessionState
 import com.nanzhufeng.videodownloader.probe.DouyinProbeActivity
-import android.widget.Toast
+import com.nanzhufeng.videodownloader.probe.GenericWebProbeActivity
+import com.nanzhufeng.videodownloader.core.ui.IslandFeedback
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -93,6 +93,7 @@ import kotlinx.coroutines.flow.flowOf
 fun NanzhufengApp(
     container: AppContainer,
     incomingSharedText: Flow<String> = emptyFlow(),
+    openDownloads: Flow<Unit> = emptyFlow(),
 ) {
     NanzhufengApp(
         downloads = container.downloads,
@@ -102,6 +103,7 @@ fun NanzhufengApp(
         networkAvailable = container.networkAvailable,
         sessions = container.sessions,
         incomingSharedText = incomingSharedText,
+        openDownloads = openDownloads,
     )
 }
 
@@ -113,6 +115,7 @@ fun NanzhufengApp(
     downloadEngine: DownloadEngine = NoOpDownloadEngine,
     networkAvailable: Flow<Boolean> = flowOf(true),
     incomingSharedText: Flow<String> = emptyFlow(),
+    openDownloads: Flow<Unit> = emptyFlow(),
     expandedOverride: Boolean? = null,
     sessions: SessionProvider = NoOpSessionProvider,
 ) {
@@ -124,12 +127,21 @@ fun NanzhufengApp(
             initialValue = com.nanzhufeng.videodownloader.data.settings.AppSettings(),
         )
         val sessionStates by sessions.states.collectAsStateWithLifecycle()
+        var historyFavoritesOnly by rememberSaveable { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
         val homeViewModel: HomeViewModel = viewModel(
             factory = HomeViewModel.factory(downloads, settings, discovery),
         )
         val homeState by homeViewModel.uiState.collectAsStateWithLifecycle()
+        LaunchedEffect(homeState.input) {
+            com.nanzhufeng.videodownloader.probe.DouyinReadPreparation.prepare(context, homeState.input)
+            com.nanzhufeng.videodownloader.probe.UrlClassifier.extractUrls(homeState.input).forEach {
+                com.nanzhufeng.videodownloader.probe.PornhubApiMetadata.prepareConnection(it)
+                com.nanzhufeng.videodownloader.probe.YouTubePageMetadata.prepareConnection(it)
+                com.nanzhufeng.videodownloader.probe.TikTokPageVideo.prepareConnection(it)
+            }
+        }
         val douyinCaptureLauncher = rememberLauncherForActivityResult(
             ActivityResultContracts.StartActivityForResult(),
         ) { result ->
@@ -145,10 +157,31 @@ fun NanzhufengApp(
                 )
             }
         }
+        val webCaptureLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            scope.launch {
+                homeViewModel.completeWebCapture(
+                    capture = if (result.resultCode == Activity.RESULT_OK) {
+                        GenericWebProbeActivity.capture(result.data)
+                    } else null,
+                    episodes = if (result.resultCode == Activity.RESULT_OK) {
+                        GenericWebProbeActivity.episodes(result.data)
+                    } else emptyList(),
+                    pageUrl = GenericWebProbeActivity.page(result.data),
+                    errorMessage = GenericWebProbeActivity.error(result.data),
+                )
+            }
+        }
         val isNetworkAvailable by networkAvailable.collectAsStateWithLifecycle(initialValue = false)
         val navController = rememberNavController()
-        var recoveryRequested by remember { mutableStateOf(false) }
-        var completionDialog by remember { mutableStateOf<DownloadHistory?>(null) }
+        val playbackMemory = remember(context.applicationContext) {
+            com.nanzhufeng.videodownloader.domain.playback.VideoPlaybackMemory(
+                com.nanzhufeng.videodownloader.data.playback.PreferencesVideoPositionStorage(
+                    context.applicationContext.getSharedPreferences("video_playback_positions", android.content.Context.MODE_PRIVATE),
+                ),
+            )
+        }
         var activeVideoTaskId by rememberSaveable { mutableStateOf<String?>(null) }
         var activeVideoUri by rememberSaveable { mutableStateOf<String?>(null) }
         var activeVideoTitle by rememberSaveable { mutableStateOf("") }
@@ -156,31 +189,26 @@ fun NanzhufengApp(
         var activeVideoPlayWhenReady by rememberSaveable { mutableStateOf(true) }
 
         LaunchedEffect(downloads) {
-            var initialized = false
-            var knownCompletedIds = emptySet<String>()
+            val notices = com.nanzhufeng.videodownloader.core.ui.DownloadCompletionNotices()
             downloads.history.collect { snapshot ->
-                val completed = snapshot.filter { it.finalStatus == DownloadTaskStatus.COMPLETED }
-                val completedIds = completed.mapTo(mutableSetOf()) { it.taskId }
-                if (initialized) {
-                    val newest = completed.firstOrNull { it.taskId !in knownCompletedIds }
-                    if (newest != null) completionDialog = newest
+                notices.onSnapshot(snapshot)?.let { notice ->
+                    IslandFeedback.success(context, notice.detail, title = notice.title)
                 }
-                knownCompletedIds = completedIds
-                initialized = true
             }
         }
 
-        LaunchedEffect(queue, recoveryRequested) {
-            val hasInterruptedTransfer = queue.any { queued ->
+        LaunchedEffect(downloads, downloadEngine) {
+            // Read the initial persisted snapshot once. Later manual starts are
+            // active downloads, rather than interrupted work requiring restart.
+            val hasInterruptedTransfer = downloads.activeTasks.first().any { queued ->
                 queued.task.status in setOf(
                     DownloadTaskStatus.PARSING,
                     DownloadTaskStatus.DOWNLOADING,
                     DownloadTaskStatus.VALIDATING,
                 )
             }
-            if (!recoveryRequested && hasInterruptedTransfer) {
-                recoveryRequested = true
-                downloadEngine.resumeWhenNetworkAvailable()
+            if (hasInterruptedTransfer) {
+                downloadEngine.recoverInterruptedAtStartup()
             }
         }
 
@@ -203,21 +231,13 @@ fun NanzhufengApp(
                 )
             }
         }
-
-        completionDialog?.let { item ->
-            AlertDialog(
-                modifier = Modifier.testTag("completion-dialog"),
-                onDismissRequest = { completionDialog = null },
-                containerColor = Color.White,
-                tonalElevation = 0.dp,
-                title = { Text("下载成功") },
-                text = {
-                    Text("${item.title}\n已保存到系统媒体库。")
-                },
-                confirmButton = {
-                    TextButton(onClick = { completionDialog = null }) { Text("知道了") }
-                },
-            )
+        LaunchedEffect(homeState.webCaptureUrl) {
+            homeState.webCaptureUrl?.let { sourceUrl ->
+                webCaptureLauncher.launch(
+                    GenericWebProbeActivity.createIntent(context, sourceUrl),
+                    ActivityOptionsCompat.makeCustomAnimation(context, 0, 0),
+                )
+            }
         }
 
         BoxWithConstraints(
@@ -226,12 +246,14 @@ fun NanzhufengApp(
                 .background(MaterialTheme.colorScheme.background),
         ) {
             val expanded = expandedOverride ?: (maxWidth >= 600.dp)
+            LaunchedEffect(openDownloads) {
+                openDownloads.collect { navController.openPrimary(AppDestination.HOME) }
+            }
             val currentRoute by navController.currentBackStackEntryAsState()
             val route = currentRoute?.destination?.route ?: AppDestination.HOME.route
 
             if (expanded) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    PrimaryNavigationRail(navController, route)
+                Column(modifier = Modifier.fillMaxSize()) {
                     AppNavHost(
                         navController = navController,
                         queue = queue,
@@ -242,6 +264,11 @@ fun NanzhufengApp(
                         isReading = homeState.isReading,
                         notice = homeState.notice,
                         canLoadMore = homeState.canLoadMore,
+                        pendingItems = homeState.pendingItems,
+                        onPendingSelected = homeViewModel::setPendingSelected,
+                        pendingErrors = homeState.pendingErrors,
+                        onConfirmPending = { scope.launch { homeViewModel.confirmPending() } },
+                        onDismissPending = homeViewModel::dismissPending,
                         onInputChange = { value ->
                             homeViewModel.onInputChanged(value)
                             scope.launch { settings.saveInputDraft(value) }
@@ -285,18 +312,16 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
+                                        IslandFeedback.success(context, "已导出 ${site.label} 的 $count 条会话")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "导出登录信息失败",
                                                 fallbackAction = "请确认目标文件可写并重新选择保存位置后重试",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -305,18 +330,16 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.importYoutubeCookies(sourceUri)
                                     .onSuccess {
-                                        Toast.makeText(context, "YouTube 登录信息已保存", Toast.LENGTH_SHORT).show()
+                                        IslandFeedback.success(context, "YouTube 登录信息已保存")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "导入 YouTube 登录信息失败",
                                                 fallbackAction = "请重新导出 Netscape 格式 cookies.txt 后选择该文件",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -324,22 +347,18 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.clear(site)
                                     .onSuccess {
-                                        Toast.makeText(
+                                        IslandFeedback.success(
                                             context,
-                                            "已清除 ${site.label} 会话",
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                            "已清除 ${site.label} 会话")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "无法清除 ${site.label} 登录信息",
                                                 fallbackAction = "请先关闭对应登录页面再重试",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -350,10 +369,32 @@ fun NanzhufengApp(
                             scope.launch { downloadEngine.remove(taskId) }
                         },
                         onRetryQueued = { taskId ->
-                            scope.launch { downloadEngine.retry(taskId) }
+                            val failed = queue.firstOrNull { it.task.taskId == taskId }
+                            if (failed != null && WebSourceRecoveryPolicy.offersRecapture(failed)) {
+                                homeViewModel.requestWebSourceRefresh(failed)
+                            } else {
+                                scope.launch { downloadEngine.retry(taskId) }
+                            }
                         },
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
+                        },
+                        historyFavoritesOnly = historyFavoritesOnly,
+                        onHistoryFavoritesOnlyChange = { historyFavoritesOnly = it },
+                        onHistoryFavoriteChange = { taskId, isFavorite ->
+                            scope.launch {
+                                try {
+                                    if (downloads.setHistoryFavorite(taskId, isFavorite)) {
+                                        IslandFeedback.success(context, if (isFavorite) "已收藏" else "已取消收藏")
+                                    } else {
+                                        IslandFeedback.error(context, "记录已变化，请刷新后重试")
+                                    }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    IslandFeedback.error(context, "收藏保存失败，请重试")
+                                }
+                            }
                         },
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
@@ -368,20 +409,21 @@ fun NanzhufengApp(
                             activeVideoTaskId = taskId
                             activeVideoUri = uri
                             activeVideoTitle = title
-                            activeVideoPositionMillis = 0L
+                            activeVideoPositionMillis = playbackMemory.positionFor(uri)
                             activeVideoPlayWhenReady = true
                         },
                         expanded = true,
                         networkAvailable = isNetworkAvailable,
                         modifier = Modifier.weight(1f),
                     )
+                    PrimaryFloatingNavigation(navController, route, compact = false)
                 }
             } else {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
-                        PrimaryBottomNavigation(navController, route)
+                        PrimaryFloatingNavigation(navController, route, compact = true)
                     },
                 ) { padding ->
                     AppNavHost(
@@ -394,6 +436,11 @@ fun NanzhufengApp(
                         isReading = homeState.isReading,
                         notice = homeState.notice,
                         canLoadMore = homeState.canLoadMore,
+                        pendingItems = homeState.pendingItems,
+                        onPendingSelected = homeViewModel::setPendingSelected,
+                        pendingErrors = homeState.pendingErrors,
+                        onConfirmPending = { scope.launch { homeViewModel.confirmPending() } },
+                        onDismissPending = homeViewModel::dismissPending,
                         onInputChange = { value ->
                             homeViewModel.onInputChanged(value)
                             scope.launch { settings.saveInputDraft(value) }
@@ -437,18 +484,16 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.exportCookies(site, destinationUri)
                                     .onSuccess { count ->
-                                        Toast.makeText(context, "已导出 ${site.label} 的 $count 条会话", Toast.LENGTH_SHORT).show()
+                                        IslandFeedback.success(context, "已导出 ${site.label} 的 $count 条会话")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "导出登录信息失败",
                                                 fallbackAction = "请确认目标文件可写并重新选择保存位置后重试",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -457,18 +502,16 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.importYoutubeCookies(sourceUri)
                                     .onSuccess {
-                                        Toast.makeText(context, "YouTube 登录信息已保存", Toast.LENGTH_SHORT).show()
+                                        IslandFeedback.success(context, "YouTube 登录信息已保存")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "导入 YouTube 登录信息失败",
                                                 fallbackAction = "请重新导出 Netscape 格式 cookies.txt 后选择该文件",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -476,22 +519,18 @@ fun NanzhufengApp(
                             scope.launch {
                                 sessions.clear(site)
                                     .onSuccess {
-                                        Toast.makeText(
+                                        IslandFeedback.success(
                                             context,
-                                            "已清除 ${site.label} 会话",
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                            "已清除 ${site.label} 会话")
                                     }
                                     .onFailure { error ->
-                                        Toast.makeText(
+                                        IslandFeedback.error(
                                             context,
                                             UserFacingErrorPresenter.message(
                                                 rawError = error.message,
                                                 fallbackProblem = "无法清除 ${site.label} 登录信息",
                                                 fallbackAction = "请先关闭对应登录页面再重试",
-                                            ),
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                            ))
                                     }
                             }
                         },
@@ -502,10 +541,32 @@ fun NanzhufengApp(
                             scope.launch { downloadEngine.remove(taskId) }
                         },
                         onRetryQueued = { taskId ->
-                            scope.launch { downloadEngine.retry(taskId) }
+                            val failed = queue.firstOrNull { it.task.taskId == taskId }
+                            if (failed != null && WebSourceRecoveryPolicy.offersRecapture(failed)) {
+                                homeViewModel.requestWebSourceRefresh(failed)
+                            } else {
+                                scope.launch { downloadEngine.retry(taskId) }
+                            }
                         },
                         onDeleteHistory = { taskId ->
                             scope.launch { downloads.deleteHistoryRecord(taskId) }
+                        },
+                        historyFavoritesOnly = historyFavoritesOnly,
+                        onHistoryFavoritesOnlyChange = { historyFavoritesOnly = it },
+                        onHistoryFavoriteChange = { taskId, isFavorite ->
+                            scope.launch {
+                                try {
+                                    if (downloads.setHistoryFavorite(taskId, isFavorite)) {
+                                        IslandFeedback.success(context, if (isFavorite) "已收藏" else "已取消收藏")
+                                    } else {
+                                        IslandFeedback.error(context, "记录已变化，请刷新后重试")
+                                    }
+                                } catch (cancelled: CancellationException) {
+                                    throw cancelled
+                                } catch (_: Exception) {
+                                    IslandFeedback.error(context, "收藏保存失败，请重试")
+                                }
+                            }
                         },
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
@@ -520,7 +581,7 @@ fun NanzhufengApp(
                             activeVideoTaskId = taskId
                             activeVideoUri = uri
                             activeVideoTitle = title
-                            activeVideoPositionMillis = 0L
+                            activeVideoPositionMillis = playbackMemory.positionFor(uri)
                             activeVideoPlayWhenReady = true
                         },
                         expanded = false,
@@ -536,6 +597,7 @@ fun NanzhufengApp(
                     playbackSessionId = taskId,
                     title = activeVideoTitle,
                     videoUri = uri,
+                    playbackMemory = playbackMemory,
                     initialPositionMillis = activeVideoPositionMillis,
                     initialPlayWhenReady = activeVideoPlayWhenReady,
                     onPlaybackSnapshot = { positionMillis, playWhenReady ->
@@ -568,6 +630,11 @@ private fun AppNavHost(
     isReading: Boolean,
     notice: String,
     canLoadMore: Boolean,
+    pendingItems: List<com.nanzhufeng.videodownloader.feature.home.PendingMedia>,
+    pendingErrors: List<Pair<String, String>>,
+    onPendingSelected: (String, Boolean) -> Unit,
+    onConfirmPending: () -> Unit,
+    onDismissPending: () -> Unit,
     onInputChange: (String) -> Unit,
     onSmartRead: () -> Unit,
     onLoadMore: () -> Unit,
@@ -592,6 +659,9 @@ private fun AppNavHost(
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onDeleteHistory: (String) -> Unit,
+    onHistoryFavoriteChange: (String, Boolean) -> Unit,
+    historyFavoritesOnly: Boolean,
+    onHistoryFavoritesOnlyChange: (Boolean) -> Unit,
     onDeleteHistories: (List<String>) -> Unit,
     onDeleteMissingHistories: () -> Unit,
     onMediaMissing: (String) -> Unit,
@@ -618,6 +688,11 @@ private fun AppNavHost(
                 isReading = isReading,
                 notice = notice,
                 canLoadMore = canLoadMore,
+                pendingItems = pendingItems,
+                pendingErrors = pendingErrors,
+                onPendingSelected = onPendingSelected,
+                onConfirmPending = onConfirmPending,
+                onDismissPending = onDismissPending,
                 onLoadMore = onLoadMore,
                 onSelectionChanged = onSelectionChanged,
                 onBulkSelectionChanged = onBulkSelectionChanged,
@@ -641,6 +716,9 @@ private fun AppNavHost(
                 history = history,
                 throughputReports = throughputReports,
                 onDeleteRecord = onDeleteHistory,
+                onHistoryFavoriteChange = onHistoryFavoriteChange,
+                favoritesOnly = historyFavoritesOnly,
+                onFavoritesOnlyChange = onHistoryFavoritesOnlyChange,
                 onDeleteRecords = onDeleteHistories,
                 onDeleteMissingRecords = onDeleteMissingHistories,
                 onMediaMissing = onMediaMissing,
@@ -668,121 +746,72 @@ private fun AppNavHost(
 }
 
 @Composable
-private fun PrimaryBottomNavigation(navController: NavHostController, currentRoute: String) {
-    NavigationBar(
-        modifier = Modifier.testTag("bottom-navigation"),
-        containerColor = Color.White,
-        tonalElevation = 0.dp,
-    ) {
-        AppDestination.entries.forEach { destination ->
-            val selected = currentRoute == destination.route
-            val navigationSurface by animateColorAsState(
-                targetValue = if (selected) SelectedSage else Color.Transparent,
-                animationSpec = tween(
-                    durationMillis = 120,
-                    easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f),
-                ),
-                label = "bottom-navigation-selection",
-            )
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .weight(1f)
-                    .height(64.dp)
-                    .clip(MaterialTheme.shapes.large)
-                    .background(navigationSurface)
-                    .clickable { navController.openPrimary(destination) }
-                    .padding(vertical = 8.dp)
-                    .testTag(destination.testTag)
-                    .semantics {
-                        stateDescription = if (selected) "已选中" else "未选中"
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Icon(
-                    destination.icon,
-                    contentDescription = null,
-                    tint = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-                Text(
-                    destination.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PrimaryNavigationRail(navController: NavHostController, currentRoute: String) {
-    val appName = stringResource(R.string.app_name)
-    NavigationRail(
+private fun PrimaryFloatingNavigation(
+    navController: NavHostController,
+    currentRoute: String,
+    compact: Boolean,
+) {
+    val itemHeight = if (compact) 52.dp else 56.dp
+    val bottomGap = if (compact) 4.dp else 6.dp
+    val horizontalGap = if (compact) 32.dp else 24.dp
+    Box(
         modifier = Modifier
-            .width(80.dp)
-            .fillMaxHeight()
-            .testTag("navigation-rail"),
-        containerColor = MaterialTheme.colorScheme.surface,
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = horizontalGap, end = horizontalGap, top = 4.dp, bottom = bottomGap)
+            .testTag("floating-bottom-navigation"),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(R.drawable.nanzhufeng_app_icon),
-                contentDescription = appName,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(12.dp)
-                    .size(56.dp),
-            )
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                AppDestination.entries.forEach { destination ->
-                    val selected = currentRoute == destination.route
-                    val navigationSurface by animateColorAsState(
-                        targetValue = if (selected) SelectedSage else Color.Transparent,
-                        animationSpec = tween(
-                            durationMillis = 120,
-                            easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f),
-                        ),
-                        label = "navigation-selection",
+        Row(
+            modifier = Modifier
+                .widthIn(max = 720.dp)
+                .fillMaxWidth()
+                .shadow(
+                    elevation = 6.dp,
+                    shape = RoundedCornerShape(32.dp),
+                    ambientColor = Color(0x12000000),
+                    spotColor = Color(0x0A000000),
+                )
+                .clip(RoundedCornerShape(32.dp))
+                .background(Color.White)
+                .padding(3.dp),
+        ) {
+            AppDestination.entries.forEach { destination ->
+                val selected = currentRoute == destination.route
+                val navigationSurface by animateColorAsState(
+                    targetValue = if (selected) SelectedSage else Color.Transparent,
+                    animationSpec = tween(
+                        durationMillis = 120,
+                        easing = CubicBezierEasing(0.23f, 1f, 0.32f, 1f),
+                    ),
+                    label = "floating-navigation-selection",
+                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(itemHeight)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(navigationSurface)
+                        .clickable { navController.openPrimary(destination) }
+                        .testTag(destination.testTag)
+                        .semantics {
+                            stateDescription = if (selected) "已选中" else "未选中"
+                        },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        destination.icon,
+                        contentDescription = null,
+                        tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Column(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .width(64.dp)
-                            .clip(MaterialTheme.shapes.medium)
-                            .background(navigationSurface)
-                            .clickable { navController.openPrimary(destination) }
-                            .padding(vertical = 12.dp)
-                            .testTag(destination.testTag)
-                            .semantics {
-                                stateDescription = if (selected) "已选中" else "未选中"
-                            },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
-                        Icon(
-                            destination.icon,
-                            contentDescription = null,
-                            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            destination.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        destination.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    )
                 }
             }
         }

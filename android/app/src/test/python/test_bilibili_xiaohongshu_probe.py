@@ -13,7 +13,36 @@ from nanzhufeng_probe.youtube_probe import (
     _xiaohongshu_info,
     _xiaohongshu_note_state,
     extract_single,
+    resolve_source,
 )
+
+
+class DouyinVideoDiscoveryTest(unittest.TestCase):
+    def test_share_video_redirect_is_canonicalized_before_yt_dlp(self):
+        canonical = "https://www.douyin.com/video/7686854662317722889"
+        with patch(
+            "nanzhufeng_probe.youtube_probe._resolve_known_short_link",
+            return_value="https://www.douyin.com/share/video/7686854662317722889/?share=1",
+        ), patch(
+            "nanzhufeng_probe.youtube_probe.YoutubeDL",
+            side_effect=AssertionError("分享落地页不能先由 yt-dlp 判定登录状态"),
+        ):
+            result = json.loads(resolve_source("https://v.douyin.com/0vk_KnZWOGI/"))
+
+        self.assertEqual({"kind": "single", "url": canonical}, result)
+
+    def test_short_link_resolves_to_page_capture_without_requiring_fresh_yt_dlp_cookies(self):
+        canonical = "https://www.douyin.com/video/7686854662317722889"
+        with patch(
+            "nanzhufeng_probe.youtube_probe._resolve_known_short_link",
+            return_value=canonical,
+        ), patch(
+            "nanzhufeng_probe.youtube_probe.YoutubeDL",
+            side_effect=AssertionError("单视频页面不能先由 yt-dlp 判定登录状态"),
+        ):
+            result = json.loads(resolve_source("https://v.douyin.com/qiRt29Dauu4/"))
+
+        self.assertEqual({"kind": "single", "url": canonical}, result)
 
 
 class DouyinGalleryContractTest(unittest.TestCase):

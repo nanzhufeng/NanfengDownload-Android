@@ -39,7 +39,7 @@ shasum -a 256 /tmp/lame-4.0.tar.gz
 
 Expected: exactly `3df5124d5ad3a98312ffd7ba6a9b36230e4f8a3e66d3ce0f425e336c32d216eb`.
 
-If `/tmp/lame-4.0.tar.gz` is absent, download LAME 4.0 from the upstream SourceForge project page to `/tmp`, then verify the same checksum before extraction. Do not proceed on a checksum mismatch.
+If `<private-evidence>/lame-4.0.tar.gz` is absent, download LAME 4.0 from the upstream SourceForge project page to `/tmp`, then verify the same checksum before extraction. Do not proceed on a checksum mismatch.
 
 **Step 2: Install the fixed Android native packages**
 
@@ -47,8 +47,8 @@ Run:
 
 ```bash
 JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home" \
-  /Users/nanzhufeng/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager \
-  --sdk_root=/Users/nanzhufeng/Library/Android/sdk \
+  <local-reference> \
+  --sdk_root=<local-reference> \
   "ndk;26.1.10909125" "cmake;3.22.1"
 ```
 
@@ -426,7 +426,7 @@ git commit -m "docs(android): record true MP3 emulator verification"
 
 **Step 1: Record the device and installed-app state**
 
-Use serial `3B157F009E800000`. Record:
+Use serial `<oppo-serial>`. Record:
 
 - `ro.product.model`, Android release/API, primary ABI;
 - whether `com.nanzhufeng.videodownloader` is installed;
@@ -438,14 +438,14 @@ Do not uninstall and do not call package-data clear.
 **Step 2: Install as an update**
 
 ```bash
-adb -s 3B157F009E800000 install -r android/app/build/outputs/apk/debug/app-debug.apk
+adb -s <oppo-serial> install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 Expected: `Success`. If Android reports an incompatible signing certificate, stop and report the exact blocker; do not uninstall the existing app without explicit user authorization.
 
 **Step 3: Run focused arm64 native/audio instrumentation**
 
-Run `LameMp3EncoderInstrumentedTest` and `Mp3AudioTranscoderInstrumentedTest` with `ANDROID_SERIAL=3B157F009E800000`. Expected: both pass on arm64 and Android identifies generated files as `audio/mpeg`.
+Run `LameMp3EncoderInstrumentedTest` and `Mp3AudioTranscoderInstrumentedTest` with `ANDROID_SERIAL=<oppo-serial>`. Expected: both pass on arm64 and Android identifies generated files as `audio/mpeg`.
 
 **Step 4: Run the complete OPPO instrumentation suite**
 

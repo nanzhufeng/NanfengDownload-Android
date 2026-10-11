@@ -8,13 +8,137 @@ import com.nanzhufeng.videodownloader.probe.DouyinCapturedMedia
 import com.nanzhufeng.videodownloader.probe.DouyinCapturedMediaSource
 import com.nanzhufeng.videodownloader.probe.DouyinCaptureStore
 import com.nanzhufeng.videodownloader.probe.YtDlpMediaInfo
+import com.nanzhufeng.videodownloader.probe.GenericWebCapture
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class YtDlpTaskMediaResolverTest {
+    @Test fun cancelledExtractionCannotReturnALateCaptureAsSuccess() {
+        val target = media()
+        val late = java.util.concurrent.atomic.AtomicReference<DouyinCapturedMedia?>(null)
+        val resolver = YtDlpTaskMediaResolver(douyinCaptures = DouyinCapturedMediaSource { late.get() },
+            singleExtractor = { _, _, _ ->
+                late.set(DouyinCapturedMedia(target.contentId, target.originalUrl,
+                    "https://v3-web.douyinvod.com/video/tos/clip.mp4", "title", "creator", "", 1000))
+                throw kotlinx.coroutines.CancellationException("cancelled")
+            })
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+            runBlocking { resolver.resolve(target, ResolutionPreset.UP_TO_720P) }
+        }
+    }
+    @Test fun lateCaptureAfterExtractorFailureStillRequiresCurrentAccount() {
+        val target = media()
+        val late = java.util.concurrent.atomic.AtomicReference<DouyinCapturedMedia?>(null)
+        val resolver = YtDlpTaskMediaResolver(douyinCaptures = DouyinCapturedMediaSource { late.get() },
+            currentDouyinSessionFingerprint = { "new-session" },
+            singleExtractor = { _, _, _ ->
+                late.set(DouyinCapturedMedia(target.contentId, target.originalUrl,
+                    "https://v3-web.douyinvod.com/video/tos/clip.mp4", "title", "creator", "", 1000,
+                    captureUserAgent = "Browser", sessionFingerprint = "old-session"))
+                error("extractor failed")
+            })
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { resolver.resolve(target, ResolutionPreset.UP_TO_720P) }
+        }
+    }
+    @Test fun capturedVideoUsesTheSameBrowserProfileForTransfer() = runBlocking {
+        val target = media()
+        val capture = DouyinCapturedMedia(target.contentId, target.originalUrl,
+            "https://v3-web.douyinvod.com/video/tos/clip.mp4", "title", "creator", "", 1_000,
+            captureUserAgent = "Mobile Browser")
+        val resolver = YtDlpTaskMediaResolver(douyinCaptures = DouyinCapturedMediaSource { capture })
+        assertEquals("Mobile Browser", resolver.resolve(target, ResolutionPreset.UP_TO_720P).headers["User-Agent"])
+    }
+    @Test
+    fun legacyGenericTaskStillResolvesOnlyItsOriginalUrlAfterIdentityUpgrade() = runBlocking {
+        val page = "https://example.test/one/index.m3u8"
+        val legacy = "a".repeat(64)
+        val info = mediaInfo(emptyList()).copy(platform = "generic", id = "b".repeat(64),
+            legacyId = legacy, webpageUrl = page,
+            videoDownloadSpec = """{"id":"${"b".repeat(64)}","url":"https://example.test/target.m3u8"}""",
+            legacyVideoDownloadSpec = """{"id":"$legacy","url":"https://example.test/target.m3u8"}""")
+        val resolver = YtDlpTaskMediaResolver(singleExtractor = { url, _, _ ->
+            assertEquals(page, url)
+            info
+        })
+        val result = resolver.resolve(media().copy(platform = DownloadPlatform.GENERIC,
+            contentId = legacy, originalUrl = page), ResolutionPreset.UP_TO_720P)
+        assertEquals(info.videoUrl, result.videoUrl)
+        assertTrue(result.videoDownloadSpec.contains(legacy))
+    }
+
+    @Test
+    fun legacyAliasCannotApproveAResponseForAnotherPage() {
+        val page = "https://example.test/one/index.m3u8"
+        val legacy = "a".repeat(64)
+        val info = mediaInfo(emptyList()).copy(platform = "generic", id = "b".repeat(64),
+            legacyId = legacy, webpageUrl = "https://example.test/two/index.m3u8")
+        val resolver = YtDlpTaskMediaResolver(singleExtractor = { _, _, _ -> info })
+        assertThrows(IllegalArgumentException::class.java) {
+            runBlocking { resolver.resolve(media().copy(platform = DownloadPlatform.GENERIC,
+                contentId = legacy, originalUrl = page), ResolutionPreset.UP_TO_720P) }
+        }
+    }
+
+    @Test
+    fun persistedTargetPlayerCaptureKeepsRefererAndHlsPlanAfterRestart() = runBlocking {
+        val capture = GenericWebCapture(
+            "https://example.test/work/42", "https://player.example.test/embed/42",
+            "https://cdn.example.test/42.m3u8", "目标作品",
+        )
+        val media = media().copy(
+            platform = DownloadPlatform.GENERIC, contentId = capture.mediaId,
+            originalUrl = capture.pageUrl,
+            capturedVideoUrl = capture.mediaUrl,
+            capturedVideoReferer = capture.referer,
+            capturedVideoSourceVersion = 1,
+        )
+        val resolver = YtDlpTaskMediaResolver(singleExtractor = { _, _, _ ->
+            error("持久化的目标播放器来源不应重新误抓其他视频")
+        })
+        val resolved = resolver.resolve(media, ResolutionPreset.UP_TO_720P)
+        assertEquals(capture.mediaUrl, resolved.videoUrl)
+        assertEquals(capture.referer, resolved.headers["Referer"])
+        assertTrue(resolved.videoDownloadSpec.contains("m3u8_native"))
+    }
+
+    @Test
+    fun persistedPornhubCaptureUsesOfficialWorkIdentityAfterRestart() = runBlocking {
+        val page = "https://www.pornhub.com/view_video.php?viewkey=sample123"
+        val capture = GenericWebCapture(page, page, "https://cdn.example.test/target.mp4", "目标作品")
+        val item = media().copy(
+            platform = DownloadPlatform.PORNHUB, contentId = "sample123", originalUrl = page,
+            capturedVideoUrl = capture.mediaUrl, capturedVideoReferer = page,
+            capturedVideoSourceVersion = 1,
+        )
+        val resolver = YtDlpTaskMediaResolver(singleExtractor = { _, _, _ ->
+            error("410 的网页捕获不应再次调用失效的提取器")
+        })
+        assertEquals(capture.mediaUrl, resolver.resolve(item, ResolutionPreset.UP_TO_720P).videoUrl)
+    }
+
+    @Test
+    fun pornhubSegmentPlanAndTrackHeadersReachTheTransferBoundary() = runBlocking {
+        val info = mediaInfo(emptyList()).copy(
+            platform = "pornhub", id = "sample123", videoDownloadSpec = "video-plan",
+            audioDownloadSpec = "audio-plan", audioHeaders = mapOf("Referer" to "https://audio.test/"),
+        )
+        val resolver = YtDlpTaskMediaResolver(singleExtractor = { _, _, access ->
+            assertTrue(access.cookieHeader.isBlank())
+            info
+        })
+        val result = resolver.resolve(media().copy(platform = DownloadPlatform.PORNHUB,
+            contentId = "sample123", originalUrl = "https://cn.pornhub.com/view_video.php?viewkey=sample123"),
+            ResolutionPreset.UP_TO_720P)
+        assertEquals("video-plan", result.videoDownloadSpec)
+        assertEquals("audio-plan", result.audioDownloadSpec)
+        assertEquals("https://audio.test/", result.audioHeaders["Referer"])
+    }
+
     @Test
     fun douyinUsesFreshWebViewCaptureWhenYtDlpReturnsNoFormats() = runBlocking {
         val captured = DouyinCapturedMedia(

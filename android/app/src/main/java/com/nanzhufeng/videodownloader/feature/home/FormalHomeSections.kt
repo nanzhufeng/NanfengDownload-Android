@@ -1,6 +1,6 @@
 package com.nanzhufeng.videodownloader.feature.home
 
-import android.widget.Toast
+import com.nanzhufeng.videodownloader.core.ui.IslandFeedback
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.CheckCircleOutline
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -114,6 +115,7 @@ import com.nanzhufeng.videodownloader.core.ui.WaitingYellow
 import com.nanzhufeng.videodownloader.core.ui.WarmOrange
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import com.nanzhufeng.videodownloader.domain.download.DownloadOverallProgress
+import com.nanzhufeng.videodownloader.domain.download.WebSourceRecoveryPolicy
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -187,6 +189,8 @@ internal fun CompactHome(
                 onDeleteQueued = onDeleteQueued,
                 onRetryQueued = onRetryQueued,
                 onStartDownloads = onStartDownloads,
+                onPauseActive = onPauseActive,
+                onStopActive = onStopActive,
                 expandedLayout = false,
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
@@ -257,6 +261,8 @@ internal fun ExpandedHome(
                     onDeleteQueued = onDeleteQueued,
                     onRetryQueued = onRetryQueued,
                     onStartDownloads = onStartDownloads,
+                    onPauseActive = onPauseActive,
+                    onStopActive = onStopActive,
                     expandedLayout = true,
                     modifier = if (queue.isEmpty()) {
                         Modifier.fillMaxWidth().testTag("home-main-queue-workspace")
@@ -293,14 +299,7 @@ internal fun ExpandedHome(
 private fun HomeHeader(expanded: Boolean) {
     val appName = stringResource(R.string.app_name)
     if (expanded) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("首页", style = MaterialTheme.typography.headlineMedium)
-            Text(
-                "添加视频或链接开始下载，任务在本机处理，安全高效",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
+        Text("首页", style = MaterialTheme.typography.headlineMedium)
         return
     }
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -431,7 +430,7 @@ private fun ActiveDownloadCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        "${(animatedProgress * 100).roundToInt()}% · 剩余 ${formatDuration(queued.task.remainingSeconds)} · ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}",
+                        "${(animatedProgress * 100).roundToInt()}% · 剩余 ${formatDuration(queued.task.remainingSeconds)} · ${if (queued.task.downloadedBytes == 0L) "0 B" else formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -472,6 +471,8 @@ private fun QueuePanel(
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
     onStartDownloads: () -> Unit,
+    onPauseActive: () -> Unit,
+    onStopActive: (String) -> Unit,
     expandedLayout: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -484,6 +485,11 @@ private fun QueuePanel(
     }
     val eligibleIds = eligibleRows.map { it.task.taskId }
     val allSelected = eligibleRows.isNotEmpty() && eligibleRows.all { it.task.selected }
+    val hasActiveDownloads = queue.any { it.task.status in setOf(
+        DownloadTaskStatus.PARSING,
+        DownloadTaskStatus.DOWNLOADING,
+        DownloadTaskStatus.VALIDATING,
+    ) }
     val queueListState = rememberLazyListState()
     val activeIndex = queue.indexOfFirst {
         it.task.status in setOf(
@@ -579,6 +585,7 @@ private fun QueuePanel(
                                 onAudioSegmentCountChanged = onAudioSegmentCountChanged,
                                 onDeleteQueued = onDeleteQueued,
                                 onRetryQueued = onRetryQueued,
+                                onStopActive = onStopActive,
                                 expandedLayout = expandedLayout,
                             )
                             if (index < queue.lastIndex) HorizontalDivider()
@@ -598,8 +605,8 @@ private fun QueuePanel(
             if (queue.isNotEmpty()) {
                 HorizontalDivider()
                 Button(
-                    onClick = onStartDownloads,
-                    enabled = queue.any { it.task.selected && it.task.status in setOf(
+                    onClick = if (hasActiveDownloads) onPauseActive else onStartDownloads,
+                    enabled = hasActiveDownloads || queue.any { it.task.selected && it.task.status in setOf(
                         DownloadTaskStatus.WAITING,
                         DownloadTaskStatus.PAUSED,
                         DownloadTaskStatus.WAITING_NETWORK,
@@ -611,7 +618,7 @@ private fun QueuePanel(
                         .height(40.dp)
                         .testTag("queue-start-selected"),
                 ) {
-                    Text("开始下载", style = MaterialTheme.typography.labelLarge)
+                    Text(if (hasActiveDownloads) "暂停下载" else "开始下载", style = MaterialTheme.typography.labelLarge)
                 }
             }
         }
@@ -656,6 +663,7 @@ private fun QueueRow(
     onAudioSegmentCountChanged: (String, Int) -> Unit,
     onDeleteQueued: (String) -> Unit,
     onRetryQueued: (String) -> Unit,
+    onStopActive: (String) -> Unit,
     expandedLayout: Boolean,
 ) {
     val task = queued.task
@@ -754,20 +762,26 @@ private fun QueueRow(
                     )
                 }
                 if (task.status == DownloadTaskStatus.FAILED) {
+                    val refreshWebSource = WebSourceRecoveryPolicy.offersRecapture(queued)
                     IconButton(
                         onClick = { onRetryQueued(task.taskId) },
                         modifier = Modifier.size(34.dp).testTag("queue-retry-${task.taskId}"),
                     ) {
-                        Icon(Icons.Filled.Downloading, "重试下载", tint = FailureRed, modifier = Modifier.size(18.dp))
+                        Icon(
+                            if (refreshWebSource) Icons.Outlined.Refresh else Icons.Filled.Downloading,
+                            if (refreshWebSource) "重新读取播放源" else "重试下载",
+                            tint = if (refreshWebSource) MaterialTheme.colorScheme.primary else FailureRed,
+                            modifier = Modifier.size(18.dp),
+                        )
                     }
                 }
                 IconButton(
-                    onClick = { onDeleteQueued(task.taskId) },
+                    onClick = { if (active) onStopActive(task.taskId) else onDeleteQueued(task.taskId) },
                     modifier = Modifier.size(34.dp).testTag("queue-delete-${task.taskId}"),
                 ) {
                     Icon(
-                        Icons.Outlined.DeleteOutline,
-                        contentDescription = "从队列删除 ${queued.media.title}",
+                        if (active) Icons.Filled.Stop else Icons.Outlined.DeleteOutline,
+                        contentDescription = if (active) "停止下载" else "从队列删除 ${queued.media.title}",
                         tint = FailureRed,
                         modifier = Modifier.size(17.dp),
                     )
@@ -857,7 +871,7 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
                 color = Color(0xFFB85C00),
             )
         }
-        Text("已下载 ${formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("已下载 ${if (queued.task.downloadedBytes == 0L) "0 B" else formatBytes(queued.task.downloadedBytes)} / ${formatBytes(queued.task.totalBytes)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             if (localProcessing) {
                 "网络传输已完成 · 正在本机处理成品"
@@ -901,65 +915,16 @@ private fun ActiveQueueDetails(queued: QueuedDownload, nowMillis: Long) {
 
 internal data class TransferHealthNotice(val message: String, val warning: Boolean)
 
-internal class TransferHealthNoticeController(
-    private val slowConfirmMillis: Long = 5_000L,
-    private val recoveryConfirmMillis: Long = 8_000L,
-) {
-    private var slowSinceMillis: Long? = null
-    private var recoveredSinceMillis: Long? = null
-    private var displayedWarning: WarningKind? = null
-
+internal class TransferHealthNoticeController {
     fun update(task: DownloadTask, nowMillis: Long): TransferHealthNotice? {
-        if (task.status != DownloadTaskStatus.DOWNLOADING) {
-            reset()
-            return null
-        }
-        val slow = task.speedBytesPerSecond < SLOW_SPEED_THRESHOLD_BYTES_PER_SECOND
-        val stalledSeconds = ((nowMillis - task.updatedAt).coerceAtLeast(0L) / 1_000L)
-        if (slow) {
-            recoveredSinceMillis = null
-            val slowSince = slowSinceMillis ?: nowMillis.also { slowSinceMillis = it }
-            val candidate = when {
-                task.speedBytesPerSecond <= 0L && stalledSeconds >= 15L -> WarningKind.STALLED
-                nowMillis - slowSince >= slowConfirmMillis -> WarningKind.SLOW
-                else -> null
-            }
-            if (candidate != null) displayedWarning = candidate
-        } else {
-            slowSinceMillis = null
-            if (displayedWarning != null) {
-                val recoveredSince = recoveredSinceMillis ?: nowMillis.also { recoveredSinceMillis = it }
-                if (nowMillis - recoveredSince >= recoveryConfirmMillis) {
-                    displayedWarning = null
-                    recoveredSinceMillis = null
-                }
-            }
-        }
-        return when (displayedWarning) {
-            WarningKind.STALLED -> TransferHealthNotice(
-                "下载已连续 $stalledSeconds 秒没有收到新数据。" +
-                    "解决办法：请先等待 App 自动续传；若持续不动，请检查网络或代理后点击重试。",
-                warning = true,
-            )
-            WarningKind.SLOW -> TransferHealthNotice(
-                "下载速度已持续低于 600 KB/s。" +
-                    "解决办法：请检查 Wi-Fi、代理或平台网络；App 会继续下载，无需反复点击重试。",
-                warning = true,
-            )
-            null -> TransferHealthNotice("连接正常，正在持续下载。", warning = false)
-        }
-    }
-
-    private fun reset() {
-        slowSinceMillis = null
-        recoveredSinceMillis = null
-        displayedWarning = null
-    }
-
-    private enum class WarningKind { SLOW, STALLED }
-
-    private companion object {
-        const val SLOW_SPEED_THRESHOLD_BYTES_PER_SECOND = 600L * 1024L
+        if (task.status != DownloadTaskStatus.DOWNLOADING || task.speedBytesPerSecond > 0L) return null
+        val stalledSeconds = (nowMillis - task.updatedAt).coerceAtLeast(0L) / 1_000L
+        if (stalledSeconds < 15L) return null
+        return TransferHealthNotice(
+            "下载已连续 $stalledSeconds 秒没有收到新数据。" +
+                "解决办法：请先等待 App 自动续传；若持续不动，请检查网络或代理后点击重试。",
+            warning = true,
+        )
     }
 }
 
@@ -1351,7 +1316,7 @@ private fun ReadEntryCard(
                     IconButton(
                         onClick = {
                             clipboard.setText(AnnotatedString(input))
-                            Toast.makeText(context, "已复制输入内容", Toast.LENGTH_SHORT).show()
+                            IslandFeedback.success(context, "已复制输入内容")
                         },
                         enabled = input.isNotBlank(),
                         modifier = Modifier.testTag("copy-input"),
@@ -1359,7 +1324,7 @@ private fun ReadEntryCard(
                         Icon(Icons.Outlined.Link, contentDescription = "复制输入框内容")
                     }
                 },
-                placeholder = { Text("支持抖音、YouTube、TikTok、哔哩哔哩、小红书链接或分享文本") },
+                placeholder = { Text("粘贴视频作品页或媒体直链；支持抖音、YouTube、TikTok、哔哩哔哩、小红书、Pornhub 等网站") },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = Color(0xFFF1F3F2),
                     unfocusedContainerColor = Color(0xFFF1F3F2),

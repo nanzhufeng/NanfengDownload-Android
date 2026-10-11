@@ -61,6 +61,20 @@ class OutputFilePolicyTest {
     }
 
     @Test
+    fun webmOutputAndExistingCandidatesKeepTheRealContainerExtension() {
+        val item = media(platform = DownloadPlatform.GENERIC, title = "网页视频")
+        val mp4 = policy.relativePath(item, ResolutionPreset.UP_TO_720P)
+        val webm = policy.relativePath(item, ResolutionPreset.UP_TO_720P, mimeType = "video/webm")
+
+        assertEquals("Movies/南烛枫视频下载器/其他网站/example.test/作者/2026-07-16 网页视频.webm", webm)
+        assertEquals(listOf(mp4, webm), policy.existingPaths(item, ResolutionPreset.UP_TO_720P))
+        assertEquals(
+            listOf(policy.relativePath(item, ResolutionPreset.AUDIO_MP3)),
+            policy.existingPaths(item, ResolutionPreset.AUDIO_MP3),
+        )
+    }
+
+    @Test
     fun namingRuleChangesTheActualPublishedFileName() {
         val item = media(platform = DownloadPlatform.YOUTUBE, creator = "频道A", title = "示例标题")
 
@@ -76,6 +90,10 @@ class OutputFilePolicyTest {
 
     @Test
     fun newPlatformsUseDistinctReadableDirectories() {
+        assertEquals(
+            "Movies/南烛枫视频下载器/Pornhub/作者/2026-07-16 标题.mp4",
+            policy.relativePath(media(DownloadPlatform.PORNHUB), ResolutionPreset.UP_TO_720P),
+        )
         assertEquals(
             "Movies/南烛枫视频下载器/哔哩哔哩/作者/2026-07-16 标题.mp4",
             policy.relativePath(media(DownloadPlatform.BILIBILI), ResolutionPreset.UP_TO_720P),

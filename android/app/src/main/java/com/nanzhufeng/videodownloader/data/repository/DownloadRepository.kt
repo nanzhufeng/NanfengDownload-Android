@@ -46,13 +46,19 @@ interface DownloadRepository {
 
     suspend fun pauseRunnableTasks(): Int = 0
 
+    suspend fun markActiveTasksWaitingForNetwork(): Int = 0
+
     suspend fun resumePausedTasks(): Int = 0
+
+    suspend fun resumeNetworkWaitingTasks(): Int = 0
 
     suspend fun cancelTask(taskId: String): Boolean = false
 
     suspend fun removeQueueTask(taskId: String): Boolean = false
 
     suspend fun retryHistory(taskId: String): Boolean = false
+
+    suspend fun setHistoryFavorite(taskId: String, isFavorite: Boolean): Boolean = false
 
     suspend fun deleteHistoryRecord(taskId: String): Boolean = false
 
