@@ -21,7 +21,7 @@
 
 ## In Progress
 
-- 无；合同/文档/Skills交付范围已核验，当前授权提交并同步main；远端完成以本次Git回读为准，原146发布不重复。
+- 无；55个合同/文档/Skills/检查器文件已提交并推送main，主交付提交9f19145737b7f03066ab921e30bcf6ae0c381557已远端回读；原146发布不重复。
 
 ## Blocked
 
@@ -49,10 +49,10 @@
 
 ## Sync & Safety
 
-- Sync checked at: 2026-10-12 12:38 +0800；已fetch origin/main核对无分叉，写入前HEAD156f6b2、origin/main110ccb5；未改发布附件或操作设备/账单。
+- Sync checked at: 2026-10-12 12:41 +0800；主交付提交9f19145737b7f03066ab921e30bcf6ae0c381557与远端main一致、ahead/behind=0/0；随后仅状态/交接/审计收尾，不追求文档自身SHA递归相等。
 - Code / docs sync: OK（注册/审阅范围）；合同总入口统一领域正文与历史层级，确认冲突记录于10-12审计，目标/实现差距显式保留。生产/应用测试/配置未改，新增维护检查器。
-- Git working tree: DIRTY（本状态写入前）；本轮合同/文档/Skills/检查器即将显式暂存提交，原SDD报告删除保持且不纳入。
-- Remote sync: LOCAL ONLY（写入时）；已fetch核对origin/main为110ccb5，HEAD156f6b2仅领先1提交、无分叉。当前用户已授权推送合同/文档/Skills；最终远端结果见本次Git回读，不递归修改生产代码基线。
+- Git working tree: DIRTY（收尾写入前）；仅原SDD报告删除保持且未纳入交付；本次状态/交接/审计收尾单独提交同步。
+- Remote sync: PUSHED（主交付基线）；main已包含先前156f6b2及9f19145737b7f03066ab921e30bcf6ae0c381557，合同/文档/五类Skills/检查器均受控。没有改Release、覆盖设备或访问/修改账单数据。
 - Rollback point: UNKNOWN；未把当前底层HEAD默认视为业务稳定回滚点。
 - Secrets/config risk: REVIEW NEEDED；本轮文档范围未检出实际凭据；源码签名按字段回退/混配门禁未修复，严格依赖校验路径仍未确认。正式包沿用原身份/字节证据。
 
