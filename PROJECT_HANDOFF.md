@@ -1,23 +1,25 @@
 # 南枫下载 Android 当前交接
 
-2026-10-11（Asia/Shanghai）。本轮本地检查点、最终回归与正式经验增量已完成；全项目状态看 `docs/PROJECT_STATUS.md`。
+2026-10-12提交同步接续：用户已授权把统一后的合同、文档、Skills及维护检查器纳入Git并同步GitHub main；功能/生产/配置/测试/冻结APK不变，不操作账单数据或设备。下方“未提交/推送”为此前阶段记录，本次交付以PROJECT_STATUS和Git远端回读为准。原SDD报告删除不纳入提交；无新Release或覆盖安装。
 
-## 冻结基线与检查点
+2026-10-12：最新任务为全面合同统一，8个现行领域正文、总入口/注册表、30历史分类及只读check_contracts门禁已完成，未改变现有功能。结果/冲突/验证见 `docs/verification/2026-10-12-contract-consistency-audit.md`。生产/应用测试/配置/冻结146未改，无设备/业务联网/提交/推送；下方保留上轮复盘接续，当前状态看PROJECT_STATUS。
 
-生产代码 `d0602d13c87411f5225889c04ef9a6f403a2a362`；增量前HEAD `110ccb5e2a509f4d002b3ac2ef321d1480d4e8ad`，已由本地tag `checkpoint/146-before-doc-solidification-20261011`保全。本轮最终tag `checkpoint/146-final-regression-20261011`包含文档/工具提交，均仅本地，不推送。
+2026-10-11（Asia/Shanghai）。用户要求全项目复盘并生成档案、长期AGENTS、五类独立Skill及可迁移经验，明确不改业务代码。本轮文档已完成并保留工作树，未提交/推送/发布。
 
-146/10346、Room11、479受控生产文件与冻结APK摘要现场相同；未改生产源、版本、依赖、签名或正式包。精确产物/证书见 `docs/releases/v1.2.146/artifact.json`。正式GitHub发布及README回读已完成，见 `docs/verification/2026-10-11-release-146.md`，不要重复打包/发布。
+## 当前基线
 
-## 本轮完成
+HEAD `156f6b2074e7a75f5aab9a05a53ec3bcc436b6f9`，已有本地tag `checkpoint/146-final-regression-20261011`；生产代码仍 `d0602d13c87411f5225889c04ef9a6f403a2a362`。146/10346、Room11，479生产文件与冻结APK只读核对一致。本轮没有新checkpoint或新设备/服务运行。
 
-实际重跑Debug/Release各443、Python120、JS4，无失败；新冻结检查器核对源码集合/提交/包并拒绝4类坏输入。传输合同补有序提交游标、TS排空、Media3样本边界/EOS及完整性定义；开发档案修正过时所有者/历史声明。
+## 复盘完成
 
-正式经验矩阵与跨项目增量见 `docs/verification/2026-10-11-app-experience-increment-audit.md`；命令/边界见 `docs/verification/2026-10-11-checkpoint-experience-increment.md`。个人产品标准Skill只增量改既有路由、诊断/交付reference和模板；仓库外独立验证保全。quick_validate缺PyYAML，标准库审计无硬错误。长期记忆未更新。
+开始清单778路径/726文本/114可达提交，代码/文档/配置/测试分层索引并核对关键所有者；Python AST、13 JSON/27 XML通过。结果与覆盖边界见 `docs/verification/2026-10-11-full-project-retrospective.md`。
 
-## 保全与停止点
+`docs/南枫下载 Android 完整开发档案.md`补完整目标、架构/栈/目录/模块、数据流/决策、开发历史、踩坑/验证/部署/冲突/路线；AGENTS仅保长期规则，五个既有Skill完善独立流程，`docs/可迁移开发经验.md`按通用/专属/不可照搬分类。旧ChatGPT context加历史路由，原正文保留；PROJECT_STATUS修正各版本UI证据范围。
 
-146核心新增文件上轮已入Git；本轮新增检查器与审计/回归记录显式纳入。原 `.superpowers/sdd/fidelity-settings-report.md` 删除、浏览器会话、旧生成QA保持原样。前一完整交接由增量前Git标记保全；不清用户数据或失败证据。
+生产/旧桌面/测试/配置/tools/图片/正式包未改；原SDD报告删除及所有未知/私有生成物保持原样。本轮正文改前已私有保全；详细非业务文件摘要/链接/结构/敏感内容/Skill标准库检查见复盘报告。quick_validate仍缺PyYAML，不安装全局依赖。
 
-本轮无设备操作。原146隔离正常UI两条合格HLS/56历史URI证据沿用；主设备仅142原覆盖证据，146用户路径未跑。旧樱花6e失败缓存与失败候选保留；不把本轮宿主回归当所有公网平台完成。
+## 既有验证与接续
 
-下次安全工作：按用户反馈处理更广媒体/平台/OEM缺口；另已确认既有签名字段级回退未自动拒绝来源混配，需下一次构建配置增量补整组取值/拒绝测试。冻结146当前证书证据不受文档增量影响；本轮不改源码重建它。
+上轮443×2/Python120/JS4、146lint/R8/正式发布与正常UI样本证据保其原运行时间；本轮未重跑业务。OPPO仅原142覆盖证据，146用户路径/OEM长期后台未验；没有任何设备操作或connected测试。
+
+已确认签名字段级回退未自动拒绝来源混配；严格依赖校验、非AVC/更多长片及元数据、跨系统突然死亡恢复、极大历史/目录、全平台固定读取/吞吐与主设备后台仍需后续验证。用户当前明确只做复盘，不能顺手应用业务修复、覆盖安装或发布。下一动作按新授权与具体红灯推进，冻结146不得重建重签。

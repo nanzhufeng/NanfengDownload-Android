@@ -48,3 +48,5 @@ cd android
 - [当前交接](PROJECT_HANDOFF.md)：源码、冻结包与下一步边界。
 - [146发布验收](docs/verification/2026-10-11-release-146.md)：续传修复、测试、包与GitHub交付证据。
 - [后台灵动岛](docs/background-download-island.md) · [播放器](docs/video-playback.md) · [历史收藏](docs/history-favorites.md)
+
+维护与升级先读[现行合同总入口](docs/contracts/README.md)，再核对PROJECT_STATUS与PROJECT_HANDOFF；项目根运行 `python3 tools/check_contracts.py` 检查合同路由/源码漂移。结构检查不替代业务验收。

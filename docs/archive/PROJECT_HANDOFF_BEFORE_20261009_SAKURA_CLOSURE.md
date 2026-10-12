@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 更新时间：2026-10-09 20:55（Asia/Shanghai）。本文件是当前任务唯一交接正文；旧正文已保留在 `docs/archive/PROJECT_HANDOFF_BEFORE_20261009_FINAL_HANDOVER.md`，其中暂停进度、旧测试数与 APK 哈希不得当作现状。
 
 ## 目标、范围与当前结论

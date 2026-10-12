@@ -1,5 +1,8 @@
 # Android Room 状态模型与三页壳层 Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在已通过 Find N5 可行性关卡的 Android 工程中建立 Room 任务/历史单一数据源，并实现首页、历史、设置三个可响应 OPPO Find N5 外屏和内屏的应用壳层。

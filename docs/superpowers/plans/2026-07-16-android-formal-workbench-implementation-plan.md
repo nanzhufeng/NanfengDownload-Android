@@ -1,5 +1,8 @@
 # Android 正式下载工作台 Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 将当前 Android 技术验证壳替换为 OPPO Find N5 外屏和内屏可用的正式下载工作台，实现“智能读取 -> 选择 -> 队列 -> 下载 -> 历史”的真实链路。

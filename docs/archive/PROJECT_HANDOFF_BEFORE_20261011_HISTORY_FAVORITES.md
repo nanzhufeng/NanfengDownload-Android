@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 2026-10-10（Asia/Shanghai）。本轮完成播放记忆/左右连续10秒跳转、提示减弱和后台岛原位Q弹切换/小胶囊操作。旧网络交接完整归档 `docs/archive/PROJECT_HANDOFF_BEFORE_20261010_VIDEO_PLAYBACK_MEMORY.md`，旧网络/网站结论不被本次UI验收替代。
 
 ## 当前事实

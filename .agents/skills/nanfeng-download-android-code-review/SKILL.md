@@ -5,10 +5,26 @@ description: Review 南枫下载 Android changes for data loss, source trust, ta
 
 # 南枫下载 Android 代码审查
 
-1. Read the scoped diff, owning models and tests before judging behavior. Do not infer current facts from old README, plans or prior release notes.
-2. Check ownership: UI must not bypass the repository; state transitions must remain legal; task work must remain recoverable; source resolution must not replace a task-owned trusted source with a generic result.
-3. Check persistence changes as one unit: entity, DAO, database version, migration, schema export and migration regression. Flag any path that can erase tasks, history or user media.
-4. Check transfer and output paths for final URL, credential host scoping, cancellation, partial files, real media validation, transactional MediaStore/SAF cleanup and duplicate-output behavior.
-5. Check user safety: no credential values in code/docs/tests, no hidden access-control bypass, no automatic OPPO mutation, no `connected*AndroidTest`, and no release-signing fallback that weakens partial-configuration failure.
-6. Check test claims against actual evidence. State whether a conclusion is code-only, automated, isolated emulator, formal-install, or real-device user-path evidence.
-7. Emit findings with file/line evidence and priority. If there are no findings, state the review scope and the verification gaps that remain.
+## 输入与产物
+
+输入是明确diff或全项目复盘范围；产物是有文件/行或验证记录依据的发现、影响和最小后续动作。实际缺陷、可疑路径和未验证场景分开，不由旧报告推断当前实现。
+
+## 执行
+
+1. 先计数/分类Git改动、未跟踪与历史，再读限定diff、配置、所有者及对应测试。全项目时索引全部受控代码/配置/测试/文档及Git历史，区别第三方、旧桌面、历史仪器和生成物；大文件定向展开，说明审查方法与覆盖边界。
+2. 按[模块所有权](../../../docs/南枫下载 Android 完整开发档案.md)追输入→持久队列→Worker→处理→发布→历史。检查UI/Window旁路DAO、非法或迟到状态、旧回调/Worker覆盖及不同事实混成成功。
+3. 持久变更entity/DAO/schema/migration统一核对；检查默认值、历史去重与删除后重下、收藏重复归档、旧来源兼容、恢复与用户修正保留，不接受破坏性迁移。
+4. 来源/会话检查官方主机、作品ID、短链/最终重定向、目标视频/图集数量/来源版本、同来源缓存与Cookie作用域；泛化提取不能覆盖用户确认来源，不绕过受限内容。
+5. 传输检查真实Range起止/长度、全局预算/每流实际连接、旧片保全、同目标独占与有序检查点、有限重试/冷却/取消Call、变化来源不得混片。
+6. 媒体检查编码配置、精确样本切片、ADTS拆分/时间轴、首尾/EOS与合法格式；没有声明转码的路径不能重新编码。成功必须有实际结果证据，不用exit0、包数或字节单独替代完整性。
+7. 发布检查校验、唯一命名与仅本次输出回滚；异常、协程取消、突然进程死亡和归档失败分别审查，不从单次catch推断跨系统事务。
+8. 配置/交付检查版本/包名/证书、签名整组选源与部分配置拒绝、R8、敏感数据/备份、明文HTTP边界、宿主缓存与冻结文件集合；指出真实门禁和执行要求的差异。
+9. 对照自动/设备/服务报告的版本和样本，检查关闭校验、跳过测试、历史仪器与旧截图误当现状；主设备禁令与当前授权优先。只读复盘不修改业务代码。
+
+## 输出
+
+对确认发现列优先级、位置、触发/后果、证据与后续验证；对未知列缺少什么证据。无确认发现时仍写范围及验证缺口，不声称全平台无风险。交给doc-sync记录长期与动态事实，不擅自提交/推送。
+
+## 合同漂移门禁
+
+先读[合同总入口](../../../docs/contracts/README.md)定位唯一正文；项目根运行 `python3 tools/check_contracts.py`。来源/合同有变化时先语义审阅和对应验证，再更新registry的已审阅摘要，禁止仅重算摘要越过审查。检查通过不替代功能/构建/设备结果；旧方案/交接只作历史参考。

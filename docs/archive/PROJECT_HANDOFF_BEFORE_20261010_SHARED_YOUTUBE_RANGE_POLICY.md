@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 2026-10-10（Asia/Shanghai）。当前增量：统一检查与修复持续低速下载、后台灵动岛授权入口，删除用户不需要的低速小字。之前130后台岛及OPPO覆盖交接归档`docs/archive/PROJECT_HANDOFF_BEFORE_20261010_SHARED_SLOW_RECOVERY.md`。
 
 ## 当前包与执行边界

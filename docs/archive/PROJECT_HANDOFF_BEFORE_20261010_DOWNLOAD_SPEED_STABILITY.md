@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 更新时间：2026-10-10 15:58（Asia/Shanghai）。唯一当前交接；本轮前109全文归档`docs/archive/PROJECT_HANDOFF_BEFORE_20261010_READ_PERFORMANCE.md`。当前任务：指定cn.pornhub作品慢读取与全部平台读取优化，严格每次1秒仍未全部通过。
 
 ## 当前结果与边界

@@ -1,5 +1,8 @@
 # Android 本地下载可行性原型 Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在不先开发完整 UI 的前提下，证明 OPPO Find N5 可以本地完成 YouTube/抖音公开单视频解析、下载、MP4 音视频合并、公共目录写入和抖音登录态持久化。

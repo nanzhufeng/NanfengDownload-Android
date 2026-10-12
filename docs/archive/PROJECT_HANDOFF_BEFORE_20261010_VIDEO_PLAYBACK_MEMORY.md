@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 2026-10-10（Asia/Shanghai）。当前增量：用户反馈OPPO132仍3.7 KB/s/单连接，要求所有视频参考速度良好的YouTube长片策略。之前132修复与OPPO覆盖交接归档`docs/archive/PROJECT_HANDOFF_BEFORE_20261010_SHARED_YOUTUBE_RANGE_POLICY.md`。
 
 ## 当前版本与设备

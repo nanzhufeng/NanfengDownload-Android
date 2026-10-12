@@ -1,5 +1,8 @@
 # Android 三页折叠屏视觉优化 Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 在不改变下载与持久化语义的前提下，为首页、历史、设置落地薄荷绿工作台视觉系统，并按 OPPO Find N5 内外屏分别适配。

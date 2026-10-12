@@ -1,5 +1,8 @@
 # 南枫下载 Android 当前交接
 
+> 合同层级：历史交接。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 更新时间：2026-10-10（Asia/Shanghai）。当前任务：全平台下载稳定性及速度，普通目标至少1 MB/s、长片5–10 MB/s以上；公网长片目标尚未通过。此前119交接全文保存在`docs/archive/PROJECT_HANDOFF_BEFORE_20261010_DOWNLOAD_SPEED_STABILITY.md`。
 
 ## 当前源码与隔离正式包

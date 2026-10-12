@@ -1,5 +1,8 @@
 # 智能读取隐藏浏览器与性能优化 Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 让抖音智能读取在保留完整作品信息的前提下不显示后台浏览器窗口，并在结果齐全后立即结束等待。

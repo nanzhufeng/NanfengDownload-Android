@@ -1,5 +1,8 @@
 # Android True MP3 Encoding Implementation Plan
 
+> 合同层级：方案/演进记录。原文保留当时目标/状态，不代表全部目标已完成；现行实现及未达目标以[合同总入口](../../contracts/README.md)为准，不从本页旧参数重建功能。
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make the Android `AUDIO_MP3` workflow produce a standards-compliant MPEG Layer III file, then verify the feature and the wider application on the dedicated emulator and the connected OPPO PKH120 without deleting existing app data.
