@@ -1,5 +1,7 @@
 # 南枫下载 Android 当前交接
 
+2026-10-13发布完成：main生产提交65467be，v1.2.148标签指向同一提交；正式Release及APK/SHA256SUMS均已上传，远端摘要/大小与已覆盖OPPO的冻结包一致。README更新为148真实隔离预览；只有状态收尾文档后续提交。无关SDD删除保留未提交。发布报告docs/verification/2026-10-13-release-148.md；原图文故障仍UNKNOWN。下方发布准备记录已完成。
+
 2026-10-13发布接续：用户授权提交并上传148正式版；使用已覆盖OPPO的精确冻结APK。481生产源匹配，148设置/历史隔离正常UI预览已更新；见docs/verification/2026-10-13-release-148.md。原图文故障UNKNOWN保留，原SDD删除不提交。远端结果待发布回读。
 
 2026-10-13最新覆盖：删除功能审阅的148/10348正式包已同签名保数据覆盖OPPO，包字节/安装身份/15条媒体元数据核对一致；Release设置2项、lint/R8/构建通过（lenient）。未自动启动、提交或发布。详见docs/verification/2026-10-13-oppo-release-148-overlay.md，下方“尚未安装”为此前阶段。
