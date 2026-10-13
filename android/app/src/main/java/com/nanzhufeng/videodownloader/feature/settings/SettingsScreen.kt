@@ -419,14 +419,6 @@ fun SettingsScreen(
                 modifier = Modifier.testTag("settings-about-card"),
             ) {
                 AboutSettingsContent()
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                Text("功能审阅", style = MaterialTheme.typography.titleSmall)
-                Text("保留：视频收藏", style = MaterialTheme.typography.bodyMedium)
-                Text("入口：历史更多操作中收藏或取消收藏，全部时间右侧查看收藏。理由：快速找回常看的视频，取消收藏保留原文件。", style = MaterialTheme.typography.bodySmall)
-                Text("保留：后台下载与灵动岛", style = MaterialTheme.typography.bodyMedium)
-                Text("保留：视频播放记忆与左右连续跳转", style = MaterialTheme.typography.bodyMedium)
-                Text("入口建议：历史内置播放器。左右双击快退/快进10秒，连续点击叠加，单击显示控件；理由：回到视频继续观看，操作不打断播放，不新增常驻按钮。", style = MaterialTheme.typography.bodySmall)
-                Text("入口建议：下载规则内管理权限，进度岛内查看与停止。理由：离开软件也能确认真实进度，不增加首页常驻按钮。", style = MaterialTheme.typography.bodySmall)
             }
         },
     )

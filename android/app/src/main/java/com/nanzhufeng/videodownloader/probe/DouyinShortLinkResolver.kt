@@ -1,9 +1,21 @@
 package com.nanzhufeng.videodownloader.probe
 
+import java.io.IOException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.Request
+
+class DouyinShortLinkReadException(cause: IOException) : IOException(
+    when (cause) {
+        is UnknownHostException -> "抖音短链接地址解析失败。请检查当前网络或 DNS 后重试。"
+        is SocketTimeoutException, is java.io.InterruptedIOException -> "抖音短链接连接超时。请稍后重试或切换网络。"
+        else -> "抖音短链接连接中断，重试后仍未恢复。请稍后重试或切换网络。"
+    }, cause,
+)
 
 data class ShortLinkResponse(val status: Int, val location: String?)
 
@@ -19,12 +31,24 @@ class DouyinShortLinkResolver(
         val source = URI(url)
         if (!source.scheme.equals("https", true) || !source.host.equals("v.douyin.com", true)) return url
         var current = source
+        // One recovery for the entire redirect chain, not one per hop. Never retry
+        // cancellation, TLS failures, HTTP rejection or untrusted redirects.
+        var recovered = false
+        fun requestWithRecovery(target: String): ShortLinkResponse {
+            while (true) {
+                try { return request(target) } catch (error: IOException) {
+                    if (Thread.currentThread().isInterrupted || error is SSLException) throw error
+                    if (recovered) throw DouyinShortLinkReadException(error)
+                    recovered = true
+                }
+            }
+        }
         repeat(3) {
             check(!Thread.currentThread().isInterrupted) { "已取消抖音短链读取" }
             require(isOfficial(current)) { "抖音短链接跳转到了非官方安全地址，已拒绝读取" }
             val work = Regex("^/(?:share/)?(video|note)/(\\d+)/?$").matchEntire(current.path.orEmpty())
             if (work != null) return "https://www.douyin.com/${work.groupValues[1]}/${work.groupValues[2]}"
-            val response = request(current.toString())
+            val response = requestWithRecovery(current.toString())
             check(!Thread.currentThread().isInterrupted) { "已取消抖音短链读取" }
             if (response.status in 200..299) return current.toString()
             require(response.status in setOf(301, 302, 303, 307, 308) && !response.location.isNullOrBlank()) {

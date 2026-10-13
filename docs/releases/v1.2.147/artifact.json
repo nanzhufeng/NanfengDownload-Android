@@ -1,0 +1,14 @@
+{
+  "version": "1.2.147",
+  "versionCode": 10347,
+  "bytes": 57735339,
+  "sha256": "c5451d991ae858130b116a7f5a4c7200d39946a12d73c6633f5b8ed485cf5dd4",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.147.apk",
+  "scope": "formal release; business acceptance separate",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  },
+  "productionSourcesSha256": "0329b39a5f663c637a64d88ea77c4ebbc9c61747c1c0a487be0a1c8a374aa34d"
+}

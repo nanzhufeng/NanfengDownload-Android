@@ -27,6 +27,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 class HomeViewModel(
     private val downloads: DownloadRepository,
@@ -55,6 +61,9 @@ class HomeViewModel(
     private val mutableUiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = mutableUiState.asStateFlow()
     private var readStartedNanos = 0L
+    private var readGeneration = 0L
+    private var activeCaptureRequest: String? = null
+    private var activeRead: Deferred<DiscoveryResult>? = null
 
     private fun reportReadIfIdle() {
         if (readStartedNanos != 0L && !uiState.value.isReading) {
@@ -65,9 +74,15 @@ class HomeViewModel(
     }
 
     fun onInputChanged(value: String) {
+        if (value == uiState.value.input) return
+        readGeneration++
+        activeCaptureRequest = null
+        activeRead?.cancel()
+        readStartedNanos = 0L
         mutableUiState.update {
             it.copy(input = value, notice = "", pendingItems = emptyList(), pendingErrors = emptyList(),
-                pendingWebEpisodes = emptyList(), refreshingWebMedia = null, webCaptureUrl = null)
+                pendingWebEpisodes = emptyList(), refreshingWebMedia = null, webCaptureUrl = null,
+                douyinCaptureUrl = null, isReading = false, sourceInput = "", nextPage = null, canLoadMore = false)
         }
     }
 
@@ -133,6 +148,7 @@ class HomeViewModel(
     }
 
     suspend fun smartRead() {
+        if (uiState.value.isReading) return
         val input = uiState.value.input.trim()
         if (input.isBlank()) {
             mutableUiState.update { it.copy(notice = "请先粘贴支持平台的视频链接或分享文本") }
@@ -144,21 +160,40 @@ class HomeViewModel(
 
     suspend fun loadMore() {
         val state = uiState.value
+        if (state.isReading) return
         val page = state.nextPage ?: return
         readStartedNanos = System.nanoTime()
         try { read(input = state.sourceInput, page = page, append = true) } finally { reportReadIfIdle() }
     }
 
     private suspend fun read(input: String, page: Int, append: Boolean) {
+        val generation = ++readGeneration
         mutableUiState.update { it.copy(isReading = true, notice = "正在读取作品…") }
         val result = try {
-            withTimeout(readTimeoutMillis) { discovery.read(input, page) }
+            coroutineScope {
+                val operation = async { withTimeout(readTimeoutMillis) { discovery.read(input, page) } }
+                activeRead = operation
+                try { operation.await() } catch (error: CancellationException) {
+                    currentCoroutineContext().ensureActive()
+                    if (generation != readGeneration) null else throw error
+                } finally { if (activeRead === operation) activeRead = null }
+            }
         } catch (_: TimeoutCancellationException) {
-            mutableUiState.update {
+            if (generation == readGeneration) mutableUiState.update {
                 it.copy(isReading = false, notice = "读取超时，请检查网络后重试。")
             }
             return
+        } catch (error: CancellationException) {
+            if (generation == readGeneration) mutableUiState.update { it.copy(isReading = false, notice = "") }
+            throw error
+        } catch (error: Exception) {
+            if (generation == readGeneration) mutableUiState.update {
+                it.copy(isReading = false, notice =
+                    com.nanzhufeng.videodownloader.domain.discovery.DiscoveryFailurePresenter.message(error))
+            }
+            return
         }
+        if (generation != readGeneration || result == null) return
         when (result) {
             is DiscoveryResult.Batch -> mutableUiState.update {
                 it.copy(
@@ -186,6 +221,7 @@ class HomeViewModel(
                         it == com.nanzhufeng.videodownloader.core.model.ResolutionPreset.AUDIO_MP3
                     },
                 )
+                if (generation != readGeneration) return
                 mutableUiState.update {
                     it.copy(
                         isReading = false,
@@ -238,6 +274,7 @@ class HomeViewModel(
                     return
                 }
                 val addedCount = enqueue(result.items.map { it.toMediaItem(DownloadSourceKind.CREATOR) })
+                if (generation != readGeneration) return
                 val skippedCount = (result.items.size - addedCount).coerceAtLeast(0)
                 mutableUiState.update {
                     it.copy(
@@ -258,11 +295,30 @@ class HomeViewModel(
         }
     }
 
-    suspend fun completeDouyinCapture(media: DouyinCapturedMedia?, errorMessage: String = "") {
+    fun beginCaptureRequest(): String = java.util.UUID.randomUUID().toString().also {
+        activeCaptureRequest = it
+    }
+
+    suspend fun completeDouyinCapture(
+        media: DouyinCapturedMedia?, errorMessage: String = "", requestId: String? = null,
+    ) {
+        if (requestId != null && requestId != activeCaptureRequest) return
+        activeCaptureRequest = null
         try { completeDouyinCaptureInternal(media, errorMessage) } finally { reportReadIfIdle() }
     }
 
     private suspend fun completeDouyinCaptureInternal(media: DouyinCapturedMedia?, errorMessage: String) {
+        val target = uiState.value.douyinCaptureUrl ?: return
+        val generation = readGeneration
+        if (media != null) {
+            val expectedId = com.nanzhufeng.videodownloader.probe.DouyinCaptureStore.extractWorkId(target)
+            val actualId = com.nanzhufeng.videodownloader.probe.DouyinCaptureStore.extractWorkId(media.pageUrl)
+            if (actualId != media.workId || (expectedId != null && expectedId != media.workId)) {
+                mutableUiState.update { it.copy(isReading = false, douyinCaptureUrl = null,
+                    notice = "读取结果与当前抖音作品不一致，未创建任务，请重新读取") }
+                return
+            }
+        }
         if (media == null) {
             mutableUiState.update {
                 it.copy(
@@ -294,6 +350,7 @@ class HomeViewModel(
                 ),
             ),
         )
+        if (generation != readGeneration) return
         mutableUiState.update {
             it.copy(
                 isReading = false,
@@ -316,7 +373,10 @@ class HomeViewModel(
         episodes: List<GenericWebEpisode> = emptyList(),
         pageUrl: String = "",
         errorMessage: String = "",
+        requestId: String? = null,
     ) {
+        if (requestId != null && requestId != activeCaptureRequest) return
+        activeCaptureRequest = null
         try { completeWebCaptureInternal(capture, episodes, pageUrl, errorMessage) } finally { reportReadIfIdle() }
     }
 
@@ -436,7 +496,10 @@ class HomeViewModel(
         resolutionOverride: com.nanzhufeng.videodownloader.core.model.ResolutionPreset? = null,
     ): Int {
         if (items.isEmpty()) return 0
+        val generation = readGeneration
         val defaults = settings.settings.first()
+        currentCoroutineContext().ensureActive()
+        if (generation != readGeneration) return 0
         return downloads.enqueue(
             items = items,
             resolution = resolutionOverride ?: defaults.defaultResolution,

@@ -119,7 +119,7 @@ Room数据库版本11，AppContainer登记1→11全部显式迁移，无生产�
 | HistoryScreen / HistoryMediaMetadata / HistoryMediaLauncher | 筛选、元数据、收藏、失效、批量删除与播放路由 | 大小/时长优先从成品读取；[收藏合同](history-favorites.md) |
 | NanzhufengApp / VideoPlaybackMemory / GestureController | 根播放会话、位置记忆、连续跳转/原生按钮 | 位置与下载完整性无关；[播放合同](video-playback.md) |
 | DownloadIslandState / Overlay / core/ui IslandFeedback、IslandMotion | 后台常驻状态与App内短反馈分别拥有单一渲染器 | 简洁/详细模式、原位缩放、生命周期清理；[反馈UI合同](design/2026-10-10-island-feedback-ui-contract.md) |
-| SettingsScreen / SettingsRepository | 质量、命名、目录、并发、会话/权限、版本与功能审阅 | DataStore默认并发任务1、支持1至3；设置存在不等于权限已授权 |
+| SettingsScreen / SettingsRepository | 质量、命名、目录、并发、会话/权限、版本 | DataStore默认并发任务1、支持1至3；设置存在不等于权限已授权 |
 
 ## 7. 关键决策及原因
 

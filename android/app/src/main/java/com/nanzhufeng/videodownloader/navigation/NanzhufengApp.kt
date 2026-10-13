@@ -154,6 +154,7 @@ fun NanzhufengApp(
                 homeViewModel.completeDouyinCapture(
                     media = media,
                     errorMessage = DouyinProbeActivity.errorMessage(result.data),
+                    requestId = DouyinProbeActivity.requestId(result.data),
                 )
             }
         }
@@ -170,6 +171,7 @@ fun NanzhufengApp(
                     } else emptyList(),
                     pageUrl = GenericWebProbeActivity.page(result.data),
                     errorMessage = GenericWebProbeActivity.error(result.data),
+                    requestId = GenericWebProbeActivity.requestId(result.data),
                 )
             }
         }
@@ -226,7 +228,7 @@ fun NanzhufengApp(
         LaunchedEffect(homeState.douyinCaptureUrl) {
             homeState.douyinCaptureUrl?.let { sourceUrl ->
                 douyinCaptureLauncher.launch(
-                    DouyinProbeActivity.createIntent(context, sourceUrl),
+                    DouyinProbeActivity.createIntent(context, sourceUrl, homeViewModel.beginCaptureRequest()),
                     ActivityOptionsCompat.makeCustomAnimation(context, 0, 0),
                 )
             }
@@ -234,7 +236,7 @@ fun NanzhufengApp(
         LaunchedEffect(homeState.webCaptureUrl) {
             homeState.webCaptureUrl?.let { sourceUrl ->
                 webCaptureLauncher.launch(
-                    GenericWebProbeActivity.createIntent(context, sourceUrl),
+                    GenericWebProbeActivity.createIntent(context, sourceUrl, homeViewModel.beginCaptureRequest()),
                     ActivityOptionsCompat.makeCustomAnimation(context, 0, 0),
                 )
             }

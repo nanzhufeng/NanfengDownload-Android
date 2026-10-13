@@ -176,6 +176,7 @@ class DouyinProbeActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
         // This Activity is only a background WebView network probe.  Suppress
         // both the framework window transition and the return transition: the
         // user must stay on the current downloader screen throughout parsing.
@@ -200,7 +201,7 @@ class DouyinProbeActivity : Activity() {
             }
             completed = true
             Log.i(VIDEO_SOURCE_LOG_TAG, "抖音目标作品近期读取结果已复用")
-            setResult(RESULT_OK, resultIntent(recent))
+            setResult(RESULT_OK, resultIntent(recent).putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
             finishWithoutTransition()
             return
         }
@@ -452,7 +453,7 @@ class DouyinProbeActivity : Activity() {
             (application as NanzhufengApplication).container.douyinCaptures.save(media)
         }.onSuccess {
             Log.i(VIDEO_SOURCE_LOG_TAG, "抖音目标作品流已安全捕获")
-            setResult(RESULT_OK, resultIntent(media))
+            setResult(RESULT_OK, resultIntent(media).putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
             finishWithoutTransition()
         }.onFailure { error ->
             completed = false
@@ -467,7 +468,8 @@ class DouyinProbeActivity : Activity() {
         handler.removeCallbacks(inspectVideoSource)
         handler.removeCallbacks(captureTimeout)
         handler.removeCallbacks(fallbackToCanonicalVideo)
-        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_ERROR, message))
+        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_ERROR, message)
+            .putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
         finishWithoutTransition()
     }
 
@@ -554,6 +556,8 @@ class DouyinProbeActivity : Activity() {
 
     companion object {
         const val EXTRA_URL = "source_url"
+        private const val EXTRA_REQUEST_ID = "capture_request_id"
+        fun requestId(result: Intent?): String = result?.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         private const val EXTRA_WORK_ID = "work_id"
         private const val EXTRA_PAGE_URL = "page_url"
         private const val EXTRA_MEDIA_URL = "media_url"
@@ -772,8 +776,9 @@ class DouyinProbeActivity : Activity() {
             }))()
         """
 
-        fun createIntent(context: Context, sourceUrl: String): Intent =
+        fun createIntent(context: Context, sourceUrl: String, requestId: String = ""): Intent =
             Intent(context, DouyinProbeActivity::class.java).putExtra(EXTRA_URL, sourceUrl)
+                .putExtra(EXTRA_REQUEST_ID, requestId)
 
         internal fun shouldTryImageFallback(isImageWork: Boolean, hasVideoElement: Boolean): Boolean =
             isImageWork && !hasVideoElement

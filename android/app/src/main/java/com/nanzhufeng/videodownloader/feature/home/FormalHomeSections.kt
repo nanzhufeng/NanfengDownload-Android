@@ -1304,37 +1304,39 @@ private fun ReadEntryCard(
                 fontWeight = FontWeight.Bold,
                 color = WarmOrange,
             )
-            OutlinedTextField(
-                value = input,
-                onValueChange = onInputChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("home-input"),
-                minLines = 2,
-                maxLines = if (dense) 2 else 3,
-                leadingIcon = {
-                    IconButton(
-                        onClick = {
-                            clipboard.setText(AnnotatedString(input))
-                            IslandFeedback.success(context, "已复制输入内容")
-                        },
-                        enabled = input.isNotBlank(),
-                        modifier = Modifier.testTag("copy-input"),
-                    ) {
-                        Icon(Icons.Outlined.Link, contentDescription = "复制输入框内容")
-                    }
-                },
-                placeholder = { Text("粘贴视频作品页或媒体直链；支持抖音、YouTube、TikTok、哔哩哔哩、小红书、Pornhub 等网站") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF1F3F2),
-                    unfocusedContainerColor = Color(0xFFF1F3F2),
-                    disabledContainerColor = Color(0xFFE8EBE9),
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    disabledBorderColor = Color.Transparent,
-                    errorBorderColor = Color.Transparent,
-                ),
-            )
+            ReplaceOnPasteInput(input, onInputChange) { editorValue, onEdit, pasteKeys ->
+                OutlinedTextField(
+                    value = editorValue,
+                    onValueChange = onEdit,
+                    modifier = pasteKeys
+                        .fillMaxWidth()
+                        .testTag("home-input"),
+                    minLines = 2,
+                    maxLines = if (dense) 2 else 3,
+                    leadingIcon = {
+                        IconButton(
+                            onClick = {
+                                clipboard.setText(AnnotatedString(input))
+                                IslandFeedback.success(context, "已复制输入内容")
+                            },
+                            enabled = input.isNotBlank(),
+                            modifier = Modifier.testTag("copy-input"),
+                        ) {
+                            Icon(Icons.Outlined.Link, contentDescription = "复制输入框内容")
+                        }
+                    },
+                    placeholder = { Text("粘贴视频作品页或媒体直链；支持抖音、YouTube、TikTok、哔哩哔哩、小红书、Pornhub 等网站") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF1F3F2),
+                        unfocusedContainerColor = Color(0xFFF1F3F2),
+                        disabledContainerColor = Color(0xFFE8EBE9),
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        disabledBorderColor = Color.Transparent,
+                        errorBorderColor = Color.Transparent,
+                    ),
+                )
+            }
             Text(
                 "${input.length}/1000",
                 modifier = Modifier

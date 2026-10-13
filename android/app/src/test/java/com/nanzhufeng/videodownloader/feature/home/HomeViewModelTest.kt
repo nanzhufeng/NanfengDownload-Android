@@ -22,12 +22,170 @@ import com.nanzhufeng.videodownloader.probe.genericCollectionMediaId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomeViewModelTest {
+    @Test fun replacementWhileWaitingForSettingsNeverCommitsOldMedia() = runBlocking {
+        val waiting = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val downloads = RecordingDownloads()
+        val settings = object : SettingsRepository by FakeSettings() {
+            override val settings: Flow<AppSettings> = kotlinx.coroutines.flow.flow {
+                waiting.complete(Unit); release.await(); emit(AppSettings())
+            }
+        }
+        val vm = HomeViewModel(downloads, settings, FakeDiscovery())
+        vm.onInputChanged("https://youtu.be/old")
+        val old = launch { vm.smartRead() }
+        waiting.await(); vm.onInputChanged("https://youtu.be/new")
+        release.complete(Unit); old.join()
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals("", vm.uiState.value.notice)
+    }
+
+    @Test fun oldCaptureCancellationCannotStopANewerCaptureOfTheSameWork() = runBlocking {
+        val page = "https://www.douyin.com/note/7676041925425736777"
+        val vm = HomeViewModel(RecordingDownloads(), FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.DouyinCaptureRequired(input)
+        })
+        vm.onInputChanged(page); vm.smartRead()
+        val oldRequest = vm.beginCaptureRequest()
+        vm.onInputChanged(""); vm.onInputChanged(page); vm.smartRead()
+        val currentRequest = vm.beginCaptureRequest()
+        vm.completeDouyinCapture(null, "old cancellation", oldRequest)
+        assertTrue(vm.uiState.value.isReading)
+        assertEquals(page, vm.uiState.value.douyinCaptureUrl)
+        vm.completeDouyinCapture(null, "current cancellation", currentRequest)
+        assertTrue(!vm.uiState.value.isReading)
+        assertEquals("current cancellation", vm.uiState.value.notice)
+    }
+
+    @Test fun oldWebEpisodeResultCannotReplaceNewCapture() = runBlocking {
+        val page = "https://example.test/collection"
+        val vm = HomeViewModel(RecordingDownloads(), FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.WebCaptureRequired(input)
+        })
+        vm.onInputChanged(page); vm.smartRead()
+        val oldRequest = vm.beginCaptureRequest()
+        vm.onInputChanged("https://example.test/new"); vm.smartRead()
+        vm.beginCaptureRequest()
+        vm.completeWebCapture(null, listOf(GenericWebEpisode("https://example.test/old-episode", "old")),
+            page, requestId = oldRequest)
+        assertTrue(vm.uiState.value.pendingItems.isEmpty())
+        assertTrue(vm.uiState.value.isReading)
+        assertEquals("https://example.test/new", vm.uiState.value.webCaptureUrl)
+    }
+
+    @Test fun duplicateInputCallbackDoesNotCancelAnActiveCapture() = runBlocking {
+        val page = "https://www.douyin.com/note/7676041925425736777"
+        val vm = HomeViewModel(RecordingDownloads(), FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.DouyinCaptureRequired(input)
+        })
+        vm.onInputChanged(page); vm.smartRead(); vm.onInputChanged(page)
+        assertTrue(vm.uiState.value.isReading)
+        assertEquals(page, vm.uiState.value.douyinCaptureUrl)
+    }
+
+    @Test fun captureForAnotherWorkCannotCommitToCurrentRead() = runBlocking {
+        val page = "https://www.douyin.com/note/7676041925425736777"
+        val downloads = RecordingDownloads()
+        val vm = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.DouyinCaptureRequired(input)
+        })
+        vm.onInputChanged(page); vm.smartRead()
+        vm.completeDouyinCapture(DouyinCapturedMedia("7669248142533973995",
+            "https://www.douyin.com/video/7669248142533973995",
+            "https://v3-web.douyinvod.com/video/tos/cn/target.mp4", "wrong", "author", "", 1))
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(null, vm.uiState.value.douyinCaptureUrl)
+        assertTrue(!vm.uiState.value.isReading)
+    }
+
+    @Test fun inputReplacementClearsCreatorPagination() = runBlocking {
+        val vm = HomeViewModel(RecordingDownloads(), FakeSettings(), FakeDiscovery())
+        vm.onInputChanged("https://example.test/creator"); vm.smartRead()
+        assertTrue(vm.uiState.value.canLoadMore)
+        vm.onInputChanged("https://youtu.be/new")
+        assertTrue(!vm.uiState.value.canLoadMore)
+        assertEquals(null, vm.uiState.value.nextPage)
+        assertEquals("", vm.uiState.value.sourceInput)
+    }
+
+    @Test fun unexpectedDiscoveryFailureRestoresReadableState() = runBlocking {
+        val vm = HomeViewModel(RecordingDownloads(), FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int): DiscoveryResult = error("测试来源不可用")
+        })
+        vm.onInputChanged("https://youtu.be/new"); vm.smartRead()
+        assertTrue(!vm.uiState.value.isReading)
+        assertTrue(vm.uiState.value.notice.contains("测试来源不可用"))
+    }
+
+    @Test fun changingInputCancelsOldReadAndNeverEnqueuesItsResult() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val cancelled = CompletableDeferred<Unit>()
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int): DiscoveryResult {
+                started.complete(Unit)
+                try { awaitCancellation() } finally { cancelled.complete(Unit) }
+            }
+        })
+        viewModel.onInputChanged("https://youtu.be/old")
+        val job = launch { viewModel.smartRead() }
+        started.await()
+        viewModel.onInputChanged("https://youtu.be/new")
+        assertTrue(!viewModel.uiState.value.isReading)
+        kotlinx.coroutines.withTimeout(1_000) { cancelled.await(); job.join() }
+        assertEquals("https://youtu.be/new", viewModel.uiState.value.input)
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals("", viewModel.uiState.value.notice)
+    }
+
+    @Test fun lateNonCooperativeOldResultCannotReplaceNewRead() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val downloads = RecordingDownloads()
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int): DiscoveryResult {
+                if (input.endsWith("old")) {
+                    started.complete(Unit)
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { release.await() }
+                    return FakeDiscovery().read("https://youtu.be/old", 1)
+                }
+                return DiscoveryResult.Failure("new result")
+            }
+        })
+        viewModel.onInputChanged("https://youtu.be/old")
+        val old = launch { viewModel.smartRead() }
+        started.await()
+        viewModel.onInputChanged("https://youtu.be/new")
+        viewModel.smartRead()
+        release.complete(Unit); old.join()
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals("new result", viewModel.uiState.value.notice)
+    }
+
+    @Test fun replacingInputClearsOldCaptureAndPagination() = runBlocking {
+        val downloads = RecordingDownloads()
+        val page = "https://www.douyin.com/note/7676041925425736777"
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.DouyinCaptureRequired(input)
+        })
+        viewModel.onInputChanged(page); viewModel.smartRead()
+        viewModel.onInputChanged("https://youtu.be/new")
+        viewModel.completeDouyinCapture(DouyinCapturedMedia("7676041925425736777", page,
+            "https://v3-web.douyinvod.com/video/tos/cn/target.mp4", "old", "author", "", 1))
+        assertTrue(downloads.enqueued.isEmpty())
+        assertEquals(null, viewModel.uiState.value.douyinCaptureUrl)
+        assertTrue(!viewModel.uiState.value.isReading)
+    }
+
     @Test
     fun staleWebCaptureResultAfterInputChangesNeverCreatesATask() = runBlocking {
         val page = "https://example.test/watch/old"
@@ -341,7 +499,11 @@ class HomeViewModelTest {
     @Test
     fun douyinGalleryIsEnqueuedWithTheExactCapturedImageList() = runBlocking {
         val downloads = RecordingDownloads()
-        val viewModel = HomeViewModel(downloads, FakeSettings(), FakeDiscovery())
+        val viewModel = HomeViewModel(downloads, FakeSettings(), object : SourceDiscoveryEngine {
+            override suspend fun read(input: String, page: Int) = DiscoveryResult.DouyinCaptureRequired(input)
+        })
+        viewModel.onInputChanged("https://www.douyin.com/note/7676041925425736777")
+        viewModel.smartRead()
         val imageUrls = listOf("https://p3-sign.douyinpic.com/original~tplv-dy-aweme-images.webp")
 
         viewModel.completeDouyinCapture(

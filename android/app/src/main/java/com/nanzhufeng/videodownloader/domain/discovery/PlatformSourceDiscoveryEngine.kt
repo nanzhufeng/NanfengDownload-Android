@@ -288,6 +288,9 @@ class PlatformSourceDiscoveryEngine(
 
 internal object DiscoveryFailurePresenter {
     fun message(error: Throwable): String {
+        generateSequence(error) { it.cause }
+            .filterIsInstance<com.nanzhufeng.videodownloader.probe.DouyinShortLinkReadException>()
+            .firstOrNull()?.let { return requireNotNull(it.message) }
         val evidence = generateSequence(error) { it.cause }
             .mapNotNull(Throwable::message)
             .joinToString("\n")

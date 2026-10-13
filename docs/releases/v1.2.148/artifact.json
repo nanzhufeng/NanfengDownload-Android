@@ -1,0 +1,14 @@
+{
+  "version": "1.2.148",
+  "versionCode": 10348,
+  "bytes": 57735339,
+  "sha256": "f92b31517f73aa33b6d5c37c9a615db9b4e37ead11002c49e24ba39227279905",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.148.apk",
+  "productionSourcesSha256": "05c241320955254bff9d4657a1b5a210126db4729d06acf270f13123281d29c7",
+  "scope": "formal release; business acceptance separate",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

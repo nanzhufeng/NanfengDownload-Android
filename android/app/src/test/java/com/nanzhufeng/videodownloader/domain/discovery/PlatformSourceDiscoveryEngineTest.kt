@@ -18,6 +18,14 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlatformSourceDiscoveryEngineTest {
+    @Test fun shortLinkNetworkFailureShowsSafeStageInsteadOfUnknownPlatformReason() {
+        val error = com.nanzhufeng.videodownloader.probe.DouyinShortLinkReadException(
+            java.net.UnknownHostException("private-dns-details"),
+        )
+        assertEquals("抖音短链接地址解析失败。请检查当前网络或 DNS 后重试。",
+            DiscoveryFailurePresenter.message(IllegalStateException("wrapper", error)))
+    }
+
     @Test fun completeGenericResolutionDoesNotRequireASecondNetworkExtraction() = runBlocking {
         val page = "https://fixture.test/media/video.mp4"
         val media = YtDlpMediaInfo("generic", "fixture:test:video", "Fixture title", "Fixture", "", page, "", "",

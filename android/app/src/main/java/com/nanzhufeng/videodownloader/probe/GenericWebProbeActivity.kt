@@ -31,6 +31,7 @@ class GenericWebProbeActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
         targetPage = intent.getStringExtra(EXTRA_TARGET).orEmpty()
         if (!canInspectWebPlayer(targetPage)) {
             finishWithError("仅能打开已识别的目标作品页")
@@ -134,6 +135,7 @@ class GenericWebProbeActivity : Activity() {
             return
         }
         setResult(RESULT_OK, Intent().apply {
+            putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID))
             putExtra(EXTRA_PAGE, capture.pageUrl)
             putExtra(EXTRA_REFERER, capture.referer)
             putExtra(EXTRA_MEDIA, capture.mediaUrl)
@@ -158,7 +160,8 @@ class GenericWebProbeActivity : Activity() {
             val array = JSONArray()
             episodes.forEach { array.put(JSONObject().put("url", it.url).put("title", it.title)) }
             setResult(RESULT_OK, Intent().putExtra(EXTRA_EPISODES, array.toString())
-                .putExtra(EXTRA_PAGE, targetPage))
+                .putExtra(EXTRA_PAGE, targetPage)
+                .putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
             finish()
         }
     }
@@ -168,7 +171,8 @@ class GenericWebProbeActivity : Activity() {
     }.getOrNull()
 
     private fun finishWithError(message: String) {
-        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_ERROR, message))
+        setResult(RESULT_CANCELED, Intent().putExtra(EXTRA_ERROR, message)
+            .putExtra(EXTRA_REQUEST_ID, intent.getStringExtra(EXTRA_REQUEST_ID)))
         finish()
     }
 
@@ -182,6 +186,8 @@ class GenericWebProbeActivity : Activity() {
 
     companion object {
         private const val EXTRA_TARGET = "target"
+        private const val EXTRA_REQUEST_ID = "capture_request_id"
+        fun requestId(result: Intent?): String = result?.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         private const val EXTRA_PAGE = "page"
         private const val EXTRA_REFERER = "referer"
         private const val EXTRA_MEDIA = "media"
@@ -189,8 +195,8 @@ class GenericWebProbeActivity : Activity() {
         private const val EXTRA_EPISODES = "episodes"
         private const val EXTRA_ERROR = "error"
 
-        fun createIntent(context: Context, url: String) = Intent(context, GenericWebProbeActivity::class.java)
-            .putExtra(EXTRA_TARGET, url)
+        fun createIntent(context: Context, url: String, requestId: String = "") = Intent(context, GenericWebProbeActivity::class.java)
+            .putExtra(EXTRA_TARGET, url).putExtra(EXTRA_REQUEST_ID, requestId)
 
         fun capture(intent: Intent?): GenericWebCapture? = runCatching {
             GenericWebCapture(
