@@ -4,8 +4,8 @@
 
 ## Verified
 
-- Last verified: 2026-10-16；branch main，Code baseline: WORKTREE（底层408b9ae）；版本1.2.149/10349，Room11。
-- Verification scope: 481项生产源与冻结APK逐项一致，真实媒体/隔离验收及主设备覆盖分开核对；本轮提交/发布尚待远端回读。
+- Last verified: 2026-10-16；branch main，Code baseline: COMMIT `453bcbbb2f15ff38cae9c2920eafbad240dc4aed`；版本1.2.149/10349，Room11。
+- Verification scope: 481项生产源与冻结APK逐项一致，真实媒体/隔离验收及主设备覆盖分开核对；源码提交、版本标签、正式Release和附件均已远端回读。
 - Status: Active；Verified by: Codex。
 
 ## Current
@@ -14,7 +14,7 @@
 - 同作品159段原字节完整HLS经隔离正常UI封装/发布/历史/冷进程重开通过；18555视频样本及29892AAC样本保留，逐帧像素与音频PCM一致。
 - 冻结149正式包已按用户授权同签名保数据覆盖OPPO；实际安装包回拉SHA一致，首装时间/数据目录标识及15条媒体元数据投影保持，未自动启动业务。[覆盖记录](verification/2026-10-16-oppo-release-149-overlay.md)。
 - 粘贴替换、输入代次隔离、收藏/播放器及删除功能审阅沿用既有实现；本版UI不变，README预览保留注明148的真实页面。
-- 用户已授权提交main与正式发布149，[发布记录](verification/2026-10-16-release-149.md)待完成远端回读。旧冻结146/147/148保留。
+- 149已正式发布，源码/标签与精确APK附件及校验文件回读一致；[发布记录](verification/2026-10-16-release-149.md)。旧冻结146/147/148保留。
 
 ## Tests
 
@@ -38,12 +38,12 @@
 
 ## Sync & Safety
 
-- Git working tree: 本轮源码/合同/验证/Release资料待提交；原SDD删除排除，全部WIP保留。
-- Remote sync: 发布准备，待推送main/标签与Release附件回读。只用已覆盖OPPO的冻结包，不重复签名或操作设备。
+- Git working tree: 源码/合同/验证/Release资料已提交，当前仅本次交付状态收尾；原SDD删除排除且保留。
+- Remote sync: main生产提交、标签及正式Release已回读一致，APK/校验附件名称、大小、digest匹配；仅收尾文档随后同步。只用已覆盖OPPO的冻结包，不重复签名或操作设备。
 - 不操作账单数据、凭据、私有媒体或数据库；Rollback point: UNKNOWN，旧Release不等于允许降级用户数据。
 
 ## Next
 
-1. 核对提交、标签、Release及附件摘要，完成149正式交付。
+1. 149正式交付已完成；后续源码变更另行递增版本，冻结包不重建。
 2. 真实主手机任务由用户验收，不自动重试下载。
 3. 按具体红灯推进限时日常、其他媒体及既有验证缺口。
