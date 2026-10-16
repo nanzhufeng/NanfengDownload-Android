@@ -134,14 +134,26 @@ object AndroidStreamRemuxer {
             probe.setDataSource(source.absolutePath)
             probe.selectTrack(track)
             val firstTimeUs = probe.sampleTime
-            val sampleSize = probe.sampleSize
-            require(sampleSize in 0..(32L * 1024 * 1024)) { "媒体帧过大，无法安全封装" }
-            val buffer = ByteBuffer.allocateDirect(maxOf(capacity, sampleSize.toInt()))
-            val size = probe.readSampleData(buffer, 0)
-            if (size < 0) return 0L
-            val frames = AacAdtsSampleLayout.forSample("audio/mp4a-latm", buffer, size).size
-            if (!probe.advance()) return 0L
-            return initialAacLeadUs(firstTimeUs, probe.sampleTime, frames, sampleRate)
+            if (firstTimeUs != 0L) return 0L
+            var frames = 0
+            var buffer = ByteBuffer.allocateDirect(capacity)
+            // Stagefright may clamp several separate negative-PTS access units to zero.
+            // Count the whole zero prefix and anchor it to the first positive timestamp.
+            repeat(256) {
+                if (cancelled.get() || Thread.currentThread().isInterrupted) throw CancellationException("封装已取消")
+                val timestamp = probe.sampleTime
+                if (timestamp > 0L) return initialAacLeadUs(firstTimeUs, timestamp, frames, sampleRate)
+                if (timestamp != 0L || frames * 1_024_000_000L / sampleRate > 1_000_000L) return 0L
+                val sampleSize = probe.sampleSize
+                require(sampleSize in 0..(32L * 1024 * 1024)) { "媒体帧过大，无法安全封装" }
+                if (sampleSize > buffer.capacity()) buffer = ByteBuffer.allocateDirect(sampleSize.toInt())
+                buffer.clear()
+                val size = probe.readSampleData(buffer, 0)
+                if (size < 0) return 0L
+                frames += AacAdtsSampleLayout.forSample("audio/mp4a-latm", buffer, size).size
+                if (!probe.advance()) return 0L
+            }
+            return 0L
         } finally {
             probe.release()
         }

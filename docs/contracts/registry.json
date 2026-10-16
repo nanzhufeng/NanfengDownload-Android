@@ -66,13 +66,15 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/HttpFileDownloader.kt": "5b945b4d130e105319a8e5276dd6f06a00657314cc331816be2409a0cb42d789",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/ProtocolFileDownloader.kt": "6224b8409366db8a56525f761615133f704dc086455b40de27eca0531873c0d5",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DirectMediaTransfer.kt": "defc454e1e7aa39f32a3e76fb60646a42cfb76dcfafeaca0e53feb760b3e75c6",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/video/AndroidStreamRemuxer.kt": "a08a7170c0f40ae4bf404b86ce18110924b3911a102e4826e92b0d0cbca57f08",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/video/AndroidStreamRemuxer.kt": "7f0d05f7920c26b23b2f6770835e859628dbe7dc3b1fe6249dea792d34d4cb27",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/home/FormalHomeSections.kt": "f78f27e02054d19983f558104c208270335b9012f54cf36168eb9b30b8f423a2",
         "android/app/src/main/python/nanzhufeng_probe/segment_transfer.py": "9d4d805ad0d9d4da1a35e15231085dccf1c2005035ee4d61f9156198ae0b8275",
-        "android/app/src/main/python/nanzhufeng_probe/ts_timeline.py": "70947d311f081697c2c97469a5246d32901fb7006389894e1f15c81b8ae89922"
+        "android/app/src/main/python/nanzhufeng_probe/ts_timeline.py": "70947d311f081697c2c97469a5246d32901fb7006389894e1f15c81b8ae89922",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/video/AacSampleTimeline.kt": "f6e9d49c4a61710b51f7b967c962091e446937a059771c3dc63864b6197a22c4"
       },
       "evidence": [
-        "docs/verification/2026-10-11-release-146.md"
+        "docs/verification/2026-10-11-release-146.md",
+        "docs/verification/2026-10-16-aac-clamped-prefix.md"
       ]
     },
     {
@@ -139,7 +141,7 @@
       "concept": "验证与正式交付",
       "document": "docs/release-and-verification.md",
       "sources": {
-        "android/app/build.gradle.kts": "7a21416a0229a6f77f14202c7cb1eb126803a22cfbce751c8da5ec15b989eca5",
+        "android/app/build.gradle.kts": "67a7524463062c8609d224e3444b1f3133d43342ae39c4a1b03f847f96d8b8fa",
         "android/app/proguard-rules.pro": "db71f9dd4cb8d309243df5c703770fe244a6c37f4ebd69a4ccf517d617d91113",
         "android/app/src/main/AndroidManifest.xml": "7d101e81353b6556b8c1c6c84f109cc5d72df8894f12d202b5c934931f75a3d1",
         "tools/verify_frozen_release.py": "70e86ed0b7272913ba6709a2b7415d9dd301e8270129b98d37afe4b4433fce43",

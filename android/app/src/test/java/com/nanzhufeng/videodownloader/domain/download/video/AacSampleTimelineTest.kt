@@ -18,6 +18,16 @@ class AacSampleTimelineTest {
         assertTrue(next.first() > first.last())
         assertEquals(25, (first + next).size)
     }
+    @Test fun separatelyClampedInitialFramesPreserveLeadWithoutAddingSilence() {
+        // Target TS: 48 kHz AAC begins 68.722 ms before the first video PTS.
+        // Android reports four distinct leading AAC frames at zero, then 16.611 ms.
+        val lead = initialAacLeadUs(0, 16_611, 4, 48_000)
+        assertEquals(68_722L, lead)
+        val clock = AacSampleTimeline(48_000, lead)
+        assertEquals(listOf(0L, 21_333L, 42_666L, 63_999L), List(4) { clock.times(0, 1).single() })
+        assertEquals(85_333L, clock.times(16_611, 1).single())
+    }
+
     @Test fun unclampedAacRetainsRealGap() {
         assertEquals(0L, initialAacLeadUs(10_000, 270_000, 11, 44_100))
         val clock = AacSampleTimeline(44_100, 0)
