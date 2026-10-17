@@ -23,7 +23,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/home/HomeViewModel.kt": "16ddb56556bba92f7777a2f11a521d1ddad2bce680be52e41a41f6bce7ee25b4",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/DouyinProbeActivity.kt": "7d3ba57501b1dceb31d6f7ffe87f69f0fda63d4206429c4a826077d8efe23212",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/GenericWebProbeActivity.kt": "e12a610a275fb6c77142436dc9cb2b8c564881735e330a11afb7be5e94f36a5a",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "aceb0635775899b264ea4032aa16bbaca5e82fb9c9809d0d3990b704f8a45f6e"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720"
       },
       "evidence": [
         "docs/verification/2026-10-10-cross-platform-read-performance.md",
@@ -40,20 +40,33 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/core/model/DownloadModels.kt": "7bebe05d5f7970f258dad1abc0348427c986523ff123c9ee67303a09afb443b4",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/core/model/TaskTransitionPolicy.kt": "0b12899e72637f560c06ef73257571cd750e3c6b6850d7cac7ab14459929f844",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/NanzhufengDatabase.kt": "5bd2812d138eebdd339f238ea70628936f6d02d16b9dfafab5b761136a473820",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "9cc2b8f7968f8f943e13e7be1c67d39e87f886c360baf29b375714eec3403ff1",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "9c58a296bd79c5897cff5c4b12223606248ac342c1a08024ba419520a857d53e",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "249bd3aa3c375dc1267a0540d8bea6e20853f5e923d7031a9b0f3e69304a46c0",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "7ea0793837315ac968c2bd9850f8083a8c682256a79dd9cefba1a168bf0b4c68",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/settings/SettingsRepository.kt": "e8661bc42babd8ea8d4576bca9ed68c7691ba0048d44f1c6eef3eecbd42911c1",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadEngine.kt": "5e2acd7ea80227a30d108e598634a3bf8017078806076c277c658227080fe9e5",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadTaskRunner.kt": "0a4be7df6ae4108cc5115edc2aaad5754ef65ba1ce2cb931bd37685276ce7d0f",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/MediaStoreOutputStore.kt": "a9e0284f530630954aa312596aa45cd023f16e7b9bdf4c6f3bd0e25c4f43f385",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/entity/Entities.kt": "77cb4436e3bc57e0c5e703f5ced860cca54a3661b533431b87c9ca261a794760",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/DownloadRepository.kt": "6c434b4ceeb57fce3eee62f991cc009a89c7388e12cc763f758767758e045bf6",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/DownloadRepository.kt": "855ecd481ee46d17c323146165244124968e2f6b22d3327bc9261bfb22f9cf9c",
         "android/app/schemas/com.nanzhufeng.videodownloader.data.database.NanzhufengDatabase/11.json": "b410fbd2d9a2d775d1af6d21557cad47586532ee2f5c3da54617eeab6f041106",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/settings/SettingsScreen.kt": "8ec050e0109e21838d29cd886bc7f86d39d2de1149318c0770705cd343c6abf8"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/settings/SettingsScreen.kt": "8ec050e0109e21838d29cd886bc7f86d39d2de1149318c0770705cd343c6abf8",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/media/VideoPreviewFrames.kt": "de780869520133997524dccb887c6c2d4f6e352a2033f0bae11ebdb09ccc9f98",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/media/LocalVideoPreviewFetcher.kt": "a734f48045ce36c23f41109ac051412cc533e635b2bb8d25749a56a42c1bab7b",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/NanzhufengApplication.kt": "db084e894418d9785fdc1f27b805aeba63cc102f131e862def303b4df5e32202",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "32767c6e650bd01619723fb9694bc52930eb76cc20d4d66f7c718ee763de67e8",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryPreviewSource.kt": "4db4328d86f3681174048d161cae64fee83b675c2ebe3c5c09c10807943626cb",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/AppContainer.kt": "f3451cd10c9c052062c5e7f4ef532d2321cbb9102a4951668144b9381538c5a1",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/AndroidLocalMediaInspector.kt": "4dfb7d5939a2dab8b5766c6eb9b774333213127780ce60d9986d2f1065ae2851",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/history/HistoryMediaCleanup.kt": "229cbcc6c012c905a8b911e1b50bcada6b78579f8d9e5321035dff983eab406f",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryMediaMetadata.kt": "593cbecddf4f3ea2d8ce827921f07084dcf25a071d4c0660b7ad0e6364373aa3",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryCleanupFeedback.kt": "4a8a15fddc48fe6b871087b978e80a4b283b550af107e71d201fbf07042da6ee",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720"
       },
       "evidence": [
         "docs/verification/2026-10-09-sakura-remux-identity-and-stop-closure.md",
-        "docs/verification/2026-10-13-remove-settings-feature-review.md"
+        "docs/verification/2026-10-13-remove-settings-feature-review.md",
+        "docs/verification/2026-10-16-video-preview-black-frames.md",
+        "docs/verification/2026-10-17-history-full-cleanup.md"
       ]
     },
     {
@@ -85,7 +98,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/playback/VideoPlaybackMemory.kt": "f88905e821065c2bf7d8ffe3cb7ff548d0ff326e989ebe4de428c9d2a362ea89",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/playback/VideoPlayerGestureController.kt": "a42a5abe5b82b473bc976385dd4fd2d2f5ab6e7b12975c73af2a5545b9b26369",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/InternalVideoPlayerDialog.kt": "2e8d348d65b1dd736f24a9559cc1c4d6757cbcae3b9faadc2f1c31ed4b74e948",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "aceb0635775899b264ea4032aa16bbaca5e82fb9c9809d0d3990b704f8a45f6e",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/playback/PreferencesVideoPositionStorage.kt": "b6c0ad9f4c41d6f6fe5418e38619a362f5627d3734db23fdc76bbc616155be73"
       },
       "evidence": [
@@ -97,14 +110,15 @@
       "concept": "历史收藏",
       "document": "docs/history-favorites.md",
       "sources": {
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "c79a6cd2b557607bdf41ae8964234fe0409bc43187a7a2f559adf59181bb11b7",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "32767c6e650bd01619723fb9694bc52930eb76cc20d4d66f7c718ee763de67e8",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryFilter.kt": "a97b75f94ac16751cf41d4adda2fd4d08fefb9b60eefcb16a1ddfd6673b9e290",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/NanzhufengDatabase.kt": "5bd2812d138eebdd339f238ea70628936f6d02d16b9dfafab5b761136a473820",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "9cc2b8f7968f8f943e13e7be1c67d39e87f886c360baf29b375714eec3403ff1",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "9c58a296bd79c5897cff5c4b12223606248ac342c1a08024ba419520a857d53e"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "249bd3aa3c375dc1267a0540d8bea6e20853f5e923d7031a9b0f3e69304a46c0",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "7ea0793837315ac968c2bd9850f8083a8c682256a79dd9cefba1a168bf0b4c68"
       },
       "evidence": [
-        "docs/verification/2026-10-11-history-favorites.md"
+        "docs/verification/2026-10-11-history-favorites.md",
+        "docs/verification/2026-10-17-history-toolbar-row.md"
       ]
     },
     {
@@ -141,7 +155,7 @@
       "concept": "验证与正式交付",
       "document": "docs/release-and-verification.md",
       "sources": {
-        "android/app/build.gradle.kts": "67a7524463062c8609d224e3444b1f3133d43342ae39c4a1b03f847f96d8b8fa",
+        "android/app/build.gradle.kts": "1c81e9c461c719baf049a14f9f69be23f694015b36764ff4cf038091f797d44c",
         "android/app/proguard-rules.pro": "db71f9dd4cb8d309243df5c703770fe244a6c37f4ebd69a4ccf517d617d91113",
         "android/app/src/main/AndroidManifest.xml": "7d101e81353b6556b8c1c6c84f109cc5d72df8894f12d202b5c934931f75a3d1",
         "tools/verify_frozen_release.py": "70e86ed0b7272913ba6709a2b7415d9dd301e8270129b98d37afe4b4433fce43",

@@ -1,6 +1,10 @@
 package com.nanzhufeng.videodownloader.data.repository
 
 import androidx.room.withTransaction
+import com.nanzhufeng.videodownloader.domain.history.*
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
 import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
@@ -35,7 +39,9 @@ class RoomDownloadRepository(
     private val database: NanzhufengDatabase,
     private val clock: () -> Long = System::currentTimeMillis,
     private val idFactory: () -> String = { UUID.randomUUID().toString() },
+    private val mediaInspector: LocalMediaInspector = LocalMediaInspector { LocalMediaAvailability.UNKNOWN },
 ) : DownloadRepository {
+    private val cleanupMutex = Mutex()
     private val taskDao = database.downloadTaskDao()
     private val historyDao = database.downloadHistoryDao()
     private val throughputDao = database.downloadThroughputReportDao()
@@ -264,8 +270,30 @@ class RoomDownloadRepository(
         return historyDao.deleteByIds(uniqueIds)
     }
 
-    override suspend fun deleteMissingHistoryRecords(): Int =
-        historyDao.deleteMissingMedia()
+    override suspend fun deleteMissingHistoryRecords(): HistoryCleanupResult = cleanupMutex.withLock {
+        HistoryMediaCleanup(
+            load = { history.first() },
+            inspector = mediaInspector,
+            commit = { plan ->
+                database.withTransaction {
+                    var removed = 0
+                    var restored = 0
+                    var changed = 0
+                    val missingIds = plan.missing.mapTo(hashSetOf()) { it.taskId }
+                    for (snapshot in plan.missing + plan.readable) {
+                        val current = historyDao.getById(snapshot.taskId)?.toDomain()
+                        if (current == null || !matchesHistoryCleanupSnapshot(current, snapshot)) {
+                            changed++
+                            continue
+                        }
+                        if (snapshot.taskId in missingIds) removed += historyDao.deleteById(snapshot.taskId)
+                        else restored += historyDao.markMediaAvailable(snapshot.taskId)
+                    }
+                    HistoryCleanupCommit(removed, changed, restored)
+                }
+            },
+        ).run()
+    }
 
     override suspend fun markHistoryMediaMissing(taskId: String): Boolean =
         historyDao.markMediaMissing(taskId) == 1

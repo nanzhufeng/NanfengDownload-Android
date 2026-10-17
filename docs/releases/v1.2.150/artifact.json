@@ -1,0 +1,14 @@
+{
+  "version": "1.2.150",
+  "versionCode": 10350,
+  "bytes": 57735339,
+  "sha256": "34e0e896af73227fab3d9f49c11913cb1e498386aa81392f24415387371ea0fc",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.150.apk",
+  "productionSourcesSha256": "a04dde7d32cf3fae3ab071cd1069a29ef9fd6527d9067e4707244faac5e9fb7e",
+  "scope": "WORKTREE candidate; isolated emulator preview validation and explicitly authorized preserved-data OPPO overlay verified; no commit or publication; main-device business acceptance remains user-driven",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

@@ -91,7 +91,7 @@ class AppContainer private constructor(
                 NanzhufengMigrations.MIGRATION_10_11,
             )
                 .build()
-            val downloads = RoomDownloadRepository(database)
+            val downloads = RoomDownloadRepository(database, mediaInspector = com.nanzhufeng.videodownloader.data.repository.AndroidLocalMediaInspector(applicationContext))
             val sessions = WebViewSessionProvider(applicationContext)
             val douyinCaptures = DouyinCapturedMediaRepository(applicationContext)
             val performanceReporter = DownloadPerformanceReporter { taskId, stage, elapsedMillis ->

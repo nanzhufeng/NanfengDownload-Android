@@ -130,6 +130,24 @@ fun NanzhufengApp(
         var historyFavoritesOnly by rememberSaveable { mutableStateOf(false) }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
+        var historyCleanupRunning by remember { mutableStateOf(false) }
+        val cleanMissingHistories: () -> Unit = {
+            if (!historyCleanupRunning) {
+                historyCleanupRunning = true
+                scope.launch {
+                    try {
+                        val result = downloads.deleteMissingHistoryRecords()
+                        IslandFeedback.info(context, com.nanzhufeng.videodownloader.feature.history.historyCleanupFeedback(result))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        IslandFeedback.error(context, "失效记录检查未完成，请稍后重试")
+                    } finally {
+                        historyCleanupRunning = false
+                    }
+                }
+            }
+        }
         val homeViewModel: HomeViewModel = viewModel(
             factory = HomeViewModel.factory(downloads, settings, discovery),
         )
@@ -401,9 +419,8 @@ fun NanzhufengApp(
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
                         },
-                        onDeleteMissingHistories = {
-                            scope.launch { downloads.deleteMissingHistoryRecords() }
-                        },
+                        onDeleteMissingHistories = cleanMissingHistories,
+                        historyCleanupRunning = historyCleanupRunning,
                         onMediaMissing = { taskId ->
                             scope.launch { downloads.markHistoryMediaMissing(taskId) }
                         },
@@ -573,9 +590,8 @@ fun NanzhufengApp(
                         onDeleteHistories = { taskIds ->
                             scope.launch { downloads.deleteHistoryRecords(taskIds) }
                         },
-                        onDeleteMissingHistories = {
-                            scope.launch { downloads.deleteMissingHistoryRecords() }
-                        },
+                        onDeleteMissingHistories = cleanMissingHistories,
+                        historyCleanupRunning = historyCleanupRunning,
                         onMediaMissing = { taskId ->
                             scope.launch { downloads.markHistoryMediaMissing(taskId) }
                         },
@@ -666,6 +682,7 @@ private fun AppNavHost(
     onHistoryFavoritesOnlyChange: (Boolean) -> Unit,
     onDeleteHistories: (List<String>) -> Unit,
     onDeleteMissingHistories: () -> Unit,
+    historyCleanupRunning: Boolean,
     onMediaMissing: (String) -> Unit,
     onOpenHistoryVideo: (taskId: String, uri: String, title: String) -> Unit,
     expanded: Boolean,
@@ -723,6 +740,7 @@ private fun AppNavHost(
                 onFavoritesOnlyChange = onHistoryFavoritesOnlyChange,
                 onDeleteRecords = onDeleteHistories,
                 onDeleteMissingRecords = onDeleteMissingHistories,
+                cleanupRunning = historyCleanupRunning,
                 onMediaMissing = onMediaMissing,
                 onOpenInternalVideo = onOpenHistoryVideo,
             )

@@ -398,8 +398,8 @@ interface DownloadHistoryDao {
     @Query("DELETE FROM download_history WHERE taskId IN (:taskIds)")
     suspend fun deleteByIds(taskIds: List<String>): Int
 
-    @Query("DELETE FROM download_history WHERE fileExists = 0")
-    suspend fun deleteMissingMedia(): Int
+    @Query("UPDATE download_history SET fileExists = 1 WHERE taskId = :taskId AND fileExists = 0")
+    suspend fun markMediaAvailable(taskId: String): Int
 
     @Query(
         """

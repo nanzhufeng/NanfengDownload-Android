@@ -1,0 +1,14 @@
+{
+  "version": "1.2.151",
+  "versionCode": 10351,
+  "bytes": 57751723,
+  "sha256": "9aa41103b52493af02854abd010269bbedd9cb4b9d68f57bb624485b3b0f8ce9",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.151.apk",
+  "productionSourcesSha256": "434fec5085cc99b934059217c99e6dfb167209f4e0e1d5890c422b1164f3ecec",
+  "scope": "WORKTREE frozen candidate; dedicated isolated emulator UI cleanup verified; no main-device installation, commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

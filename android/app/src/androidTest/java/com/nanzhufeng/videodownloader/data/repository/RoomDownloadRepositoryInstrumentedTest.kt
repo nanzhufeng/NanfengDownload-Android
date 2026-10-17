@@ -236,12 +236,14 @@ class RoomDownloadRepositoryInstrumentedTest {
     }
 
     @Test
-    fun cleanMissingHistoryRecordsDeletesOnlyEntriesMarkedUnavailable() = runBlocking {
+    fun cleanupRetainsUncertainFilesEvenWhenPreviouslyMarkedUnavailable() = runBlocking {
         repository.archiveTerminal(history().copy(taskId = "missing", contentId = "missing-content", fileExists = false))
         repository.archiveTerminal(history().copy(taskId = "available", contentId = "available-content", fileExists = true))
 
-        assertEquals(1, repository.deleteMissingHistoryRecords())
-        assertEquals(listOf("available"), repository.history.first().map { it.taskId })
+        val result = repository.deleteMissingHistoryRecords()
+        assertEquals(0, result.removed)
+        assertEquals(2, result.uncertain)
+        assertEquals(setOf("missing", "available"), repository.history.first().map { it.taskId }.toSet())
     }
 
     private fun media() = MediaItem(

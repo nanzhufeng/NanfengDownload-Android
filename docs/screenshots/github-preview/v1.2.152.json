@@ -1,0 +1,26 @@
+{
+  "version": "1.2.152",
+  "versionCode": 10352,
+  "apkSha256": "80114ba62440c2d756b142c63704e65493050882a9858226650e99796e150e6e",
+  "productionSourcesSha256": "5d13ecb24001eb0369a291f9c07e34e21f05d4621f91e8d4d4345ea9d1800092",
+  "capturedDate": "2026-10-17",
+  "device": "NanfengDownloadCleanup20261017 isolated Android emulator",
+  "fontScale": 1.0,
+  "content": "Normal history UI with locally generated test-pattern video; no private user media or accounts",
+  "screenshots": [
+    {
+      "path": "docs/screenshots/github-preview/history-compact-v1.2.152.png",
+      "sha256": "dacbe43d8550e68ec4a6d8bbe1253757ba2e3e596f6acfc3e68c2ee2d72cdc11",
+      "width": 1080,
+      "height": 2400,
+      "densityDpi": 420
+    },
+    {
+      "path": "docs/screenshots/github-preview/history-expanded-v1.2.152.png",
+      "sha256": "c07475910d6a28978fe7d88f8a669b7036e9ee9ba7e3442124cd2f096f239676",
+      "width": 2248,
+      "height": 2480,
+      "densityDpi": 442
+    }
+  ]
+}

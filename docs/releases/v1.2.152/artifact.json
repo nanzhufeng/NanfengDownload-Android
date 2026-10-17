@@ -1,0 +1,14 @@
+{
+  "version": "1.2.152",
+  "versionCode": 10352,
+  "bytes": 57735339,
+  "sha256": "80114ba62440c2d756b142c63704e65493050882a9858226650e99796e150e6e",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.152.apk",
+  "productionSourcesSha256": "5d13ecb24001eb0369a291f9c07e34e21f05d4621f91e8d4d4345ea9d1800092",
+  "scope": "WORKTREE frozen candidate; isolated compact/wide/narrow history toolbar UI verified; no main-device overlay, commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

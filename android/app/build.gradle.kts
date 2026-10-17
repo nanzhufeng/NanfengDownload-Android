@@ -68,8 +68,8 @@ android {
         applicationId = "com.nanzhufeng.videodownloader"
         minSdk = 29
         targetSdk = 35
-        versionCode = 10349
-        versionName = "1.2.149"
+        versionCode = 10352
+        versionName = "1.2.152"
         buildConfigField("String", "BUILD_TIMESTAMP", "\"$aboutBuildTimestamp\"")
         testApplicationId = "com.nanzhufeng.videodownloader.codextest"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

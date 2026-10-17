@@ -1,6 +1,8 @@
 package com.nanzhufeng.videodownloader.feature.history
 
 import android.content.Context
+import com.nanzhufeng.videodownloader.data.repository.AndroidLocalMediaInspector
+import com.nanzhufeng.videodownloader.domain.history.LocalMediaAvailability
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -16,6 +18,7 @@ internal data class HistoryMediaMetadata(
     val kind: HistoryMediaKind = HistoryMediaKind.VIDEO,
     val readableUris: List<String> = emptyList(),
     val totalFileCount: Int = 0,
+    val allMediaMissingConfirmed: Boolean = false,
 )
 
 internal enum class HistoryMediaKind {
@@ -53,6 +56,7 @@ internal suspend fun readHistoryMediaMetadata(
         kind = kind,
         readableUris = readable.map { it.uri.toString() },
         totalFileCount = uris.size,
+        allMediaMissingConfirmed = metadata.all { it.availability == LocalMediaAvailability.MISSING },
     )
 }
 
@@ -63,17 +67,15 @@ private data class HistorySingleMediaMetadata(
     val mimeType: String,
     val isDynamicImage: Boolean,
     val readable: Boolean,
+    val availability: LocalMediaAvailability,
 )
 
-private fun readSingleMetadata(
+private suspend fun readSingleMetadata(
     context: Context,
     uri: Uri,
 ): HistorySingleMediaMetadata {
-    val readable = runCatching {
-        context.contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
-            descriptor.statSize != 0L
-        } == true
-    }.getOrDefault(false)
+    val availability = AndroidLocalMediaInspector(context).inspect(uri.toString())
+    val readable = availability == LocalMediaAvailability.AVAILABLE
     val mimeType = runCatching { context.contentResolver.getType(uri).orEmpty() }.getOrDefault("")
     val documentMetadata = if (readable) runCatching {
         context.contentResolver.query(
@@ -111,6 +113,7 @@ private fun readSingleMetadata(
         mimeType = mimeType,
         isDynamicImage = documentMetadata.second.contains("（动态）"),
         readable = readable,
+        availability = availability,
     )
 }
 
