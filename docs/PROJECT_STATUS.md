@@ -4,11 +4,13 @@
 
 ## Verified
 
-- Last verified: 2026-10-17（Asia/Shanghai）；branch main，Code baseline: WORKTREE（底层 `6d7245ea7b25de601730b7497a21cc516aee3029`）；候选1.2.152/10352，Room11。
-- Verification scope: 152冻结486生产源WORKTREE清单，5项定向Release测试/lint/R8/构建及三视口同排与操作验证；151全量清理旧证据保其原范围。152已按明确授权同签名保数据覆盖OPPO并回读精确包及数据投影；未提交/发布。
+- Last verified: 2026-10-17（Asia/Shanghai）；branch main，Code baseline: COMMIT `c8008e40224305ba3eed27fa2148ab3d85583f47`；候选1.2.152/10352，Room11。
+- Verification scope: 152冻结486生产源与生产提交/精确APK只读核对通过；5项定向Release测试/lint/R8/构建及三视口证据保留原范围，151全量清理旧证据亦保留。152已同签名覆盖OPPO，正式Release及匿名公开附件回拉通过。
 - Status: Active；Verified by: Codex。
 
 ## Current
+
+- 152正式Release已公开，源码生产提交/标签/精确APK与校验附件均远端回读一致；README当前手机/展开屏预览字节及渲染链接已核对。[152发布](verification/2026-10-17-release-152.md)。
 
 - 152正式签名冻结包已保数据覆盖OPPO：实际包字节/签名一致，首装及数据目录身份、15条媒体元数据不变；未自动启动或操作业务。[152覆盖记录](verification/2026-10-17-oppo-release-152-overlay.md)。
 
@@ -28,12 +30,13 @@
 
 ## In Progress
 
-- 用户已授权152正式发布；精确冻结包、486生产源及README当前截图已核对，正在提交并发布GitHub。
+- 152发布已完成；当前无进行中的安装或发布动作，既有用户路径缺口独立保留。
 
 ## Tests
 
 | 检查 | 结论 | 范围 |
 | --- | --- | --- |
+| 152正式发布/匿名下载 | PASS | 486源/生产提交/远端标签一致；两个附件digest与公开回拉摘要、README及截图字节一致 |
 | OPPO152正式覆盖 | PASS | 同签名/精确包回读/首装及数据目录身份、15条媒体元数据不变；未启动业务 |
 | 152同排布局Release/隔离UI | PASS | 5项定向测试、lint/R8/构建；三视口对齐/横滑、选择进入取消、清理确认取消 |
 | 151全量清理Debug/Release | PASS | 定向15项/全量484项；lint0错误/43警告/3信息；R8/构建，lenient |
@@ -63,12 +66,12 @@
 
 ## Sync & Safety
 
-- Git working tree: 150预览、151全量清理与152同排布局源码/测试/合同/验证/冻结候选LOCAL ONLY；均未提交，原SDD删除保留。
-- Remote sync: 149既有main/标签/Release已回读一致；本轮150/151/152源码、测试、合同和候选LOCAL ONLY，未提交/推送/发布。150及后续152候选另按用户明确授权保数据覆盖OPPO，精确包已回读。
+- Git working tree: 150预览、151清理与152布局及发布内容已纳入生产提交；收尾时仅交付状态文档增量和原SDD删除。原SDD删除不提交。
+- Remote sync: 生产提交 `c8008e40224305ba3eed27fa2148ab3d85583f47`、v1.2.152标签和正式Release已远端回读，公开APK与校验文件逐字节一致；本状态随收尾文档继续同步，不移动发布标签。150及后续152的授权主设备覆盖证据保留。
 - 不操作账单数据、凭据、私有媒体或数据库；Rollback point: UNKNOWN，旧Release不等于允许降级用户数据。
 
 ## Next
 
-1. 手机已覆盖152，151清理与152布局的隔离证据保留；发布按后续明确授权，冻结包不重建。
+1. 手机已覆盖152，GitHub152正式发布完成；冻结包不重建，保留原各层验收范围。
 2. 真实主手机任务由用户验收，不自动重试下载。
 3. 按具体红灯推进限时日常、其他媒体及既有验证缺口。
