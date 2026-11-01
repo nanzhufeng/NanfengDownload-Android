@@ -11,6 +11,8 @@ import android.net.Uri
 import android.os.Build
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
+import com.nanzhufeng.videodownloader.data.repository.AndroidLocalMediaInspector
+import com.nanzhufeng.videodownloader.domain.history.LocalMediaAvailability
 import java.io.FileNotFoundException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,13 +31,13 @@ internal sealed interface MediaOpenResult {
     data object CannotOpen : MediaOpenResult
 }
 
-internal fun openWithDefaultPlayer(context: Context, item: DownloadHistory): MediaOpenResult =
+internal suspend fun openWithDefaultPlayer(context: Context, item: DownloadHistory): MediaOpenResult =
     openMedia(context, item) { intent -> context.startActivity(intent) }
 
 internal fun shouldUseInternalAudioPlayer(item: DownloadHistory): Boolean =
     item.resolution == ResolutionPreset.AUDIO_MP3
 
-internal fun openWithPlayer(
+internal suspend fun openWithPlayer(
     context: Context,
     item: DownloadHistory,
     option: MediaPlayerOption,
@@ -51,18 +53,24 @@ internal fun mediaOpenMessage(result: MediaOpenResult, isAudio: Boolean): String
     val mediaName = if (isAudio) "音频" else "视频"
     return when (result) {
         MediaOpenResult.Opened -> ""
-        MediaOpenResult.MissingMedia -> "${mediaName}文件不存在或已无法读取。已在历史中标记，可重新读取原链接下载。"
+        MediaOpenResult.MissingMedia -> "${mediaName}文件已不存在，已在历史中标记，可重新读取原链接下载。"
         MediaOpenResult.NoPlayer -> "没有可用的${mediaName}播放器。请安装或启用一个支持该文件的播放器后重试。"
-        MediaOpenResult.CannotOpen -> "${mediaName}文件暂时无法打开。请确认文件未损坏后重试。"
+        MediaOpenResult.CannotOpen -> "${mediaName}文件暂时无法打开，请检查保存目录授权、存储连接或文件状态后重试。"
     }
 }
 
-private fun openMedia(
+private suspend fun openMedia(
     context: Context,
     item: DownloadHistory,
     start: (Intent) -> Unit,
 ): MediaOpenResult {
-    if (!isMediaReadable(context, item)) return MediaOpenResult.MissingMedia
+    val uri = item.outputUri ?: return MediaOpenResult.MissingMedia
+    when (AndroidLocalMediaInspector(context).inspect(uri)) {
+        LocalMediaAvailability.MISSING -> return MediaOpenResult.MissingMedia
+        LocalMediaAvailability.UNKNOWN -> return MediaOpenResult.CannotOpen
+        LocalMediaAvailability.AVAILABLE -> Unit
+    }
+    if (!isMediaReadableInBackground(context, item)) return MediaOpenResult.CannotOpen
     val intent = runCatching { mediaViewIntent(context, item) }
         .getOrElse { return MediaOpenResult.CannotOpen }
     return try {
@@ -71,8 +79,11 @@ private fun openMedia(
     } catch (_: ActivityNotFoundException) {
         MediaOpenResult.NoPlayer
     } catch (_: FileNotFoundException) {
-        // The file may have been deleted after the preflight completed.
-        MediaOpenResult.MissingMedia
+        // A provider may also report an access failure as FileNotFoundException.
+        // Reconfirm absence before persisting a missing-media marker.
+        if (AndroidLocalMediaInspector(context).inspect(uri) == LocalMediaAvailability.MISSING) {
+            MediaOpenResult.MissingMedia
+        } else MediaOpenResult.CannotOpen
     } catch (_: SecurityException) {
         MediaOpenResult.CannotOpen
     } catch (_: Exception) {

@@ -2,7 +2,7 @@
 
 > 现行合同从[合同总入口](contracts/README.md)读取；本页保留自身规则/架构/经验职责，不重复定义参数。
 
-初版：2026-08-23；全项目复盘：2026-10-11（Asia/Shanghai）。本档案记录有代码、Git或验证文档依据的事实；当前状态由[PROJECT_STATUS](PROJECT_STATUS.md)维护，具体接续由[交接](../PROJECT_HANDOFF.md)维护。
+初版：2026-08-23；全项目复盘：2026-10-11；合同/架构路由复核：2026-10-18（Asia/Shanghai）。本档案记录有代码、Git或验证文档依据的事实；当前状态由[PROJECT_STATUS](PROJECT_STATUS.md)维护，具体接续由[交接](../PROJECT_HANDOFF.md)维护。
 
 目录：[目标](#1-项目身份目标与边界) · [技术栈](#3-技术栈与配置) · [目录](#4-目录结构) · [架构与数据流](#5-架构数据流持久化与数据安全) · [模块](#6-核心模块与所有权) · [决策](#7-关键决策及原因) · [过程](#8-开发过程与git脉络) · [踩坑](#9-踩坑根因与修复) · [验证](#10-测试与验证证据) · [部署](#11-构建部署与交付) · [冲突](#12-文档与源码冲突处理) · [风险](#13-已知问题未确认事项与后续路线)
 
@@ -14,12 +14,16 @@
 
 产品不以付费、会员、DRM、私密或地区访问限制绕过为目标；受限内容与不支持格式失败保留原因。根目录 `app/`、`start.py`、桌面依赖和PyInstaller脚本是初始PySide原型，未作为本轮Android构建或业务验证对象。依据：Git `4077045`、[桌面入口](../start.py)、[桌面依赖](../requirements.txt)。
 
-## 2. 复盘范围与事实基线
+## 2. 2026-10-11复盘范围与历史基线（保留）
 
 - 复盘开始HEAD：`156f6b2074e7a75f5aab9a05a53ec3bcc436b6f9`，分支main；实际验证生产代码为 `d0602d13c87411f5225889c04ef9a6f403a2a362`，后续提交为文档/核对工具。
 - 开始清单：778个Git受控路径，726个现存文本、51个二进制、1个先前本地报告删除；114条可达Git提交。全量文件分类、文本索引/风险扫描、Python语法与结构化配置解析及核心链定向核对见[本轮复盘记录](verification/2026-10-11-full-project-retrospective.md)。这不等于逐行算法证明、全格式验收或重新跑所有历史设备路径。
-- 当前源码1.2.146/10346、Room11；479个生产文件与指定生产提交、冻结APK清单相同。元数据见[artifact](releases/v1.2.146/artifact.json)与[源码清单](releases/v1.2.146/source-manifest.json)。本轮不改业务代码，不重新打包、安装、推送或发布。
+- 该次源码1.2.146/10346、Room11；479个生产文件与指定生产提交、冻结APK清单相同。元数据见[artifact](releases/v1.2.146/artifact.json)与[源码清单](releases/v1.2.146/source-manifest.json)。本轮不改业务代码，不重新打包、安装、推送或发布。
 - 动态设备、网络、版本和提交数量只在日期快照有效；后续必须读取当前代码与适用证据，不把本档案当现装状态证明。
+
+### 后续实现增量的事实入口
+
+已发布生产基线为152，当前本地候选及具体提交/构建/设备/发布状态由PROJECT_STATUS维护。粘贴及读取代次见[来源合同](source-discovery-and-session.md)，多点预览与全量清理见[任务与输出合同](task-history-and-output.md)，同排筛选操作见[收藏合同](history-favorites.md)，AAC零时间前缀见[传输合同](download-transfer-policy.md)。后续增量不改写下方146历史测试和设备结论。当前全面审阅范围与冲突处理见[2026-10-18合同审计](verification/2026-10-18-contract-consistency-audit.md)。 155三页共享表面与设置菜单化由[任务与输出合同](task-history-and-output.md)维护；[日期回归](verification/2026-10-19-nanfengji-ui-and-settings-menu.md)保留默认/展开/字体、实际菜单操作及主设备未验证边界。
 
 ## 3. 技术栈与配置
 
@@ -116,9 +120,11 @@ Room数据库版本11，AppContainer登记1→11全部显式迁移，无生产�
 | AndroidPcmDecoder / Mp3AudioTranscoder / LameMp3Encoder | PCM解码、流式MP3编码、音频分段 | 真实格式和实际样本校验，不改后缀冒充MP3；Git `afccbe4`、`3888b7d` |
 | VideoResolutionTranscoder / VideoSegmenter | 需要时分辨率转码；关键帧视频分段 | 无损分段边界允许GOP误差，不承诺精确数学等分；[分段报告](verification/2026-07-27-android-v1.2.3-video-segmentation.md) |
 | MediaFileValidator / MediaStoreOutputStore | 结构预检、命名冲突新副本、MediaStore/SAF写入/回读 | 应用结构预检不等于每个媒体逐帧完整解码；本次异常只回滚新输出 |
+| VideoPreviewFrames / LocalVideoPreviewFetcher | 本地视频多点取帧及独立预览缓存 | 不改成品/历史身份；[任务与输出合同](task-history-and-output.md) |
+| HistoryMediaCleanup / AndroidLocalMediaInspector / Repository | 全库快照检查、三态文件判断及事务清理 | 不受收藏/搜索/懒加载限制，不删除媒体；[任务与输出合同](task-history-and-output.md) |
 | HistoryScreen / HistoryMediaMetadata / HistoryMediaLauncher | 筛选、元数据、收藏、失效、批量删除与播放路由 | 大小/时长优先从成品读取；[收藏合同](history-favorites.md) |
 | NanzhufengApp / VideoPlaybackMemory / GestureController | 根播放会话、位置记忆、连续跳转/原生按钮 | 位置与下载完整性无关；[播放合同](video-playback.md) |
-| DownloadIslandState / Overlay / core/ui IslandFeedback、IslandMotion | 后台常驻状态与App内短反馈分别拥有单一渲染器 | 简洁/详细模式、原位缩放、生命周期清理；[反馈UI合同](design/2026-10-10-island-feedback-ui-contract.md) |
+| DownloadIslandState / Placement / Overlay / core/ui IslandFeedback、IslandMotion | 后台常驻状态与App内短反馈分别拥有单一渲染器 | 简洁/详细模式、原位缩放、生命周期清理；[反馈UI合同](design/2026-10-10-island-feedback-ui-contract.md) |
 | SettingsScreen / SettingsRepository | 质量、命名、目录、并发、会话/权限、版本 | DataStore默认并发任务1、支持1至3；设置存在不等于权限已授权 |
 
 ## 7. 关键决策及原因
@@ -181,7 +187,7 @@ Room数据库版本11，AppContainer登记1→11全部显式迁移，无生产�
 
 列表摘要、折叠布局和图标也有历史反馈：时长/大小应从成品惰性读取并固定行高；软键盘后主动作必须可达；图标不追加底板/外框。这些沿用[历史信息审计](verification/2026-07-26-history-list-media-metadata-experience-audit.md)、[键盘审计](verification/2026-07-21-keyboard-final-regression-experience-audit.md)及对应Git，而非复制当时像素/容差作为通用规则。
 
-## 10. 测试与验证证据
+## 10. 2026-10-11测试与验证快照（保留原范围）
 
 | 层 | 已有结果 / 适用范围 | 不能替代 |
 | --- | --- | --- |
@@ -205,7 +211,7 @@ Android在 `android/` 使用wrapper和匹配JDK构建；macOS现有门禁使用A
 
 - 正式签名执行合同：完整环境组优先、完整App专属用户Gradle组备用、禁止混配；**实际源码** `releaseSigningValue`按字段回退，仅检查最终齐全。部分环境+备用值可能通过，整组拒绝门禁尚缺；文档不能把要求写成已实现。
 - `packageRelease`/`bundleRelease`检查最终字段与keystore文件；`assembleRelease`还检查Parcelable映射；所有connected测试有失败关闭门禁。依据：app Gradle及[Proguard](../android/app/proguard-rules.pro)。
-- 最近146门禁曾使用 `--offline --dependency-verification=off`，现有校验XML包含531个组件，但严格依赖校验是否全面恢复未确认。不得写成全套依赖校验已通过。
+- 2026-10-11的146门禁曾使用 `--offline --dependency-verification=off`，现有校验XML包含531个组件，但严格依赖校验是否全面恢复未确认。不得写成全套依赖校验已通过。
 - 覆盖安装只在目标、用户授权、递增版本、同证书、正式非Debug包及数据指纹核对后用 `pm install -r --user 0`；禁止卸载/清数据/数据库注入，安装不替代业务验证。
 - 正式发布冻结顺序为最终构建→字节/身份→精确安装/回拉→交付校验；此后不重建/重签同一冻结包。146 APK57,718,955B与SHA记录见artifact；GitHub回读是既有发布报告证据，本轮未刷新远端。
 
@@ -231,13 +237,13 @@ Android在 `android/` 使用wrapper和匹配JDK构建；macOS现有门禁使用A
 
 1. 签名配置未自动整组选源/拒绝来源混配；有源码依据，待单独生产增量与回归，本文不改业务代码。
 2. 固定全平台每次首次读取≤1秒未全面通过，119有1.067/1.940秒等超标；公网长片约4.79MB/s仍未达5–10MB/s。其原因包括外部网络与平台条件，不能用本地峰值、读取缓存或合并降时替代实测。
-3. lint33条警告仍在，完整依赖校验路径尚未证实恢复；不能将“构建通过”写成零风险。
+3. 完整依赖校验路径仍有缺口，后续150/151/152构建使用lenient且lint仍有警告；具体数量按各日期报告保留，不能将“构建通过”写成零风险。
 
 ### 尚未确认
 
 - AVC之外TS、更多长片/独立轨、旋转/色彩等元数据、极大历史量与复杂自定义目录压力。
 - 发布与Room归档之间突然死亡、MediaStore/SAF多输出跨系统恢复；当前异常回滚不是进程死亡的完整证明。
-- OPPO146用户路径、私有Room迁移/收藏播放、OEM长期后台、锁屏/通知权限/TalkBack和窄屏多任务空间。
+- 主设备实际下载/清理/播放路径、私有Room全表、OEM长期后台、锁屏/通知权限/TalkBack和窄屏多任务空间；覆盖安装版本与保留证据读取PROJECT_STATUS，不沿用146时代现装结论。
 - 更多真实作品/站点、设备级重启及旧桌面原型在当前机器的完整运行/打包；不以代码/历史单例补造结论。
 
 路线按风险和证据推进：先签名组门禁与严格依赖校验；再复现具体来源/格式的读取、吞吐、完整性或发布恢复缺口；最后只在明确授权下做主设备业务/长期后台验收。每个增量先建立红灯、指定唯一所有者、最小充分回归，再更新状态与证据，不重复已通过且源码未变的工作。

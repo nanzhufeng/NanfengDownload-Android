@@ -1,0 +1,14 @@
+{
+  "version": "1.2.160",
+  "versionCode": 10360,
+  "bytes": 57735339,
+  "sha256": "101c35fc6408b7fedf66a7029c07ff5bc12fbdf2f6ca014988227eabf925f689",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.160.apk",
+  "productionSourcesSha256": "bb1f2929c0a58ce9fd123b8af54faf5b90654651e89a6bd8f2d45b3aecbde512",
+  "scope": "WORKTREE frozen candidate; unfilled settings menu rows, semantic outlined icons and compact About with full source link fitted to one line; no commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

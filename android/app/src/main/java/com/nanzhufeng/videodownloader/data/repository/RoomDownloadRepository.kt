@@ -271,10 +271,14 @@ class RoomDownloadRepository(
     }
 
     override suspend fun deleteMissingHistoryRecords(): HistoryCleanupResult = cleanupMutex.withLock {
-        HistoryMediaCleanup(
-            load = { history.first() },
+        val started = System.nanoTime()
+        var loaded = started
+        var committing: Long? = null
+        val result = HistoryMediaCleanup(
+            load = { history.first().also { loaded = System.nanoTime() } },
             inspector = mediaInspector,
             commit = { plan ->
+                committing = System.nanoTime()
                 database.withTransaction {
                     var removed = 0
                     var restored = 0
@@ -293,6 +297,12 @@ class RoomDownloadRepository(
                 }
             },
         ).run()
+        val finished = System.nanoTime()
+        val scanFinished = committing ?: finished
+        android.util.Log.i("HistoryCleanup", "checked=${result.checked} removed=${result.removed} uncertain=${result.uncertain} " +
+            "loadMs=${(loaded - started) / 1_000_000} scanMs=${(scanFinished - loaded) / 1_000_000} " +
+            "commitMs=${if (committing == null) 0 else (finished - scanFinished) / 1_000_000} totalMs=${(finished - started) / 1_000_000}")
+        result
     }
 
     override suspend fun markHistoryMediaMissing(taskId: String): Boolean =

@@ -28,3 +28,5 @@ description: Synchronize 南枫下载 Android handoff, verification, architectur
 ## 合同漂移门禁
 
 先读[合同总入口](../../../docs/contracts/README.md)定位唯一正文；项目根运行 `python3 tools/check_contracts.py`。来源/合同有变化时先语义审阅和对应验证，再更新registry的已审阅摘要，禁止仅重算摘要越过审查。检查通过不替代功能/构建/设备结果；旧方案/交接只作历史参考。
+
+新增项目Markdown须同步注册表的文档角色或既有历史/证据目录；旧求解说明、设计验收和交接明确标为历史参考，正文保日期与独有知识。收敛当前交接时先将原完整正文保存到archive并登记原角色，不静默丢弃旧失败与授权边界。字段/算法只在唯一现行正文定义，档案/经验保所有权和链接。

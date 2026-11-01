@@ -1,6 +1,7 @@
 package com.nanzhufeng.videodownloader.core.ui
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -15,16 +16,21 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.nanzhufeng.videodownloader.R
@@ -46,12 +52,18 @@ fun WorkbenchCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.shadow(
+            elevation = 6.dp,
+            shape = MaterialTheme.shapes.medium,
+            clip = false,
+            ambientColor = Color.Black.copy(alpha = 0.04f),
+            spotColor = Color.Black.copy(alpha = 0.05f),
+        ),
         color = tone.containerColor(),
         contentColor = MaterialTheme.colorScheme.onSurface,
         shape = MaterialTheme.shapes.medium,
         tonalElevation = 0.dp,
-        shadowElevation = 1.dp,
+        shadowElevation = 0.dp,
     ) {
         Column(
             modifier = Modifier
@@ -61,6 +73,36 @@ fun WorkbenchCard(
         )
     }
 }
+
+/** Shared centered title, with symmetric space for optional brand artwork. */
+@Composable
+fun WorkbenchPageHeader(title: String, expanded: Boolean, leading: (@Composable () -> Unit)? = null) {
+    Box(Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
+        Text(
+            title,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp),
+            style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+        if (leading != null) Box(Modifier.align(Alignment.CenterStart).size(48.dp), contentAlignment = Alignment.Center) { leading() }
+    }
+}
+
+/** Filled fields establish hierarchy through surface and focus color rather than a hard frame. */
+@Composable
+fun workbenchFieldColors(container: Color = FieldSurface): TextFieldColors = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = FieldSurface,
+    unfocusedContainerColor = container,
+    disabledContainerColor = FieldSurface,
+    focusedBorderColor = Color.Transparent,
+    unfocusedBorderColor = Color.Transparent,
+    disabledBorderColor = Color.Transparent,
+    errorBorderColor = MaterialTheme.colorScheme.error,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    cursorColor = ForestGreen,
+)
 
 @Composable
 fun SectionHeader(title: String, summary: String) {

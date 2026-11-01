@@ -10,6 +10,8 @@ enum class LocalMediaAvailability { AVAILABLE, MISSING, UNKNOWN }
 
 fun interface LocalMediaInspector {
     suspend fun inspect(uri: String): LocalMediaAvailability
+    suspend fun forCleanup(uris: Collection<String>): LocalMediaInspector = this
+    suspend fun isSnapshotStillValid(): Boolean = true
 }
 
 data class HistoryCleanupResult(
@@ -27,6 +29,8 @@ internal class HistoryMediaCleanup(
 ) {
     suspend fun run(): HistoryCleanupResult {
         val rows = load().filter { it.finalStatus == DownloadTaskStatus.COMPLETED }.distinctBy { it.taskId }
+        val scan = inspector.forCleanup(rows.flatMap { it.outputUris + listOfNotNull(it.outputUri) }
+            .filter(String::isNotBlank).distinct())
         val missing = mutableListOf<DownloadHistory>()
         val readable = mutableListOf<DownloadHistory>()
         var uncertain = 0
@@ -38,7 +42,7 @@ internal class HistoryMediaCleanup(
             for (uri in uris) {
                 currentCoroutineContext().ensureActive()
                 val availability = try {
-                    inspector.inspect(uri)
+                    scan.inspect(uri)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
@@ -53,6 +57,8 @@ internal class HistoryMediaCleanup(
                 else -> missing += row
             }
         }
+        currentCoroutineContext().ensureActive()
+        if (!scan.isSnapshotStillValid()) return HistoryCleanupResult(rows.size, 0, uncertain + missing.size)
         currentCoroutineContext().ensureActive()
         val applied = commit(HistoryCleanupPlan(missing, readable))
         return HistoryCleanupResult(rows.size, applied.removed, uncertain, applied.changed, applied.restored)

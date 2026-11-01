@@ -24,14 +24,14 @@ class WorkbenchPaletteContractTest {
 
     @Test
     fun workspaceIsDarkerThanCardsWhileSelectionKeepsItsOwnSurface() {
-        assertEquals(Color(0xFFE6EAE7), WorkspaceBackground)
+        assertEquals(Color(0xFFE9ECEA), WorkspaceBackground)
         assertNotEquals(Color.White, WorkspaceBackground)
         assertNotEquals(Color.White, SelectedSage)
     }
 
     @Test
     fun supportingTextUsesNeutralColorInsteadOfASectionAccent() {
-        assertEquals(Color(0xFF5F6C64), SecondaryText)
+        assertEquals(Color(0xFF56625A), SecondaryText)
         assertNotEquals(ForestGreen, SecondaryText)
     }
 

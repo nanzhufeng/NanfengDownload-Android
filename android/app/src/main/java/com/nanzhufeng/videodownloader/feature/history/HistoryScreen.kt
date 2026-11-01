@@ -3,10 +3,11 @@ package com.nanzhufeng.videodownloader.feature.history
 import android.content.Intent
 import android.net.Uri
 import com.nanzhufeng.videodownloader.core.ui.IslandFeedback
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -76,21 +77,28 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.nanzhufeng.videodownloader.core.model.DownloadTaskStatus
 import com.nanzhufeng.videodownloader.core.model.DownloadHistory
 import com.nanzhufeng.videodownloader.core.model.DownloadThroughputReport
 import com.nanzhufeng.videodownloader.core.model.DownloadConnectionMode
 import com.nanzhufeng.videodownloader.core.model.DownloadPlatform
+import com.nanzhufeng.videodownloader.core.ui.WorkbenchPageHeader
+import com.nanzhufeng.videodownloader.core.ui.workbenchFieldColors
+import com.nanzhufeng.videodownloader.core.ui.ForestGreen
 import com.nanzhufeng.videodownloader.core.ui.AppCardTone
 import com.nanzhufeng.videodownloader.core.ui.PlatformIcon
-import com.nanzhufeng.videodownloader.core.ui.SelectedFilterChip
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -109,6 +117,7 @@ fun HistoryScreen(
     },
     onDeleteMissingRecords: () -> Unit = {},
     cleanupRunning: Boolean = false,
+    mediaInspectionVersion: Long = 0L,
     onMediaMissing: (String) -> Unit = {},
     onHistoryFavoriteChange: (String, Boolean) -> Unit = { _, _ -> },
     favoritesOnly: Boolean = false,
@@ -145,14 +154,7 @@ fun HistoryScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "历史",
-                        modifier = Modifier.weight(1f),
-                        style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                WorkbenchPageHeader("历史", expanded)
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 OutlinedTextField(
@@ -165,11 +167,8 @@ fun HistoryScreen(
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                     label = { Text("搜索标题、博主或原链接") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = MaterialTheme.colorScheme.surface,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        disabledContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
+                    shape = MaterialTheme.shapes.large,
+                    colors = workbenchFieldColors(Color.White),
                 )
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -274,6 +273,7 @@ fun HistoryScreen(
                     items(records, key = DownloadHistory::taskId) { item ->
                         HistoryItem(
                             item = item,
+                            mediaInspectionVersion = mediaInspectionVersion,
                             reports = throughputReports.filter { it.taskId == item.taskId },
                             expanded = expanded,
                             selectionMode = selectionMode,
@@ -405,91 +405,139 @@ private fun HistoryFilters(
 ) {
     var platformMenuExpanded by rememberSaveable { mutableStateOf(false) }
     var periodMenuExpanded by rememberSaveable { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .testTag("history-platform-time-filters"),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Box(modifier = Modifier.testTag("history-platform-filter")) {
-            SelectedFilterChip(
-                label = platform?.label() ?: "全部平台",
-                selected = true,
-                onClick = { platformMenuExpanded = true },
-            )
-            DropdownMenu(
-                expanded = platformMenuExpanded,
-                onDismissRequest = { platformMenuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("全部平台") },
-                    onClick = {
-                        platformMenuExpanded = false
-                        onPlatformChange(null)
-                    },
+    val labels = buildList {
+        add(platform?.label() ?: "全部平台")
+        add(period.label)
+        add("收藏")
+        if (showBulkDelete) add("批量删除")
+        if (cleanupRecordCount > 0 || cleanupRunning) add(if (cleanupRunning) "检查中…" else "清理失效")
+    }
+    val textMeasurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val labelStyle = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    BoxWithConstraints(Modifier.fillMaxWidth().testTag("history-platform-time-filters")) {
+        val rowWidth = maxWidth.coerceAtMost(600.dp)
+        val cellWidth = (rowWidth - 4.dp * (labels.size - 1)) / labels.size
+        val fontRatio = labels.minOf { label ->
+            val reserved = if (label == "收藏") 24.dp else 8.dp
+            val available = with(density) { (cellWidth - reserved).toPx() }
+            val measured = textMeasurer.measure(label, style = labelStyle, maxLines = 1, softWrap = false).size.width
+            (available / measured.coerceAtLeast(1)).coerceIn(0.5f, 1f)
+        }
+        val compactStyle = labelStyle.copy(fontSize = 12.sp * fontRatio, lineHeight = 16.sp * fontRatio)
+        Row(
+            modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Box(modifier = Modifier.weight(1f).testTag("history-platform-filter")) {
+                HistoryToolbarPill(
+                    label = platform?.label() ?: "全部平台",
+                    selected = platform != null,
+                    style = compactStyle,
+                    onClick = { platformMenuExpanded = true },
                 )
-                DownloadPlatform.entries.forEach { value ->
+                DropdownMenu(
+                    expanded = platformMenuExpanded,
+                    onDismissRequest = { platformMenuExpanded = false },
+                ) {
                     DropdownMenuItem(
-                        text = { Text(value.label()) },
+                        text = { Text("全部平台") },
                         onClick = {
                             platformMenuExpanded = false
-                            onPlatformChange(value)
+                            onPlatformChange(null)
                         },
                     )
+                    DownloadPlatform.entries.forEach { value ->
+                        DropdownMenuItem(
+                            text = { Text(value.label()) },
+                            onClick = {
+                                platformMenuExpanded = false
+                                onPlatformChange(value)
+                            },
+                        )
+                    }
                 }
             }
-        }
-        Box(modifier = Modifier.testTag("history-period-filter")) {
-            SelectedFilterChip(
-                label = period.label,
-                selected = true,
-                onClick = { periodMenuExpanded = true },
+            Box(modifier = Modifier.weight(1f).testTag("history-period-filter")) {
+                HistoryToolbarPill(
+                    label = period.label,
+                    selected = period != HistoryPeriod.ALL,
+                    style = compactStyle,
+                    onClick = { periodMenuExpanded = true },
+                )
+                DropdownMenu(
+                    expanded = periodMenuExpanded,
+                    onDismissRequest = { periodMenuExpanded = false },
+                ) {
+                    HistoryPeriod.entries.forEach { value ->
+                        DropdownMenuItem(
+                            text = { Text(value.label) },
+                            onClick = {
+                                periodMenuExpanded = false
+                                onPeriodChange(value)
+                            },
+                        )
+                    }
+                }
+            }
+            HistoryToolbarPill(
+                label = "收藏",
+                selected = favoritesOnly,
+                style = compactStyle,
+                leadingIcon = if (favoritesOnly) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                onClick = onFavoritesChange,
+                modifier = Modifier.weight(1f).testTag("history-favorites-filter"),
             )
-            DropdownMenu(
-                expanded = periodMenuExpanded,
-                onDismissRequest = { periodMenuExpanded = false },
-            ) {
-                HistoryPeriod.entries.forEach { value ->
-                    DropdownMenuItem(
-                        text = { Text(value.label) },
-                        onClick = {
-                            periodMenuExpanded = false
-                            onPeriodChange(value)
-                        },
-                    )
-                }
+            if (showBulkDelete) {
+                HistoryToolbarPill(
+                    label = "批量删除", style = compactStyle, onClick = onBulkDelete,
+                    enabled = !cleanupRunning, modifier = Modifier.weight(1f).testTag("history-bulk-delete"),
+                )
+            }
+            if (cleanupRecordCount > 0 || cleanupRunning) {
+                HistoryToolbarPill(
+                    label = if (cleanupRunning) "检查中…" else "清理失效", style = compactStyle,
+                    onClick = onCleanMissingMedia, enabled = !cleanupRunning,
+                    modifier = Modifier.weight(1f).testTag("history-clean-missing-media"),
+                )
             }
         }
-        SelectedFilterChip(
-            label = "收藏",
-            selected = favoritesOnly,
-            leadingIcon = if (favoritesOnly) Icons.Filled.Star else Icons.Outlined.StarBorder,
-            onClick = onFavoritesChange,
-            modifier = Modifier.testTag("history-favorites-filter"),
-        )
-        HistoryFilterActions(showBulkDelete, cleanupRecordCount, cleanupRunning, onBulkDelete, onCleanMissingMedia)
     }
 }
 
+/** One geometry owns the background, touch feedback and selection for every toolbar control. */
 @Composable
-private fun HistoryFilterActions(
-    showBulkDelete: Boolean,
-    cleanupRecordCount: Int,
-    cleanupRunning: Boolean,
-    onBulkDelete: () -> Unit,
-    onCleanMissingMedia: () -> Unit,
+private fun HistoryToolbarPill(
+    label: String,
+    style: androidx.compose.ui.text.TextStyle,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    selected: Boolean = false,
+    enabled: Boolean = true,
+    leadingIcon: ImageVector? = null,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (showBulkDelete) {
-            TextButton(onClick = onBulkDelete, enabled = !cleanupRunning, modifier = Modifier.testTag("history-bulk-delete")) {
-                Text("批量删除")
-            }
-        }
-        if (cleanupRecordCount > 0 || cleanupRunning) {
-            TextButton(onClick = onCleanMissingMedia, enabled = !cleanupRunning, modifier = Modifier.testTag("history-clean-missing-media")) {
-                Text(if (cleanupRunning) "检查中…" else "清理失效")
+    Box(modifier.height(48.dp), contentAlignment = Alignment.Center) {
+        Surface(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth().height(34.dp).semantics { this.selected = selected },
+            shape = CircleShape,
+            color = Color.White,
+            contentColor = (if (selected) ForestGreen else MaterialTheme.colorScheme.onSurfaceVariant)
+                .let { if (enabled) it else it.copy(alpha = 0.38f) },
+            tonalElevation = 0.dp,
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                if (leadingIcon != null) {
+                    Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(2.dp))
+                }
+                Text(label, style = style, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -498,6 +546,7 @@ private fun HistoryFilterActions(
 @Composable
 private fun HistoryItem(
     item: DownloadHistory,
+    mediaInspectionVersion: Long,
     reports: List<DownloadThroughputReport>,
     expanded: Boolean,
     selectionMode: Boolean,
@@ -517,27 +566,26 @@ private fun HistoryItem(
     var showInternalAudioPlayer by rememberSaveable { mutableStateOf(false) }
     var showVideoSegments by rememberSaveable { mutableStateOf(false) }
     var showImageGallery by rememberSaveable { mutableStateOf(false) }
-    val playable = item.fileExists && item.outputUri != null
-    var mediaMetadata by remember(item.taskId, item.outputUri, item.fileSize) {
+    val scope = rememberCoroutineScope()
+    val hasOutputs = item.outputUris.any(String::isNotBlank) || !item.outputUri.isNullOrBlank()
+    var mediaMetadata by remember(item.taskId, item.outputUri, item.outputUris, item.fileSize, mediaInspectionVersion) {
         mutableStateOf<HistoryMediaMetadata?>(null)
     }
-    LaunchedEffect(item.taskId, item.outputUri, item.outputUris, item.fileSize, playable) {
-        val inspected = if (playable) {
-            readHistoryMediaMetadata(context, item)
-        } else {
-            HistoryMediaMetadata(durationMillis = null, fileSize = item.fileSize)
-        }
+    LaunchedEffect(item.taskId, item.outputUri, item.outputUris, item.fileSize, mediaInspectionVersion) {
+        val inspected = readHistoryMediaMetadata(context, item)
         mediaMetadata = inspected
-        if (playable && inspected.allMediaMissingConfirmed) {
+        if (hasOutputs && inspected.allMediaMissingConfirmed) {
             onMediaMissing(item.taskId)
         }
     }
     val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
     val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
     val readableUris = mediaMetadata?.readableUris.orEmpty()
-    val contentAvailable = playable && readableUris.isNotEmpty()
-    val inspectionPending = playable && mediaMetadata == null
-    val mediaMissing = !inspectionPending && !contentAvailable
+    val access = historyMediaAccess(hasOutputs, mediaMetadata)
+    val contentAvailable = access == HistoryMediaAccess.AVAILABLE
+    val inspectionPending = access == HistoryMediaAccess.CHECKING
+    val mediaMissing = access == HistoryMediaAccess.MISSING
+    val mediaUnknown = access == HistoryMediaAccess.UNKNOWN
     val playItem: () -> Unit = {
         when (mediaKind) {
             HistoryMediaKind.AUDIO -> showInternalAudioPlayer = true
@@ -563,7 +611,8 @@ private fun HistoryItem(
                 )
             } else showPlayerChooser = true
         } else {
-            handleMediaOpenResult(MediaOpenResult.MissingMedia, item, context, onMediaMissing)
+            handleMediaOpenResult(if (mediaMissing) MediaOpenResult.MissingMedia else MediaOpenResult.CannotOpen,
+                item, context, onMediaMissing)
         }
     }
     val listDurationText = when {
@@ -663,20 +712,20 @@ private fun HistoryItem(
                         modifier = Modifier.size(if (expanded) 20.dp else 18.dp),
                     )
                     Spacer(Modifier.width(8.dp))
-                    if (mediaMissing) {
+                    if (mediaMissing || mediaUnknown) {
                         Icon(
                             Icons.Outlined.ErrorOutline,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = if (mediaMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.size(if (expanded) 18.dp else 16.dp),
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            "${historyKindLabel(mediaKind)}已不存在",
+                            if (mediaMissing) "${historyKindLabel(mediaKind)}已不存在" else "暂时无法读取",
                             modifier = Modifier.testTag("history-missing-media-${item.taskId}"),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.error,
+                            color = if (mediaMissing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
                             maxLines = 1,
                         )
                     } else {
@@ -862,7 +911,9 @@ private fun HistoryItem(
             onDismiss = { showPlayerChooser = false },
             onSelected = { option ->
                 showPlayerChooser = false
-                handleMediaOpenResult(openWithPlayer(context, item, option), item, context, onMediaMissing)
+                scope.launch {
+                    handleMediaOpenResult(openWithPlayer(context, item, option), item, context, onMediaMissing)
+                }
             },
         )
     }
@@ -976,14 +1027,15 @@ private fun HistoryThumbnail(
 ) {
     val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
     val localImageUri = mediaMetadata?.readableUris?.firstOrNull()
-    val playable = item.fileExists && localImageUri != null
+    val playable = localImageUri != null
+    val effectiveFileExists = mediaMetadata?.let { it.readableUris.isNotEmpty() } ?: item.fileExists
     val previewSource = remember(
-        item.fileExists,
+        effectiveFileExists,
         item.outputUri,
         item.outputUris,
         item.thumbnailUrl,
         item.resolution,
-    ) { historyPreviewSource(item) }
+    ) { historyPreviewSource(item.copy(fileExists = effectiveFileExists)) }
     val context = LocalContext.current
     var localFrameFailed by remember(previewSource, item.fileSize, item.completedAt) { mutableStateOf(false) }
     val localVideoRequest = remember(previewSource, item.fileSize, item.completedAt) {
@@ -1082,14 +1134,17 @@ private fun HistoryDetailsDialog(
     onShowReport: () -> Unit,
 ) {
     val mediaKind = mediaMetadata?.kind ?: HistoryMediaKind.VIDEO
-    val playable = item.fileExists && mediaMetadata?.readableUris?.isNotEmpty() == true
+    val hasOutputs = item.outputUris.any(String::isNotBlank) || !item.outputUri.isNullOrBlank()
+    val access = historyMediaAccess(hasOutputs, mediaMetadata)
+    val playable = access == HistoryMediaAccess.AVAILABLE
     val displayedSize = mediaMetadata?.fileSize ?: item.fileSize
     val durationText = when {
-        item.fileExists && mediaMetadata == null -> "正在读取…"
-        mediaKind == HistoryMediaKind.IMAGE && playable -> "共 ${mediaMetadata.readableUris.size}/${mediaMetadata.totalFileCount} 张"
+        access == HistoryMediaAccess.CHECKING -> "正在读取…"
+        mediaKind == HistoryMediaKind.IMAGE && playable -> requireNotNull(mediaMetadata).let { "共 ${it.readableUris.size}/${it.totalFileCount} 张" }
         mediaMetadata?.durationMillis != null -> formatMediaDuration(requireNotNull(mediaMetadata?.durationMillis))
         playable -> "无法读取，请确认文件仍可正常播放"
-        else -> "${historyKindLabel(mediaKind)}已不存在"
+        access == HistoryMediaAccess.MISSING -> "${historyKindLabel(mediaKind)}已不存在"
+        else -> "暂时无法读取，请检查保存目录授权或存储连接后再试"
     }
     val title = "${historyKindLabel(mediaKind)}详情"
     val primaryActionLabel = when (mediaKind) {

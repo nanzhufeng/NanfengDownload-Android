@@ -12,9 +12,7 @@ class SettingsAboutContractTest {
             "src/main/java/com/nanzhufeng/videodownloader/feature/settings/SettingsScreen.kt",
         ).readText()
         val gradleSource = File("build.gradle.kts").readText()
-        val expandedLayout = settingsSource
-            .substringAfter("if (expanded) {")
-            .substringBefore("} else {")
+
 
         assertTrue(settingsSource.contains("SettingsContent(key = \"about\")"))
         assertTrue(settingsSource.contains("settings-about-card"))
@@ -34,7 +32,8 @@ class SettingsAboutContractTest {
         assertFalse(settingsSource.contains("源码与更新：GitHub"))
         assertFalse(settingsSource.contains("SettingsContent(key = \"feature-review\")"))
         assertFalse(settingsSource.contains("settings-feature-review-card"))
-        assertTrue(expandedLayout.contains("settingsContent[4].content()"))
+        assertTrue(settingsSource.contains("settings-about-entry"))
+        assertTrue(settingsSource.contains("settings-about-details"))
         assertTrue(gradleSource.contains("buildConfigField(\"String\", \"BUILD_TIMESTAMP\""))
         assertTrue(gradleSource.contains("ZoneId.of(\"Asia/Shanghai\")"))
     }

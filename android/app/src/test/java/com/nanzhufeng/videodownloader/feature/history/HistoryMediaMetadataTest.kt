@@ -4,6 +4,20 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class HistoryMediaMetadataTest {
+    @Test fun unreadableIsUnknownUntilAbsenceIsConfirmed() {
+        val unavailable = HistoryMediaMetadata(null, 100)
+        assertEquals(HistoryMediaAccess.UNKNOWN, historyMediaAccess(true, unavailable))
+        assertEquals(HistoryMediaAccess.MISSING,
+            historyMediaAccess(true, unavailable.copy(allMediaMissingConfirmed = true)))
+    }
+
+    @Test fun currentReadableOutputWinsOverOldMissingProjection() {
+        val readable = HistoryMediaMetadata(null, 100, readableUris = listOf("content://current/output"))
+        assertEquals(HistoryMediaAccess.AVAILABLE, historyMediaAccess(true, readable))
+        assertEquals(HistoryMediaAccess.CHECKING, historyMediaAccess(true, null))
+        assertEquals(HistoryMediaAccess.MISSING, historyMediaAccess(false, null))
+    }
+
     @Test
     fun durationFormatter_keepsCompleteHoursMinutesAndSeconds() {
         assertEquals("00:00", formatMediaDuration(0L))

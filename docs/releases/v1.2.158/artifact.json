@@ -1,0 +1,14 @@
+{
+  "bytes": 57735339,
+  "sha256": "78d4b9197f95e22870f1bd8933485ceb1b43ed964918b63a380a1681a9f6f832",
+  "version": "1.2.158",
+  "versionCode": 10358,
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.158.apk",
+  "productionSourcesSha256": "f7f2e82ee2f049c1b800d44ffa5b44eba542b43c2b52c7df171a328b45436da4",
+  "scope": "WORKTREE frozen candidate; cleanup-scoped SAF parent inspection reuse with fresh negative proof validation; no commit or publication",
+  "lint": {
+    "Warning": 44,
+    "Information": 3
+  }
+}

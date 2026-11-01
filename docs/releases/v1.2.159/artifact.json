@@ -1,0 +1,14 @@
+{
+  "version": "1.2.159",
+  "versionCode": 10359,
+  "bytes": 57735339,
+  "sha256": "56deae94144b41d3b55842a51d05f88ca42c9450a42acfff093c9ed92eda4bfb",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.159.apk",
+  "productionSourcesSha256": "64316de55eacf9b8b5f0f2252459924e678ed8ee717f6117c99ad374da2c7d71",
+  "scope": "WORKTREE frozen candidate; session export secondary page with platform marks; includes white history toolbar and158 cleanup performance; no commit or publication",
+  "lint": {
+    "Warning": 44,
+    "Information": 3
+  }
+}

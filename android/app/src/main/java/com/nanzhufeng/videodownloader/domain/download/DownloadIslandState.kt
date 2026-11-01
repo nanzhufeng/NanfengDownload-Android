@@ -16,6 +16,9 @@ internal data class DownloadIslandState(
 ) {
     val compactText: String get() = stage + (percentage?.let { " · $it%" } ?: "") +
         (speed.takeIf(String::isNotBlank)?.let { " · $it" } ?: "")
+    // Distribute the same facts across the camera, without stacking percent over speed.
+    val cameraStartText: String get() = stage + if (speed.isNotBlank()) percentage?.let { " $it%" }.orEmpty() else ""
+    val cameraEndText: String get() = speed.ifBlank { percentage?.let { "$it%" }.orEmpty() }
     val notificationText: String get() = listOf(title, compactText, detail).filter(String::isNotBlank).joinToString("\n")
     companion object {
         fun from(queue: List<QueuedDownload>): DownloadIslandState? {

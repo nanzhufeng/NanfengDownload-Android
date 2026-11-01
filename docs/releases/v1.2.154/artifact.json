@@ -1,0 +1,14 @@
+{
+  "version": "1.2.154",
+  "versionCode": 10354,
+  "bytes": 57718955,
+  "sha256": "7139131bc089767846ff466959697ed481ceefc4b78b4f829af17f9618172a6f",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.154.apk",
+  "productionSourcesSha256": "c568946e4580b1f37b0ee698f8b1575c416909b5f2686d89065da84a57289617",
+  "scope": "WORKTREE frozen candidate; isolated phone/narrow/expanded and 130 percent font history toolbar fit verified; no main-device overlay, commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

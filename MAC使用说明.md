@@ -1,5 +1,7 @@
 # 南烛枫视频下载器 Mac 版说明
 
+> 合同层级：历史参考。本文是早期PySide/macOS原型说明，不是Android构建、安装或执行授权。现行Android规范从[合同总入口](docs/contracts/README.md)读取；旧桌面脚本和说明保留，不在本轮运行。
+
 ## 结论
 
 当前 Windows 电脑不能直接生成可运行的 macOS `.app`，Mac 版必须在 Mac 电脑上打包。本项目已准备好 Mac 启动和打包文件。

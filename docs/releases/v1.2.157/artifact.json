@@ -1,0 +1,14 @@
+{
+  "version": "1.2.157",
+  "versionCode": 10357,
+  "bytes": 57718955,
+  "sha256": "4f07ab512c12f69be67880526c97e380ba72bd47c1900f00050c233f3022f3fd",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.157.apk",
+  "productionSourcesSha256": "3d3281f9d0526d420ea34355844a9a1f23d7d1eda810aca4128553824cc576a3",
+  "scope": "WORKTREE frozen candidate; local SAF ancestor absence proof; minimal background settings; account summary ambiguity and redundant About heading removed; no commit or publication",
+  "lint": {
+    "Warning": 44,
+    "Information": 3
+  }
+}

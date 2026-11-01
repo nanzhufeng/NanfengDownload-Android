@@ -34,13 +34,17 @@ class MediaPlayerClassifierTest {
     @Test
     fun mediaOpenMessagesDoNotCallMissingFilesAPlayerProblem() {
         assertEquals(
-            "视频文件不存在或已无法读取。已在历史中标记，可重新读取原链接下载。",
+            "视频文件已不存在，已在历史中标记，可重新读取原链接下载。",
             mediaOpenMessage(MediaOpenResult.MissingMedia, isAudio = false),
         )
         assertEquals(
             "没有可用的视频播放器。请安装或启用一个支持该文件的播放器后重试。",
             mediaOpenMessage(MediaOpenResult.NoPlayer, isAudio = false),
         )
+        val uncertain = mediaOpenMessage(MediaOpenResult.CannotOpen, isAudio = false)
+        assertFalse(uncertain.contains("不存在"))
+        assertFalse(uncertain.contains("已在历史中标记"))
+        assertTrue(uncertain.contains("授权"))
     }
 
     private fun history(resolution: ResolutionPreset) = DownloadHistory(

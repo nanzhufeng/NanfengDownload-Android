@@ -12,13 +12,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val MintWorkspace = Color(0xFFE6EAE7)
-val ForestGreen = Color(0xFF168A4A)
-val SelectedSage = Color(0xFFE5F4EA)
-val WarmOrange = Color(0xFFFF5A1F)
+val MintWorkspace = Color(0xFFE9ECEA)
+val ForestGreen = Color(0xFF20764B)
+val SelectedSage = Color(0xFFE0EEE4)
+val WarmOrange = Color(0xFFC76E3B)
 val QualityPurple = Color(0xFF7552B8)
 val StorageOchre = Color(0xFFB96812)
-val SecondaryText = Color(0xFF5F6C64)
+val CompactControlSurface = Color(0xFFDEE4E0)
+val FieldSurface = Color(0xFFF7F7F7)
+val ControlSurface = Color(0xFFF1F3F2)
+val SecondaryText = Color(0xFF56625A)
 
 val PrussianBlue = ForestGreen
 val HermesOrange = WarmOrange
@@ -31,8 +34,12 @@ val SuccessGreen = ForestGreen
 private val NanzhufengColors = lightColorScheme(
     primary = ForestGreen,
     onPrimary = Color.White,
+    primaryContainer = SelectedSage,
+    onPrimaryContainer = ForestGreen,
     secondary = WarmOrange,
     onSecondary = Color.White,
+    secondaryContainer = ControlSurface,
+    onSecondaryContainer = Color(0xFF33443A),
     tertiary = QualityPurple,
     onTertiary = Color.White,
     background = MintWorkspace,
@@ -51,6 +58,8 @@ private val NanzhufengColors = lightColorScheme(
     surfaceContainer = Color.White,
     surfaceContainerHigh = Color.White,
     surfaceContainerHighest = Color.White,
+    outline = Color(0xFFBCC7BF),
+    outlineVariant = Color(0xFFE0E5E1),
     error = FailureRed,
 )
 
@@ -58,14 +67,14 @@ private val NanzhufengTypography = Typography(
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 34.sp,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
     ),
     headlineSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 30.sp,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
@@ -126,11 +135,11 @@ fun NanzhufengTheme(content: @Composable () -> Unit) {
         colorScheme = NanzhufengColors,
         typography = NanzhufengTypography,
         shapes = MaterialTheme.shapes.copy(
-            extraSmall = RoundedCornerShape(4.dp),
-            small = RoundedCornerShape(6.dp),
-            medium = RoundedCornerShape(16.dp),
-            large = RoundedCornerShape(20.dp),
-            extraLarge = RoundedCornerShape(20.dp),
+            extraSmall = RoundedCornerShape(8.dp),
+            small = RoundedCornerShape(16.dp),
+            medium = RoundedCornerShape(20.dp),
+            large = RoundedCornerShape(24.dp),
+            extraLarge = RoundedCornerShape(28.dp),
         ),
         content = content,
     )

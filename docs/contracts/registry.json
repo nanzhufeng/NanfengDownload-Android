@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reviewedAt": "2026-10-13",
+  "reviewedAt": "2026-10-29",
   "index": "docs/contracts/README.md",
   "contracts": [
     {
@@ -23,7 +23,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/home/HomeViewModel.kt": "16ddb56556bba92f7777a2f11a521d1ddad2bce680be52e41a41f6bce7ee25b4",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/DouyinProbeActivity.kt": "7d3ba57501b1dceb31d6f7ffe87f69f0fda63d4206429c4a826077d8efe23212",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/GenericWebProbeActivity.kt": "e12a610a275fb6c77142436dc9cb2b8c564881735e330a11afb7be5e94f36a5a",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "5cd44ce9ace61b60cf259bc2bca136f793e91459c69cf05c8b6041b53574d464"
       },
       "evidence": [
         "docs/verification/2026-10-10-cross-platform-read-performance.md",
@@ -41,7 +41,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/core/model/TaskTransitionPolicy.kt": "0b12899e72637f560c06ef73257571cd750e3c6b6850d7cac7ab14459929f844",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/NanzhufengDatabase.kt": "5bd2812d138eebdd339f238ea70628936f6d02d16b9dfafab5b761136a473820",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "249bd3aa3c375dc1267a0540d8bea6e20853f5e923d7031a9b0f3e69304a46c0",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "7ea0793837315ac968c2bd9850f8083a8c682256a79dd9cefba1a168bf0b4c68",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "4846e85630c0b62ed36e5b59454bd90262d2fcc38e22cca0ccb1cde9bb568a43",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/settings/SettingsRepository.kt": "e8661bc42babd8ea8d4576bca9ed68c7691ba0048d44f1c6eef3eecbd42911c1",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadEngine.kt": "5e2acd7ea80227a30d108e598634a3bf8017078806076c277c658227080fe9e5",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadTaskRunner.kt": "0a4be7df6ae4108cc5115edc2aaad5754ef65ba1ce2cb931bd37685276ce7d0f",
@@ -49,24 +49,39 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/entity/Entities.kt": "77cb4436e3bc57e0c5e703f5ced860cca54a3661b533431b87c9ca261a794760",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/DownloadRepository.kt": "855ecd481ee46d17c323146165244124968e2f6b22d3327bc9261bfb22f9cf9c",
         "android/app/schemas/com.nanzhufeng.videodownloader.data.database.NanzhufengDatabase/11.json": "b410fbd2d9a2d775d1af6d21557cad47586532ee2f5c3da54617eeab6f041106",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/settings/SettingsScreen.kt": "8ec050e0109e21838d29cd886bc7f86d39d2de1149318c0770705cd343c6abf8",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/settings/SettingsScreen.kt": "ae65b03f767e68c493ba4b2b0e105ca9547f65c5edf2bb0a8b0f4ea81f192291",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/core/media/VideoPreviewFrames.kt": "de780869520133997524dccb887c6c2d4f6e352a2033f0bae11ebdb09ccc9f98",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/core/media/LocalVideoPreviewFetcher.kt": "a734f48045ce36c23f41109ac051412cc533e635b2bb8d25749a56a42c1bab7b",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/NanzhufengApplication.kt": "db084e894418d9785fdc1f27b805aeba63cc102f131e862def303b4df5e32202",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "32767c6e650bd01619723fb9694bc52930eb76cc20d4d66f7c718ee763de67e8",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "b3b15b7db8554380d420fff71c34684fbb1347ffa8a7197375973e31331bb733",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryPreviewSource.kt": "4db4328d86f3681174048d161cae64fee83b675c2ebe3c5c09c10807943626cb",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/AppContainer.kt": "f3451cd10c9c052062c5e7f4ef532d2321cbb9102a4951668144b9381538c5a1",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/AndroidLocalMediaInspector.kt": "4dfb7d5939a2dab8b5766c6eb9b774333213127780ce60d9986d2f1065ae2851",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/history/HistoryMediaCleanup.kt": "229cbcc6c012c905a8b911e1b50bcada6b78579f8d9e5321035dff983eab406f",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryMediaMetadata.kt": "593cbecddf4f3ea2d8ce827921f07084dcf25a071d4c0660b7ad0e6364373aa3",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/AndroidLocalMediaInspector.kt": "a4043d83e1b546ed0417f46187658c19c484ea2d2f3084e241612441811d7886",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/history/HistoryMediaCleanup.kt": "c5743607dd08191ec5ec3bc09ff0f1d23cc69d4fc2ec022f127c6668a478845c",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryMediaMetadata.kt": "c60284509c0cf5ac59825d42cef77aedacf149e6d32a5211c377f464c6982e9c",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryCleanupFeedback.kt": "4a8a15fddc48fe6b871087b978e80a4b283b550af107e71d201fbf07042da6ee",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "5cd44ce9ace61b60cf259bc2bca136f793e91459c69cf05c8b6041b53574d464",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/history/LocalDocumentAbsence.kt": "1e383b2c748e5443707fac5c1e46d402f73ca22e2727d91be2c3a6bc0df5e4cc",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryMediaLauncher.kt": "77260b4dfd369445582ab4884a38792d16ba96c59c87557b99401a3d9d4b5a93",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/ui/NanzhufengTheme.kt": "56f1d3057600913a5ffabd93221ec25743f9563ab09ba715ff53dfc7533b2af3",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/ui/WorkbenchUi.kt": "8b992810e261066e7cd88c07f3c22d87645d11c076530fddff8e231802c3898c",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/settings/DownloadBackgroundSettingsDialog.kt": "85039b8365c5aa253908bea1d1e4cb6a53b2301c1c99e8d51037bd58e52f361b",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/history/LocalDocumentScan.kt": "727795e801ab47dce31ed1777c9a429c82afb01cabc3b66ca76421698a55ed23"
       },
       "evidence": [
         "docs/verification/2026-10-09-sakura-remux-identity-and-stop-closure.md",
         "docs/verification/2026-10-13-remove-settings-feature-review.md",
         "docs/verification/2026-10-16-video-preview-black-frames.md",
-        "docs/verification/2026-10-17-history-full-cleanup.md"
+        "docs/verification/2026-10-17-history-full-cleanup.md",
+        "docs/verification/2026-10-19-saf-history-cleanup.md",
+        "docs/verification/2026-10-19-nanfengji-ui-and-settings-menu.md",
+        "docs/verification/2026-10-19-saf-subdirectory-cleanup-and-background-dialog.md",
+        "docs/verification/2026-10-20-history-cleanup-performance.md",
+        "docs/verification/2026-10-20-history-toolbar-white.md",
+        "docs/verification/2026-10-20-session-export-submenu.md",
+        "docs/verification/2026-10-22-settings-surfaces-about-icons.md",
+        "docs/verification/2026-10-22-settings-section-titles.md",
+        "docs/verification/2026-10-29-top-island-window.md"
       ]
     },
     {
@@ -80,7 +95,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/probe/ProtocolFileDownloader.kt": "6224b8409366db8a56525f761615133f704dc086455b40de27eca0531873c0d5",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DirectMediaTransfer.kt": "defc454e1e7aa39f32a3e76fb60646a42cfb76dcfafeaca0e53feb760b3e75c6",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/video/AndroidStreamRemuxer.kt": "7f0d05f7920c26b23b2f6770835e859628dbe7dc3b1fe6249dea792d34d4cb27",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/home/FormalHomeSections.kt": "f78f27e02054d19983f558104c208270335b9012f54cf36168eb9b30b8f423a2",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/home/FormalHomeSections.kt": "252e3a2b9349eaa559919d49f3b210f2dc4010d99ef6ade8ac7c4bf63f863158",
         "android/app/src/main/python/nanzhufeng_probe/segment_transfer.py": "9d4d805ad0d9d4da1a35e15231085dccf1c2005035ee4d61f9156198ae0b8275",
         "android/app/src/main/python/nanzhufeng_probe/ts_timeline.py": "70947d311f081697c2c97469a5246d32901fb7006389894e1f15c81b8ae89922",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/video/AacSampleTimeline.kt": "f6e9d49c4a61710b51f7b967c962091e446937a059771c3dc63864b6197a22c4"
@@ -98,7 +113,7 @@
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/playback/VideoPlaybackMemory.kt": "f88905e821065c2bf7d8ffe3cb7ff548d0ff326e989ebe4de428c9d2a362ea89",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/playback/VideoPlayerGestureController.kt": "a42a5abe5b82b473bc976385dd4fd2d2f5ab6e7b12975c73af2a5545b9b26369",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/InternalVideoPlayerDialog.kt": "2e8d348d65b1dd736f24a9559cc1c4d6757cbcae3b9faadc2f1c31ed4b74e948",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "67f3ed4a0512336faef4a2b9eea19b7ec489744aa630f81593fc425f209e8720",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/navigation/NanzhufengApp.kt": "5cd44ce9ace61b60cf259bc2bca136f793e91459c69cf05c8b6041b53574d464",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/playback/PreferencesVideoPositionStorage.kt": "b6c0ad9f4c41d6f6fe5418e38619a362f5627d3734db23fdc76bbc616155be73"
       },
       "evidence": [
@@ -110,15 +125,18 @@
       "concept": "历史收藏",
       "document": "docs/history-favorites.md",
       "sources": {
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "32767c6e650bd01619723fb9694bc52930eb76cc20d4d66f7c718ee763de67e8",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryScreen.kt": "b3b15b7db8554380d420fff71c34684fbb1347ffa8a7197375973e31331bb733",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/feature/history/HistoryFilter.kt": "a97b75f94ac16751cf41d4adda2fd4d08fefb9b60eefcb16a1ddfd6673b9e290",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/NanzhufengDatabase.kt": "5bd2812d138eebdd339f238ea70628936f6d02d16b9dfafab5b761136a473820",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/data/database/dao/DownloadDaos.kt": "249bd3aa3c375dc1267a0540d8bea6e20853f5e923d7031a9b0f3e69304a46c0",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "7ea0793837315ac968c2bd9850f8083a8c682256a79dd9cefba1a168bf0b4c68"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/data/repository/RoomDownloadRepository.kt": "4846e85630c0b62ed36e5b59454bd90262d2fcc38e22cca0ccb1cde9bb568a43"
       },
       "evidence": [
         "docs/verification/2026-10-11-history-favorites.md",
-        "docs/verification/2026-10-17-history-toolbar-row.md"
+        "docs/verification/2026-10-17-history-toolbar-row.md",
+        "docs/verification/2026-10-17-history-full-cleanup.md",
+        "docs/verification/2026-10-19-history-toolbar-pills.md",
+        "docs/verification/2026-10-20-history-toolbar-white.md"
       ]
     },
     {
@@ -126,14 +144,21 @@
       "concept": "后台下载岛",
       "document": "docs/background-download-island.md",
       "sources": {
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandOverlay.kt": "c2e41b5cfa10960e74783aa49f5fc1051fa48d57289290a5e3d3fc5878c7bfb5",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandState.kt": "f0735c1310c4f26848a0c3c838cc9bc74b3cd87857e967b4d5ad3c25ae0aa1c2",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandOverlay.kt": "75b0c8048106849ba9f9f2ff8d4be93d13f7938393505cde46397a03f7676297",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandState.kt": "b148b54683b4c7af437c77e991922803eb5c2c1b8076b23576162118dfd7e25d",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadActivityVisibility.kt": "37419d6aa89e1447adcb6d037e815eaf4a13691f31b4e82797c0325300b9ebe3",
         "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/ForegroundDownloadWorker.kt": "612775830aa0d2628730e1a9c92d4d4d93820c00f06b20d602594499b28ded7e",
-        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/ui/IslandMotion.kt": "331c1a6ef84d8d2b197bb9859e73a1b7249d60a16a8ac1e4ae8ac23f17b4fb87"
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/core/ui/IslandMotion.kt": "331c1a6ef84d8d2b197bb9859e73a1b7249d60a16a8ac1e4ae8ac23f17b4fb87",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandPlacement.kt": "a9067a646c59e7d77bc7982b8afe9a65bdf3f3b8e2a06b8b8166ff19f772315b",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/IslandWindowMode.kt": "2b09e449cdcf9b8f24e6a105ec30147e05b94de0bca6819c69d5061e34a6c25a",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandWindows.kt": "0cd0ca5db7971e5eab5a09bdda0a4855f7db8645ee511c22d82953e84dd16674",
+        "android/app/src/main/java/com/nanzhufeng/videodownloader/domain/download/DownloadIslandTopService.kt": "7124c9a224a7bb006e293c5f1f6cac49c0ce25861f57a8bf164780d41b2ff5b0",
+        "android/app/src/main/res/xml/download_island_accessibility.xml": "dd4a7006e17a22c831cb416c50c2d398e2521f7f502151299187eefe2cf5601c"
       },
       "evidence": [
-        "docs/verification/2026-10-10-background-download-island.md"
+        "docs/verification/2026-10-10-background-download-island.md",
+        "docs/verification/2026-10-25-status-bar-download-island.md",
+        "docs/verification/2026-10-29-top-island-window.md"
       ]
     },
     {
@@ -155,17 +180,24 @@
       "concept": "验证与正式交付",
       "document": "docs/release-and-verification.md",
       "sources": {
-        "android/app/build.gradle.kts": "1c81e9c461c719baf049a14f9f69be23f694015b36764ff4cf038091f797d44c",
+        "android/app/build.gradle.kts": "5ba934eb945c7fe2be30a48832024ca0407f710ad89a37d4bfc7091600def56d",
         "android/app/proguard-rules.pro": "db71f9dd4cb8d309243df5c703770fe244a6c37f4ebd69a4ccf517d617d91113",
-        "android/app/src/main/AndroidManifest.xml": "7d101e81353b6556b8c1c6c84f109cc5d72df8894f12d202b5c934931f75a3d1",
+        "android/app/src/main/AndroidManifest.xml": "8cce822e89706440eddd9a7700246b2ce915332354feb9185a9b140180e51c2e",
         "tools/verify_frozen_release.py": "70e86ed0b7272913ba6709a2b7415d9dd301e8270129b98d37afe4b4433fce43",
-        "tools/rerun_unit_tests.gradle": "ee73209f51d21d9beaa9317509218ac1448028ca6ec2592811ade80cf3fde672"
+        "tools/rerun_unit_tests.gradle": "ee73209f51d21d9beaa9317509218ac1448028ca6ec2592811ade80cf3fde672",
+        "tools/check_contracts.py": "4f7d6fb0e7afee90ab8484e1dd7cefc60e2850c5a18752b75f2b684fef50b35e",
+        "tools/test_check_contracts.py": "5bff4f477abdf561582b6ebd00b085a6cafd6fc9d10aef972654318fc139576f"
       },
       "evidence": [
         "docs/verification/2026-10-11-release-146.md",
         "docs/verification/2026-10-11-checkpoint-experience-increment.md",
         "docs/verification/2026-10-13-oppo-release-147-overlay.md",
-        "docs/verification/2026-10-13-oppo-release-148-overlay.md"
+        "docs/verification/2026-10-13-oppo-release-148-overlay.md",
+        "docs/verification/2026-10-17-release-152.md",
+        "docs/verification/2026-10-17-oppo-release-152-overlay.md",
+        "docs/verification/2026-10-25-frozen-apk-preservation.md",
+        "docs/verification/2026-10-29-top-island-window.md",
+        "docs/verification/2026-11-01-release-163.md"
       ]
     }
   ],
@@ -173,5 +205,45 @@
     "docs/archive",
     "docs/superpowers/plans",
     "docs/superpowers/specs"
+  ],
+  "reviewBaseline": {
+    "productionCommit": "c8008e40224305ba3eed27fa2148ab3d85583f47",
+    "checkoutHead": "843b53506add27b29ce6343063640907807f03e6",
+    "scope": "2026-10-18 audit retained; WORKTREE163 live accessibility-token top host, actual-width touch window, screen-off removal and ordinary below-bar fallback; no task/Room changes; AOSP isolated runtime verified, ColorOS/main-device not verified; no commit/publication"
+  },
+  "auditEvidence": [
+    "docs/verification/2026-10-12-contract-consistency-audit.md",
+    "docs/verification/2026-10-18-contract-consistency-audit.md",
+    "docs/verification/2026-10-19-saf-history-cleanup.md",
+    "docs/verification/2026-10-19-history-toolbar-pills.md",
+    "docs/verification/2026-10-19-nanfengji-ui-and-settings-menu.md",
+    "docs/verification/2026-10-20-history-cleanup-performance.md",
+    "docs/verification/2026-10-20-session-export-submenu.md",
+    "docs/verification/2026-10-22-settings-surfaces-about-icons.md",
+    "docs/verification/2026-10-22-settings-section-titles.md",
+    "docs/verification/2026-10-25-status-bar-download-island.md",
+    "docs/verification/2026-10-25-frozen-apk-preservation.md",
+    "docs/verification/2026-10-29-top-island-window.md",
+    "docs/verification/2026-11-01-release-163.md"
+  ],
+  "documentRoles": {
+    "AGENTS.md": "execution",
+    "README.md": "entry",
+    "PROJECT_HANDOFF.md": "handoff",
+    "design-qa.md": "historical-reference",
+    "docs/PROJECT_STATUS.md": "status",
+    "docs/南枫下载 Android 完整开发档案.md": "architecture",
+    "docs/可迁移开发经验.md": "experience",
+    "docs/2026-08-23-douyin-gallery-watermark-claude-brief.md": "historical-reference",
+    "docs/nanzhufeng-video-downloader-development-context-for-chatgpt.md": "historical-reference",
+    ".agents/skills/nanfeng-download-android-debugging/SKILL.md": "workflow",
+    ".agents/skills/nanfeng-download-android-doc-sync/SKILL.md": "workflow",
+    ".agents/skills/nanfeng-download-android-code-review/SKILL.md": "workflow",
+    ".agents/skills/nanfeng-download-android-testing/SKILL.md": "workflow",
+    ".agents/skills/nanfeng-download-android-development/SKILL.md": "workflow",
+    "MAC使用说明.md": "historical-reference"
+  },
+  "evidenceDirectories": [
+    "docs/verification"
   ]
 }

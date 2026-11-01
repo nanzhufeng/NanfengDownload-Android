@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DownloadIslandStateTest {
+    @Test fun cameraLayoutKeepsStagePercentAndSpeedOnOneRow() {
+        val q=queued("one",DownloadTaskStatus.DOWNLOADING,50_000_000,100_000_000)
+        val s=DownloadIslandState.from(listOf(q.copy(task=q.task.copy(speedBytesPerSecond=2_500_000))))!!
+        assertEquals("下载中 50%",s.cameraStartText)
+        assertEquals("2.5 MB/s",s.cameraEndText)
+        assertEquals("下载中 · 50% · 2.5 MB/s",s.compactText)
+    }
+    @Test fun cameraLayoutDoesNotInventSpeedOrPercentForUnknownAndProcessingStages() {
+        val s=DownloadIslandState("one","test","合并中",44,"")
+        assertEquals("合并中",s.cameraStartText)
+        assertEquals("44%",s.cameraEndText)
+        assertEquals("",s.copy(stage="解析来源",percentage=null).cameraEndText)
+    }
     @Test fun realTransferProgressAndSpeedRemainBelowCompletion() {
         val q = queued("one", DownloadTaskStatus.DOWNLOADING, 50_000_000, 100_000_000)
         val state = DownloadIslandState.from(listOf(q.copy(task=q.task.copy(speedBytesPerSecond=2_500_000))))!!

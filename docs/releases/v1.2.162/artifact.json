@@ -1,0 +1,14 @@
+{
+  "version": "1.2.162",
+  "versionCode": 10362,
+  "bytes": 57735339,
+  "sha256": "b94ec432f0434bf70d4d399c7f769870efd156c34ef52237fabd648519611af0",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.162.apk",
+  "productionSourcesSha256": "3c6edcf2072d55332eff5da9939e72bfcaa918ae05300e9bf03551b7874b936d",
+  "scope": "WORKTREE frozen candidate; centered status-bar island, cutout-safe single-row facts, compact safe header and lower tap edge; no phone overlay or publication",
+  "lint": {
+    "Warning": 45,
+    "Information": 3
+  }
+}

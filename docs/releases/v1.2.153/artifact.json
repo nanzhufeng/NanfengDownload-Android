@@ -1,0 +1,14 @@
+{
+  "version": "1.2.153",
+  "versionCode": 10353,
+  "bytes": 57735339,
+  "sha256": "86eaa0e21dd93ed40d3b35c050c960ecbf0a9269eb7beb600cf81fc390163cb9",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.153.apk",
+  "productionSourcesSha256": "34df118888f37d3c6e171a777694be577a3c1ea91badfb380eeccc1842441e7d",
+  "scope": "WORKTREE frozen candidate; isolated normal UI confirms deleted SAF tree history cleanup and valid media preservation; no main-device overlay, commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

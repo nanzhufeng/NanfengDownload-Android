@@ -80,6 +80,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInRoot
@@ -113,6 +114,9 @@ import com.nanzhufeng.videodownloader.core.ui.StorageOchre
 import com.nanzhufeng.videodownloader.core.ui.SuccessGreen
 import com.nanzhufeng.videodownloader.core.ui.WaitingYellow
 import com.nanzhufeng.videodownloader.core.ui.WarmOrange
+import com.nanzhufeng.videodownloader.core.ui.WorkbenchPageHeader
+import com.nanzhufeng.videodownloader.core.ui.ControlSurface
+import com.nanzhufeng.videodownloader.core.ui.workbenchFieldColors
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import com.nanzhufeng.videodownloader.domain.download.DownloadOverallProgress
 import com.nanzhufeng.videodownloader.domain.download.WebSourceRecoveryPolicy
@@ -163,6 +167,7 @@ internal fun CompactHome(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .clipToBounds()
             .testTag("home-screen"),
     ) {
         Column(
@@ -195,7 +200,7 @@ internal fun CompactHome(
                 modifier = Modifier.fillMaxWidth().weight(1f),
             )
             if (canLoadMore) {
-                OutlinedButton(
+                androidx.compose.material3.FilledTonalButton(
                     onClick = onLoadMore,
                     enabled = !isReading,
                     modifier = Modifier.fillMaxWidth(),
@@ -284,7 +289,7 @@ internal fun ExpandedHome(
                     ReadEntryCard(input, onInputChange, onSmartRead, isReading, notice, dense = true)
                 }
                 if (canLoadMore) {
-                    OutlinedButton(
+                    androidx.compose.material3.FilledTonalButton(
                         onClick = onLoadMore,
                         enabled = !isReading,
                         modifier = Modifier.fillMaxWidth(),
@@ -298,19 +303,12 @@ internal fun ExpandedHome(
 @Composable
 private fun HomeHeader(expanded: Boolean) {
     val appName = stringResource(R.string.app_name)
-    if (expanded) {
-        Text("首页", style = MaterialTheme.typography.headlineMedium)
-        return
-    }
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    WorkbenchPageHeader(if (expanded) "首页" else appName, expanded) {
         Image(
             painter = painterResource(R.drawable.nanzhufeng_app_icon),
             contentDescription = appName,
-            modifier = Modifier.size(52.dp),
+            modifier = Modifier.size(32.dp),
         )
-        Column(modifier = Modifier.padding(start = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        }
     }
 }
 
@@ -344,7 +342,7 @@ private fun RunStatusCard(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
-        Spacer(Modifier.height(if (expanded) 14.dp else 8.dp))
+        Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             StatusMetric(Icons.Filled.CloudDone, "网络状态", if (networkAvailable) "良好" else "等待", SuccessGreen, expanded)
             StatusMetric(Icons.Filled.Downloading, "进行中", activeCount.toString(), SuccessGreen, expanded)
@@ -365,8 +363,13 @@ private fun StatusMetric(
     color: Color,
     expanded: Boolean,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(if (expanded) 4.dp else 2.dp)) {
-        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(if (expanded) 24.dp else 20.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(
+            Modifier.size(32.dp).background(color.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(if (expanded) 20.dp else 18.dp))
+        }
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             value,
@@ -1107,7 +1110,7 @@ private fun ResolutionMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val accent = resolutionAccent(resolution)
     Box {
-        OutlinedButton(
+        androidx.compose.material3.FilledTonalButton(
             onClick = { expanded = true },
             enabled = enabled,
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
@@ -1151,7 +1154,7 @@ private fun SegmentCountMenu(
     var expanded by rememberSaveable { mutableStateOf(false) }
     val accent = segmentAccent(resolution)
     Box {
-        OutlinedButton(
+        androidx.compose.material3.FilledTonalButton(
             onClick = { expanded = true },
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
             modifier = Modifier
@@ -1326,15 +1329,8 @@ private fun ReadEntryCard(
                         }
                     },
                     placeholder = { Text("粘贴视频作品页或媒体直链；支持抖音、YouTube、TikTok、哔哩哔哩、小红书、Pornhub 等网站") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF1F3F2),
-                        unfocusedContainerColor = Color(0xFFF1F3F2),
-                        disabledContainerColor = Color(0xFFE8EBE9),
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        disabledBorderColor = Color.Transparent,
-                        errorBorderColor = Color.Transparent,
-                    ),
+                    shape = MaterialTheme.shapes.medium,
+                    colors = workbenchFieldColors(),
                 )
             }
             Text(

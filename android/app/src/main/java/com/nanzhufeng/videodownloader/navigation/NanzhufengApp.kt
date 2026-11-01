@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -131,12 +132,14 @@ fun NanzhufengApp(
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
         var historyCleanupRunning by remember { mutableStateOf(false) }
+        var historyMediaInspectionVersion by remember { mutableLongStateOf(0L) }
         val cleanMissingHistories: () -> Unit = {
             if (!historyCleanupRunning) {
                 historyCleanupRunning = true
                 scope.launch {
                     try {
                         val result = downloads.deleteMissingHistoryRecords()
+                        historyMediaInspectionVersion++
                         IslandFeedback.info(context, com.nanzhufeng.videodownloader.feature.history.historyCleanupFeedback(result))
                     } catch (cancelled: CancellationException) {
                         throw cancelled
@@ -421,6 +424,7 @@ fun NanzhufengApp(
                         },
                         onDeleteMissingHistories = cleanMissingHistories,
                         historyCleanupRunning = historyCleanupRunning,
+                        historyMediaInspectionVersion = historyMediaInspectionVersion,
                         onMediaMissing = { taskId ->
                             scope.launch { downloads.markHistoryMediaMissing(taskId) }
                         },
@@ -592,6 +596,7 @@ fun NanzhufengApp(
                         },
                         onDeleteMissingHistories = cleanMissingHistories,
                         historyCleanupRunning = historyCleanupRunning,
+                        historyMediaInspectionVersion = historyMediaInspectionVersion,
                         onMediaMissing = { taskId ->
                             scope.launch { downloads.markHistoryMediaMissing(taskId) }
                         },
@@ -683,6 +688,7 @@ private fun AppNavHost(
     onDeleteHistories: (List<String>) -> Unit,
     onDeleteMissingHistories: () -> Unit,
     historyCleanupRunning: Boolean,
+    historyMediaInspectionVersion: Long,
     onMediaMissing: (String) -> Unit,
     onOpenHistoryVideo: (taskId: String, uri: String, title: String) -> Unit,
     expanded: Boolean,
@@ -741,6 +747,7 @@ private fun AppNavHost(
                 onDeleteRecords = onDeleteHistories,
                 onDeleteMissingRecords = onDeleteMissingHistories,
                 cleanupRunning = historyCleanupRunning,
+                mediaInspectionVersion = historyMediaInspectionVersion,
                 onMediaMissing = onMediaMissing,
                 onOpenInternalVideo = onOpenHistoryVideo,
             )

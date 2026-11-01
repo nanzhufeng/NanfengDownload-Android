@@ -6,6 +6,33 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class HistoryMediaCleanupTest {
+    @Test fun changedGrantVolumeOrMissingDirectorySnapshotCommitsNothing() = runBlocking {
+        var committed = false
+        val inspector = object : LocalMediaInspector {
+            override suspend fun inspect(uri: String) = LocalMediaAvailability.MISSING
+            override suspend fun isSnapshotStillValid() = false
+        }
+        val result = HistoryMediaCleanup({ listOf(history("gone")) }, inspector) {
+            committed = true; HistoryCleanupCommit(1)
+        }.run()
+        assertFalse(committed)
+        assertEquals(HistoryCleanupResult(1, 0, 1), result)
+    }
+
+    @Test fun cancellationDuringFinalValidationCannotReachCommit() = runBlocking {
+        var committed = false
+        val inspector = object : LocalMediaInspector {
+            override suspend fun inspect(uri: String) = LocalMediaAvailability.MISSING
+            override suspend fun isSnapshotStillValid(): Boolean = throw kotlinx.coroutines.CancellationException()
+        }
+        try {
+            HistoryMediaCleanup({ listOf(history("gone")) }, inspector) {
+                committed = true; HistoryCleanupCommit(1)
+            }.run()
+            fail("Cancellation must propagate")
+        } catch (_: kotlinx.coroutines.CancellationException) { assertFalse(committed) }
+    }
+
     @Test fun oneActionInspectsAllRecordsIncludingUnrenderedUnmarkedOnes() = runBlocking {
         val rows = (1..80).map { history("item-$it") }
         val inspected = mutableListOf<String>()

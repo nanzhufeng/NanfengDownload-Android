@@ -1,0 +1,14 @@
+{
+  "version": "1.2.161",
+  "versionCode": 10361,
+  "bytes": 57735339,
+  "sha256": "ea68c35934bae4c50515290c47f8f30b22563cf871e11bf4e3fac6d3aac6f098",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.161.apk",
+  "productionSourcesSha256": "503cb8dd581e0919d28b016ac159900eb69fd25b43cf05fed28bc997adf127b2",
+  "scope": "WORKTREE frozen candidate; plain section titles outside settings cards including About; neutral monochrome overview entry icons and chevrons; no commit/publication",
+  "lint": {
+    "Warning": 44,
+    "Information": 3
+  }
+}

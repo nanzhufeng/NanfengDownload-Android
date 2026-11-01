@@ -60,6 +60,18 @@
             </intent-filter>
         </activity>
         <service
+            android:name=".domain.download.DownloadIslandTopService"
+            android:label="@string/island_top_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/download_island_accessibility" />
+        </service>
+        <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />

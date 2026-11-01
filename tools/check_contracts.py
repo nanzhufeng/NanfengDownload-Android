@@ -5,10 +5,13 @@ import hashlib
 import json
 from pathlib import Path
 import re
+from urllib.parse import unquote
 
 
 REQUIRED = {'sources', 'tasks-output', 'transfer', 'playback', 'favorites',
             'background-island', 'feedback-island', 'release-verification'}
+DOCUMENT_ROLES = {'entry', 'execution', 'architecture', 'experience', 'workflow',
+                  'status', 'handoff', 'historical-reference'}
 
 
 def check(root, registry_path):
@@ -34,13 +37,12 @@ def check(root, registry_path):
     if not REQUIRED.issubset(ids):
         errors.append('Missing current contract concepts')
     inspected = {index}
+    classified = {index}
     sources = set()
-    for document in (root / 'docs').rglob('*.md'):
-        if '> 合同层级：现行合同。' in document.read_text()[:500] and document.relative_to(root).as_posix() not in documents:
-            errors.append(f'Unregistered current contract: {document.relative_to(root)}')
     for item in records:
         document = local(item['document'])
         inspected.add(document)
+        classified.add(document)
         if '> 合同层级：现行合同。' not in document.read_text()[:500]:
             errors.append(f'Missing canonical classification: {item["id"]}')
         relative = document.relative_to(index.parent).as_posix() if document.is_relative_to(index.parent) else None
@@ -59,6 +61,8 @@ def check(root, registry_path):
                 errors.append(f'Reviewed source drift: {item["id"]}: {name}')
         for name in item['evidence']:
             local(name)
+    for name in data.get('auditEvidence', []):
+        local(name)
     historical = 0
     if not {'docs/archive', 'docs/superpowers/plans', 'docs/superpowers/specs'}.issubset(data['historicalDirectories']):
         errors.append('Historical directories removed from audit coverage')
@@ -66,15 +70,45 @@ def check(root, registry_path):
         directory = (root / name).resolve()
         if not directory.is_relative_to(root) or not directory.is_dir():
             raise ValueError(f'Invalid history directory: {name}')
-        for document in directory.glob('*.md'):
+        for document in directory.rglob('*.md'):
             inspected.add(document)
+            classified.add(document.resolve())
             historical += 1
             if '> 合同层级：' not in document.read_text():
                 errors.append(f'Unclassified historical contract: {document.relative_to(root)}')
+    for name, role in data.get('documentRoles', {}).items():
+        document = local(name)
+        if role not in DOCUMENT_ROLES:
+            errors.append(f'Unknown document role: {name}: {role}')
+        if document in classified:
+            errors.append(f'Competing document classification: {name}')
+        if role == 'historical-reference' and '> 合同层级：历史参考。' not in document.read_text()[:500]:
+            errors.append(f'Missing historical reference classification: {name}')
+        inspected.add(document)
+        classified.add(document)
+    evidence_documents = set()
+    for name in data.get('evidenceDirectories', []):
+        directory = (root / name).resolve()
+        if not directory.is_relative_to(root) or not directory.is_dir():
+            raise ValueError(f'Invalid evidence directory: {name}')
+        for document in directory.rglob('*.md'):
+            if document in classified:
+                errors.append(f'Competing evidence classification: {document.relative_to(root)}')
+            classified.add(document)
+            evidence_documents.add(document)
+    project_documents = set(root.glob('*.md')) | set((root / 'docs').rglob('*.md')) | set((root / '.agents').rglob('*.md'))
+    for document in project_documents:
+        if '> 合同层级：现行合同。' in document.read_text()[:500] and document.relative_to(root).as_posix() not in documents:
+            errors.append(f'Unregistered current contract: {document.relative_to(root)}')
+    for document in sorted(project_documents - classified):
+        errors.append(f'Unclassified project document: {document.relative_to(root)}')
     links = 0
     for document in inspected:
-        for raw in re.findall(r'\[[^\]]+\]\(([^)]+)\)', document.read_text()):
-            target = raw.split('#', 1)[0]
+        text = document.read_text()
+        targets = re.findall(r'\[[^\]]*\]\(([^)]+)\)', text)
+        targets += re.findall(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', text, re.IGNORECASE)
+        for raw in targets:
+            target = unquote(raw.strip().removeprefix('<').removesuffix('>').split('#', 1)[0])
             if not target or re.match(r'^(?:https?://|mailto:)', target):
                 continue
             path = (document.parent / target).resolve()
@@ -83,6 +117,7 @@ def check(root, registry_path):
             links += 1
     return {'result': 'FAIL' if errors else 'PASS', 'contracts': len(records),
             'reviewedSources': len(sources), 'historicalDocuments': historical,
+            'classifiedDocuments': len(classified), 'evidenceDocuments': len(evidence_documents),
             'localLinks': links, 'errors': errors,
             'scope': 'routing/classification/source drift only; semantic and business validation are separate'}
 

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">南枫下载</string>
+    <string name="island_top_service_name">南枫下载灵动岛置顶</string>
+    <string name="island_top_service_description">仅将本应用下载进度显示在状态栏前方。不读取屏幕内容，不执行点击、输入或手势。</string>
 </resources>

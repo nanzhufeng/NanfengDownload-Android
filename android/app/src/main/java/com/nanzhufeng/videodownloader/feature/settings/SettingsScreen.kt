@@ -1,7 +1,21 @@
 package com.nanzhufeng.videodownloader.feature.settings
 
 import android.content.Intent
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ProvideTextStyle
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.material.icons.outlined.ManageAccounts
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.HighQuality
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Wifi
+import androidx.compose.material.icons.outlined.PlaylistPlay
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
+import androidx.compose.material.icons.outlined.FolderOpen
 import android.provider.OpenableColumns
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -11,19 +25,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as lazyColumnItems
 import androidx.compose.material3.Button
@@ -31,23 +45,25 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Switch
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,11 +85,10 @@ import com.nanzhufeng.videodownloader.core.model.ResolutionPreset
 import com.nanzhufeng.videodownloader.BuildConfig
 import com.nanzhufeng.videodownloader.core.ui.AppCardTone
 import com.nanzhufeng.videodownloader.core.ui.PlatformIcon
+import com.nanzhufeng.videodownloader.core.ui.WorkbenchPageHeader
+import com.nanzhufeng.videodownloader.core.ui.ControlSurface
 import com.nanzhufeng.videodownloader.core.ui.WorkbenchCard
 import com.nanzhufeng.videodownloader.core.ui.ForestGreen
-import com.nanzhufeng.videodownloader.core.ui.QualityPurple
-import com.nanzhufeng.videodownloader.core.ui.SecondaryText
-import com.nanzhufeng.videodownloader.core.ui.StorageOchre
 import com.nanzhufeng.videodownloader.core.ui.WarmOrange
 import com.nanzhufeng.videodownloader.data.settings.AppSettings
 import com.nanzhufeng.videodownloader.data.settings.FileNameRule
@@ -97,11 +112,15 @@ fun SettingsScreen(
     expanded: Boolean,
 ) {
     val context = LocalContext.current
+    var section by rememberSaveable { mutableStateOf<String?>(null) }
+    val overviewScroll = rememberLazyListState()
+    var qualityDialogVisible by remember { mutableStateOf(false) }
+    var networkDialogVisible by remember { mutableStateOf(false) }
+    BackHandler(enabled = section != null) { section = null }
     var backgroundDialogVisible by remember { mutableStateOf(false) }
     var concurrencyDialogVisible by remember { mutableStateOf(false) }
     var namingDialogVisible by remember { mutableStateOf(false) }
     var storageDialogVisible by remember { mutableStateOf(false) }
-    var exportSitePickerVisible by remember { mutableStateOf(false) }
     var exportConfirmationSite by remember { mutableStateOf<SessionSite?>(null) }
     var pendingExportSite by remember { mutableStateOf<SessionSite?>(null) }
     val cookiePicker = rememberLauncherForActivityResult(
@@ -127,6 +146,32 @@ fun SettingsScreen(
         val site = pendingExportSite
         pendingExportSite = null
         if (site != null) uri?.toString()?.let { onExportCookies(site, it) }
+    }
+
+    if (qualityDialogVisible) {
+        ChoiceDialog(
+            title = "下载质量",
+            options = ResolutionPreset.entries.map { it to it.label() },
+            selected = settings.defaultResolution,
+            onSelected = { onResolutionSelected(it); qualityDialogVisible = false },
+            onDismiss = { qualityDialogVisible = false },
+        )
+    }
+    if (networkDialogVisible) {
+        AlertDialog(
+            containerColor = Color.White, tonalElevation = 0.dp,
+            onDismissRequest = { networkDialogVisible = false },
+            title = { Text("恢复网络后自动继续") },
+            text = {
+                SettingSwitchRow(
+                    title = "自动继续",
+                    summary = "仅恢复因网络中断而等待的任务，用户暂停的任务不会自动继续。",
+                    checked = settings.autoResumeNetwork,
+                    onCheckedChange = onAutoResumeChanged,
+                )
+            },
+            confirmButton = { TextButton(onClick = { networkDialogVisible = false }) { Text("关闭") } },
+        )
     }
 
     if (backgroundDialogVisible) DownloadBackgroundSettingsDialog { backgroundDialogVisible = false }
@@ -188,30 +233,6 @@ fun SettingsScreen(
             },
         )
     }
-    if (exportSitePickerVisible) {
-        AlertDialog(
-            containerColor = Color.White,
-            tonalElevation = 0.dp,
-            onDismissRequest = { exportSitePickerVisible = false },
-            title = { Text("选择要导出的平台") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SessionSite.entries.forEach { site ->
-                        val state = sessions.firstOrNull { it.site == site }
-                        TextButton(
-                            onClick = {
-                                exportSitePickerVisible = false
-                                exportConfirmationSite = site
-                            },
-                            enabled = state?.hasSavedSession == true,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("${site.label}${if (state?.hasSavedSession == true) "" else "（暂无会话）"}") }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { exportSitePickerVisible = false }) { Text("取消") } },
-        )
-    }
     exportConfirmationSite?.let { site ->
         AlertDialog(
             containerColor = Color.White,
@@ -245,219 +266,168 @@ fun SettingsScreen(
     val douyin = stateFor(SessionSite.DOUYIN)
     val tiktok = stateFor(SessionSite.TIKTOK)
     val xiaohongshu = stateFor(SessionSite.XIAOHONGSHU)
-    val settingsContent = listOf(
-        SettingsContent(key = "account") {
-            SettingsCard(
-                title = "账号与权限",
-                icon = Icons.Outlined.Key,
-                accent = ForestGreen,
-                compact = !expanded,
-                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-account-card"),
+    if (section != null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            LazyColumn(
+                modifier = Modifier.widthIn(max = 720.dp).fillMaxSize().testTag("settings-details"),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    "单个公开视频默认无需登录；批量主页、播放列表或受限内容再按提示登录。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HorizontalDivider()
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("长视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    SessionRow(
-                        state = youtube,
-                        modifier = Modifier.testTag("settings-youtube"),
-                        onOpen = { cookiePicker.launch(arrayOf("text/plain", "application/octet-stream")) },
-                        onClear = { onClearSession(SessionSite.YOUTUBE) },
-                    )
-                    HorizontalDivider()
-                    SessionRow(
-                        state = bilibili,
-                        modifier = Modifier.testTag("settings-bilibili"),
-                        onOpen = { onOpenLogin(SessionSite.BILIBILI) },
-                        onClear = { onClearSession(SessionSite.BILIBILI) },
-                    )
-                }
-                HorizontalDivider()
-                Column(
-                    modifier = Modifier.testTag("settings-short-video-platforms"),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text("短视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    SessionRow(
-                        state = douyin,
-                        modifier = Modifier.testTag("settings-douyin"),
-                        onOpen = { onOpenLogin(SessionSite.DOUYIN) },
-                        onClear = { onClearSession(SessionSite.DOUYIN) },
-                    )
-                    HorizontalDivider()
-                    SessionRow(
-                        state = tiktok,
-                        modifier = Modifier.testTag("settings-tiktok"),
-                        onOpen = { onOpenLogin(SessionSite.TIKTOK) },
-                        onClear = { onClearSession(SessionSite.TIKTOK) },
-                    )
-                    HorizontalDivider()
-                    SessionRow(
-                        state = xiaohongshu,
-                        modifier = Modifier.testTag("settings-xiaohongshu"),
-                        onOpen = { onOpenLogin(SessionSite.XIAOHONGSHU) },
-                        onClear = { onClearSession(SessionSite.XIAOHONGSHU) },
-                    )
-                }
-            }
-        },
-        SettingsContent(key = "quality") {
-            SettingsCard(
-                title = "下载质量",
-                icon = Icons.Outlined.Tune,
-                accent = QualityPurple,
-                tone = AppCardTone.PURPLE,
-                compact = !expanded,
-                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-quality-card"),
-            ) {
-                ResolutionPreset.entries.forEach { preset ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (settings.defaultResolution == preset) QualityPurple.copy(alpha = 0.10f)
-                                else Color.Transparent,
-                            )
-                            .clickable { onResolutionSelected(preset) }
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                item {
+                    WorkbenchPageHeader(
+                        when (section) {
+                            "accounts" -> "账号与权限"
+                            "export" -> "导出登录会话"
+                            else -> "关于"
+                        },
+                        expanded,
                     ) {
-                        RadioButton(
-                            selected = settings.defaultResolution == preset,
-                            onClick = { onResolutionSelected(preset) },
-                            modifier = Modifier.size(28.dp),
-                            colors = RadioButtonDefaults.colors(
-                                selectedColor = QualityPurple,
-                                unselectedColor = SecondaryText,
-                            ),
-                        )
-                        Text(preset.label())
+                        IconButton(onClick = { section = null }, modifier = Modifier.testTag("settings-back")) {
+                            Icon(Icons.Outlined.ChevronLeft, contentDescription = "返回设置")
+                        }
                     }
                 }
-                HorizontalDivider(modifier = Modifier.padding(top = 6.dp))
-                ReadOnlySetting("当前默认", settings.defaultResolution.label())
+                if (section == "export") {
+                    lazyColumnItems(SessionSite.entries, key = { it.name }) { site ->
+                        ExportSessionRow(
+                            state = stateFor(site),
+                            onExport = { exportConfirmationSite = site },
+                        )
+                    }
+                } else {
+                item {
+                    if (section == "accounts") {
+                        SettingsCard("平台登录", compact = !expanded,
+                            modifier = Modifier.testTag("settings-platform-sessions")) {
+                    Text(
+                        "单个公开视频默认无需登录；批量主页、播放列表或受限内容再按提示登录。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("长视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        SessionRow(
+                            state = youtube,
+                            modifier = Modifier.testTag("settings-youtube"),
+                            onOpen = { cookiePicker.launch(arrayOf("text/plain", "application/octet-stream")) },
+                            onClear = { onClearSession(SessionSite.YOUTUBE) },
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                        SessionRow(
+                            state = bilibili,
+                            modifier = Modifier.testTag("settings-bilibili"),
+                            onOpen = { onOpenLogin(SessionSite.BILIBILI) },
+                            onClear = { onClearSession(SessionSite.BILIBILI) },
+                        )
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                    Column(
+                        modifier = Modifier.testTag("settings-short-video-platforms"),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text("短视频平台", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        SessionRow(
+                            state = douyin,
+                            modifier = Modifier.testTag("settings-douyin"),
+                            onOpen = { onOpenLogin(SessionSite.DOUYIN) },
+                            onClear = { onClearSession(SessionSite.DOUYIN) },
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                        SessionRow(
+                            state = tiktok,
+                            modifier = Modifier.testTag("settings-tiktok"),
+                            onOpen = { onOpenLogin(SessionSite.TIKTOK) },
+                            onClear = { onClearSession(SessionSite.TIKTOK) },
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+                        SessionRow(
+                            state = xiaohongshu,
+                            modifier = Modifier.testTag("settings-xiaohongshu"),
+                            onOpen = { onOpenLogin(SessionSite.XIAOHONGSHU) },
+                            onClear = { onClearSession(SessionSite.XIAOHONGSHU) },
+                        )
+                    }
+                        }
+                    } else {
+                        SettingsCard("应用信息", compact = !expanded,
+                            modifier = Modifier.testTag("settings-about-details")) { AboutSettingsContent() }
+                    }
+                }
+                }
+            }
+        }
+        return
+    }
+
+    val settingsContent = listOf(
+        SettingsContent(key = "account") {
+            SettingsCard("账号与会话", compact = !expanded,
+                modifier = Modifier.testTag("settings-account-card")) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionSetting(
+                        title = "账号与权限", icon = Icons.Outlined.ManageAccounts,
+                        onClick = { section = "accounts" }, modifier = Modifier.testTag("settings-accounts-entry"),
+                    )
+                    ActionSetting(
+                        title = "导出登录会话", icon = Icons.Outlined.FileUpload, value = "cookies.txt",
+                        summary = "文件含登录凭据，请仅保存到可信位置",
+                        onClick = { section = "export" }, modifier = Modifier.testTag("settings-export-cookies"),
+                    )
+                }
             }
         },
         SettingsContent(key = "download") {
-            SettingsCard(
-                title = "下载规则 / 任务行为",
-                icon = Icons.Outlined.Download,
-                accent = ForestGreen,
-                tone = AppCardTone.MINT,
-                compact = !expanded,
-                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-download-card"),
-            ) {
-                ActionSetting(
-                    title = "后台下载与灵动岛",
-                    value = "进度提醒与后台权限",
-                    summary = "离开软件后显示下载阶段、进度和速度",
-                    onClick = { backgroundDialogVisible = true },
-                    modifier = Modifier.testTag("settings-background-island"),
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                SettingSwitchRow(
-                    title = "恢复网络后自动继续",
-                    summary = "仅恢复因网络中断而等待的任务，用户暂停的任务不会自动继续。",
-                    checked = settings.autoResumeNetwork,
-                    onCheckedChange = onAutoResumeChanged,
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ActionSetting(
-                    title = "同时下载",
-                    value = "${settings.maxConcurrentDownloads} 个任务",
-                    summary = "下一次开始下载时生效",
-                    onClick = { concurrencyDialogVisible = true },
-                    modifier = Modifier.testTag("settings-concurrency"),
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ActionSetting(
-                    title = "文件命名",
-                    value = settings.fileNameRule.label(),
-                    onClick = { namingDialogVisible = true },
-                    modifier = Modifier.testTag("settings-file-name"),
-                )
-            }
-        },
-        SettingsContent(key = "storage") {
-            SettingsCard(
-                title = "保存位置 / 文件保存",
-                icon = Icons.Outlined.Folder,
-                accent = StorageOchre,
-                tone = AppCardTone.OCHRE,
-                compact = !expanded,
-                modifier = Modifier.fillSettingsRowHeightIf(expanded).testTag("settings-storage-card"),
-            ) {
-                ActionSetting(
-                    title = "下载路径",
-                    value = settings.customTreeName ?: "系统媒体库",
-                    summary = if (settings.customTreeUri == null) "视频 Movies；MP3 Music" else "已授权的自定义文件夹",
-                    onClick = { storageDialogVisible = true },
-                    modifier = Modifier.testTag("settings-storage-location"),
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                ActionSetting(
-                    title = "导出单个平台 cookies.txt",
-                    value = "选择账号与保存位置",
-                    summary = "文件含登录凭据，请勿上传、转发或存入共享位置",
-                    onClick = { exportSitePickerVisible = true },
-                    modifier = Modifier.testTag("settings-export-cookies"),
-                )
+            SettingsCard("下载与保存", compact = !expanded,
+                modifier = Modifier.testTag("settings-download-card")) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionSetting(
+                        title = "下载质量", icon = Icons.Outlined.HighQuality, value = settings.defaultResolution.label(),
+                        onClick = { qualityDialogVisible = true }, modifier = Modifier.testTag("settings-quality-entry"),
+                    )
+                    ActionSetting(
+                        title = "后台下载与灵动岛", icon = Icons.Outlined.NotificationsActive, value = "权限与提醒",
+                        onClick = { backgroundDialogVisible = true }, modifier = Modifier.testTag("settings-background-island"),
+                    )
+                    ActionSetting(
+                        title = "恢复网络后自动继续", icon = Icons.Outlined.Wifi, value = if (settings.autoResumeNetwork) "开启" else "关闭",
+                        onClick = { networkDialogVisible = true }, modifier = Modifier.testTag("settings-network-entry"),
+                    )
+                    ActionSetting(
+                        title = "同时下载", icon = Icons.Outlined.PlaylistPlay, value = "${settings.maxConcurrentDownloads} 个任务",
+                        onClick = { concurrencyDialogVisible = true }, modifier = Modifier.testTag("settings-concurrency"),
+                    )
+                    ActionSetting(
+                        title = "文件命名", icon = Icons.Outlined.DriveFileRenameOutline, value = settings.fileNameRule.label(),
+                        onClick = { namingDialogVisible = true }, modifier = Modifier.testTag("settings-file-name"),
+                    )
+                    ActionSetting(
+                        title = "下载路径", icon = Icons.Outlined.FolderOpen, value = settings.customTreeName ?: "系统媒体库",
+                        onClick = { storageDialogVisible = true }, modifier = Modifier.testTag("settings-storage-location"),
+                    )
+                }
             }
         },
         SettingsContent(key = "about") {
-            SettingsCard(
-                title = "关于",
-                icon = Icons.Outlined.Info,
-                accent = ForestGreen,
-                tone = AppCardTone.NEUTRAL,
-                compact = !expanded,
-                modifier = Modifier.testTag("settings-about-card"),
-            ) {
-                AboutSettingsContent()
+            SettingsCard("关于", compact = !expanded,
+                modifier = Modifier.testTag("settings-about-card")) {
+                ActionSetting(
+                    title = "关于", icon = Icons.Outlined.Info, value = "${BuildConfig.VERSION_NAME}",
+                    onClick = { section = "about" }, modifier = Modifier.testTag("settings-about-entry"),
+                )
             }
         },
     )
-
-    if (expanded) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("settings-expanded-grid"),
-            contentPadding = PaddingValues(16.dp),
+            state = overviewScroll,
+            modifier = Modifier.widthIn(max = 720.dp).fillMaxSize()
+                .testTag(if (expanded) "settings-expanded-menu" else "settings-screen"),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { SettingsHeader(expanded = true) }
-            item {
-                SettingsCardPair(
-                    left = settingsContent[0].content,
-                    right = settingsContent[1].content,
-                )
-            }
-            item {
-                SettingsCardPair(
-                    left = settingsContent[2].content,
-                    right = settingsContent[3].content,
-                )
-            }
-            item { settingsContent[4].content() }
-        }
-    } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .testTag("settings-screen"),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item {
-                SettingsHeader(expanded = false)
-            }
-            lazyColumnItems(settingsContent, key = { it.key }) { content -> content.content() }
+            item { SettingsHeader(expanded) }
+            lazyColumnItems(settingsContent, key = { it.key }) { entry -> entry.content() }
         }
     }
 }
@@ -483,44 +453,49 @@ private fun AboutSettingsContent() {
         }
     }
 
+    ProvideTextStyle(MaterialTheme.typography.bodySmall) {
     SelectionContainer {
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("南枫下载", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("南枫下载", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             Text(
                 "本机媒体下载与历史管理工作台。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            Text("版本信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text("版本信息", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             Text("Android 版 ${BuildConfig.VERSION_NAME}（${BuildConfig.VERSION_CODE}）")
             Text("构建时间 ${BuildConfig.BUILD_TIMESTAMP}")
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            Text("开发者信息", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text("开发者信息", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             Text("开发者：席瑞")
             Text("联系邮箱：nanzhufeng.studio@gmail.com")
-            Text(
-                text = repositoryLine,
-                modifier = Modifier.testTag("settings-about-github-link"),
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-            )
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val textMeasurer = rememberTextMeasurer()
+                val baseStyle = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurface)
+                val measuredWidth = textMeasurer.measure(repositoryLine, style = baseStyle, softWrap = false).size.width
+                val fit = ((constraints.maxWidth - 1).coerceAtLeast(1).toFloat() / measuredWidth.coerceAtLeast(1))
+                    .coerceAtMost(1f)
+                Text(
+                    text = repositoryLine,
+                    modifier = Modifier.testTag("settings-about-github-link"),
+                    style = baseStyle.copy(fontSize = baseStyle.fontSize * fit, lineHeight = baseStyle.lineHeight * fit),
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
             Text("版权所有 © 2026 席瑞")
         }
+    }
     }
 }
 
 @Composable
 private fun SettingsHeader(expanded: Boolean) {
-    Text(
-        "设置",
-        style = if (expanded) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-    )
+    WorkbenchPageHeader("设置", expanded)
 }
 
 private data class SettingsContent(
@@ -528,57 +503,78 @@ private data class SettingsContent(
     val content: @Composable () -> Unit,
 )
 
-private fun Modifier.fillSettingsRowHeightIf(expanded: Boolean): Modifier =
-    if (expanded) fillMaxHeight() else this
-
 @Composable
-private fun SettingsCardPair(
-    left: @Composable () -> Unit,
-    right: @Composable () -> Unit,
+private fun SettingsCard(
+    title: String,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+    tone: AppCardTone = AppCardTone.NEUTRAL,
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxHeight()) { left() }
-        Box(modifier = Modifier.weight(1f).fillMaxHeight()) { right() }
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        WorkbenchCard(
+            tone = tone,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(if (compact) 12.dp else 14.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                content = content,
+            )
+        }
     }
 }
 
 @Composable
-private fun SettingsCard(
-    title: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    accent: Color,
-    tone: AppCardTone = AppCardTone.NEUTRAL,
-    compact: Boolean,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
+private fun ExportSessionRow(
+    state: SiteSessionState,
+    onExport: () -> Unit,
 ) {
-    WorkbenchCard(
-        tone = tone,
-        modifier = modifier,
-        contentPadding = PaddingValues(if (compact) 12.dp else 14.dp),
+    Surface(
+        onClick = onExport,
+        enabled = state.hasSavedSession,
+        modifier = Modifier.fillMaxWidth().testTag("settings-export-${state.site.name.lowercase()}"),
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 0.dp,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        Row(
+            modifier = Modifier.heightIn(min = 76.dp).padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                androidx.compose.material3.Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(if (compact) 22.dp else 24.dp),
+            PlatformIcon(
+                platform = state.site.platform(),
+                contentDescription = "${state.site.label} 图标",
+                modifier = Modifier.size(30.dp),
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(state.site.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(
+                    if (state.hasSavedSession) "可导出" else "暂无会话",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (state.hasSavedSession) ForestGreen else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = accent)
             }
-            Spacer(Modifier.width(2.dp))
-            content()
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.let {
+                    if (state.hasSavedSession) it else it.copy(alpha = 0.38f)
+                },
+            )
         }
     }
 }
@@ -628,6 +624,12 @@ private fun SessionRow(
             enabled = state.site != SessionSite.XIAOHONGSHU,
             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
             modifier = Modifier.width(78.dp).height(34.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = ControlSurface,
+                contentColor = ForestGreen,
+                disabledContainerColor = ControlSurface,
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+            ),
         ) {
             Text(
                 when (state.site) {
@@ -665,8 +667,9 @@ private fun SettingSwitchRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .background(ControlSurface)
             .clickable { onCheckedChange(!checked) }
-            .padding(vertical = 2.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -680,7 +683,8 @@ private fun SettingSwitchRow(
 @Composable
 private fun ActionSetting(
     title: String,
-    value: String,
+    icon: ImageVector,
+    value: String? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     summary: String? = null,
@@ -688,29 +692,34 @@ private fun ActionSetting(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = 52.dp)
+            .clip(if (summary == null) CircleShape else RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(icon, contentDescription = null, tint = SettingsEntryIconColor, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             summary?.let {
                 Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            value,
-            modifier = Modifier.widthIn(max = 220.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.End,
-        )
+        value?.takeIf(String::isNotBlank)?.let { currentValue ->
+            Spacer(Modifier.width(12.dp))
+            Text(
+                currentValue,
+                modifier = Modifier.widthIn(max = 220.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.End,
+            )
+        }
         Icon(
             Icons.Outlined.ChevronRight,
             contentDescription = "打开${title}设置",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = SettingsEntryIconColor,
             modifier = Modifier.size(20.dp),
         )
     }
@@ -814,3 +823,5 @@ private fun FileNameRule.label(): String = when (this) {
 
 private const val RepositoryUrl = "https://github.com/nanzhufeng/NanfengDownload-Android"
 private const val RepositoryLabel = "GitHub · nanzhufeng/NanfengDownload-Android"
+
+private val SettingsEntryIconColor = Color(0xFF666666)

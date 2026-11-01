@@ -1,0 +1,14 @@
+{
+  "version": "1.2.155",
+  "versionCode": 10355,
+  "bytes": 57718955,
+  "sha256": "cde0342a644df1d659ea4e08b88b7f1c21e4b0cd1c7513c73726590574b20b41",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.155.apk",
+  "productionSourcesSha256": "df1093594deb5d57b275eebc7eeaa24e85287c47fdd286143f4d0e732f1d1956",
+  "scope": "WORKTREE frozen candidate; shared UI, neutral fields, soft card edges and nine-entry settings; isolated normal UI and display acceptance only; no main-device overlay, commit or publication",
+  "lint": {
+    "Warning": 43,
+    "Information": 3
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "version": "1.2.163",
+  "versionCode": 10363,
+  "bytes": 57753271,
+  "sha256": "b36d1ac73a0e414d3a97cede912cf43d99b6f2d03887d06e1251217e53249444",
+  "certificateSha256": "c4fb47e276b5a9381e5362e8d176ccb9e171a034f513c9d811d47a53640f4547",
+  "filename": "南枫下载-Android-v1.2.163.apk",
+  "productionSourcesSha256": "1d28fea64786f983ac68a32fcdb424250759e9813705f3d165e6e3f75c5519fe",
+  "scope": "WORKTREE frozen candidate; accessibility overlay above AOSP status bar, manual system authorization, ordinary fallback below bar; no main-phone installation or ColorOS acceptance/publication",
+  "lint": {
+    "Warning": 45,
+    "Information": 3
+  }
+}

@@ -29,3 +29,7 @@ description: Select, run, and report safe evidence for 南枫下载 Android chan
 ## 合同漂移门禁
 
 先读[合同总入口](../../../docs/contracts/README.md)定位唯一正文；项目根运行 `python3 tools/check_contracts.py`。来源/合同有变化时先语义审阅和对应验证，再更新registry的已审阅摘要，禁止仅重算摘要越过审查。检查通过不替代功能/构建/设备结果；旧方案/交接只作历史参考。
+
+## 纯合同/维护工具增量
+
+先运行 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tools -p test_check_contracts.py -v`，再运行 `python3 tools/check_contracts.py`；回归只用临时树，不启动App、模拟器或设备。对照修改前摘要证明生产、应用测试、配置与冻结产物未动；本轮未跑的构建/业务保持NOT RUN，不为文档重建冻结包。检查器职责/文档角色由[合同入口](../../../docs/contracts/README.md)维护，工具通过不证明合同语义。

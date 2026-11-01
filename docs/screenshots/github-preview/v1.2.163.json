@@ -1,0 +1,46 @@
+{
+  "version": "1.2.163",
+  "versionCode": 10363,
+  "apkSha256": "b36d1ac73a0e414d3a97cede912cf43d99b6f2d03887d06e1251217e53249444",
+  "productionSourcesSha256": "1d28fea64786f983ac68a32fcdb424250759e9813705f3d165e6e3f75c5519fe",
+  "fontScale": 1.0,
+  "content": "Isolated API35 emulator, normal launch/read/start/history/settings; synthetic local test-pattern video only, no private accounts/media. Island screenshot reused from exact same frozen APK runtime on 2026-10-29; no ColorOS acceptance claim.",
+  "screenshots": [
+    {
+      "path": "docs/screenshots/github-preview/home-v1.2.163.png",
+      "sha256": "ae81b6bb0819cc2849923a51a40a6907d741c90b934199b2f18a3dd7e97ea673",
+      "width": 1080,
+      "height": 2400,
+      "densityDpi": 420,
+      "capturedDate": "2026-11-01",
+      "device": "NanfengDownloadPublish163_20261101"
+    },
+    {
+      "path": "docs/screenshots/github-preview/history-v1.2.163.png",
+      "sha256": "42f9bf66857d1ee2f3aadb65f6f7dc08e01496a96d495fb54a10384704547abd",
+      "width": 1080,
+      "height": 2400,
+      "densityDpi": 420,
+      "capturedDate": "2026-11-01",
+      "device": "NanfengDownloadPublish163_20261101"
+    },
+    {
+      "path": "docs/screenshots/github-preview/settings-v1.2.163.png",
+      "sha256": "9552bc71a3cc31f7ec3295e64afbfc28162e1742b20c06fe0f6720530f289937",
+      "width": 1080,
+      "height": 2400,
+      "densityDpi": 420,
+      "capturedDate": "2026-11-01",
+      "device": "NanfengDownloadPublish163_20261101"
+    },
+    {
+      "path": "docs/screenshots/github-preview/island-expanded-v1.2.163.png",
+      "sha256": "1be5fe432f9af8af730b807823a566ca0b74854322ed65095a3b0a5481462bb0",
+      "width": 1140,
+      "height": 2616,
+      "densityDpi": 442,
+      "capturedDate": "2026-10-29",
+      "device": "NanfengDownloadIslandTop20261029"
+    }
+  ]
+}

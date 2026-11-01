@@ -27,6 +27,17 @@ internal enum class HistoryMediaKind {
     IMAGE,
 }
 
+internal enum class HistoryMediaAccess { CHECKING, AVAILABLE, MISSING, UNKNOWN }
+
+/** Cached fileExists flags cannot replace a fresh URI inspection. */
+internal fun historyMediaAccess(hasOutputs: Boolean, metadata: HistoryMediaMetadata?): HistoryMediaAccess = when {
+    !hasOutputs -> HistoryMediaAccess.MISSING
+    metadata == null -> HistoryMediaAccess.CHECKING
+    metadata.readableUris.isNotEmpty() -> HistoryMediaAccess.AVAILABLE
+    metadata.allMediaMissingConfirmed -> HistoryMediaAccess.MISSING
+    else -> HistoryMediaAccess.UNKNOWN
+}
+
 internal suspend fun readHistoryMediaMetadata(
     context: Context,
     item: DownloadHistory,
