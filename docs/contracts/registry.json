@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "reviewedAt": "2026-10-29",
+  "reviewedAt": "2026-11-01",
   "index": "docs/contracts/README.md",
   "contracts": [
     {
@@ -207,9 +207,9 @@
     "docs/superpowers/specs"
   ],
   "reviewBaseline": {
-    "productionCommit": "c8008e40224305ba3eed27fa2148ab3d85583f47",
-    "checkoutHead": "843b53506add27b29ce6343063640907807f03e6",
-    "scope": "2026-10-18 audit retained; WORKTREE163 live accessibility-token top host, actual-width touch window, screen-off removal and ordinary below-bar fallback; no task/Room changes; AOSP isolated runtime verified, ColorOS/main-device not verified; no commit/publication"
+    "productionCommit": "0bd6a6de7dbea91d81c659b448878a864f4ecf37",
+    "checkoutHead": "0bd6a6de7dbea91d81c659b448878a864f4ecf37",
+    "scope": "163 formal publication; 493 frozen production sources verified against production commit, Debug/Release 514 each and lint rerun; exact APK published and anonymous download byte match; current README previews read back; ColorOS business acceptance remains unverified"
   },
   "auditEvidence": [
     "docs/verification/2026-10-12-contract-consistency-audit.md",
